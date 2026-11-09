@@ -1,0 +1,46 @@
+# Local production-like stack: Postgres 16 + pgvector, FastAPI, Next.js.
+#   docker compose up --build
+#   API   http://localhost:8000/docs
+#   Web   http://localhost:3000
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: sentinel
+      POSTGRES_PASSWORD: sentinel_local_only
+      POSTGRES_DB: sentinel
+    ports: ["5432:5432"]
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sentinel -d sentinel"]
+      interval: 5s
+      retries: 10
+
+  api:
+    build: ./backend
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+psycopg://sentinel:sentinel_local_only@db:5432/sentinel
+      SECRET_KEY: local-dev-only-change-me
+      LLM_PROVIDER: local
+      STORAGE_DIR: /app/storage
+      CORS_ORIGINS: http://localhost:3000
+      SEED_ON_STARTUP: "1"
+    ports: ["8000:8000"]
+    volumes: ["uploads:/app/storage"]
+
+  web:
+    image: node:20-alpine
+    working_dir: /app
+    depends_on: [api]
+    environment:
+      API_URL: http://api:8000
+    command: sh -c "npm install && npm run dev"
+    ports: ["3000:3000"]
+    volumes: ["./frontend:/app"]
+
+volumes:
+  pgdata:
+  uploads:

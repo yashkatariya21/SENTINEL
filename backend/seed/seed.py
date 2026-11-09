@@ -1,0 +1,419 @@
+"""Seed the demo workspace: Northwind Analytics.
+
+Run directly:  python -m seed.seed          (creates ./sentinel.db if missing)
+It is also called on API startup when SEED_ON_STARTUP=1 and the org is absent.
+
+The seed exercises the real pipeline end-to-end (no shortcut fixtures), so the
+demo data has genuine findings, decisions, overrides, a promoted rule version
+and a regression run.
+"""
+from __future__ import annotations
+
+import logging
+import os
+from datetime import datetime, timedelta, timezone
+
+from sqlalchemy import select
+
+from app.config import settings
+from app.db import init_db, session_scope
+from app.llm.factory import get_adapter
+from app.models import (
+    AnalysisRun, Approval, Asset, BrandKit, Chunk, Comment, ContentItem, ContentVersion, Decision,
+    Document, Fact, Finding, Membership, Organisation, Override, Rule, RuleVersion, Term, User,
+)
+from app.security import hash_password
+from app.services.extraction import blocks_to_text, extract_pasted
+from app.services.pipeline import execute_run, start_run
+from app.services.retrieval import chunk_text, ingest_document
+from app.services.workflows import (
+    add_comment, answer_learning_prompt, decide, decide_on_finding, promote, submit_for_approval,
+)
+from app.storage import save_bytes
+from seed.brand_kit import ASSETS, FACTS, GUIDELINE_TEXT, ORG, RULES, TERMS, USERS
+from seed.samples import by_id
+
+log = logging.getLogger("sentinel.seed")
+
+DEMO_ITEMS = [
+    # (sample_id, owner email, target status, days ago, reviewer/approver email)
+    ("C01", "leo@northwind.example", "approved", 52, "tom@northwind.example"),
+    ("V03", "leo@northwind.example", "changes_requested", 44, "tom@northwind.example"),
+    ("T01", "nina@northwind.example", "approved", 38, "tom@northwind.example"),
+    ("L01", "leo@northwind.example", "rejected", 33, "raj@northwind.example"),
+    ("F01", "nina@northwind.example", "approved", 26, "ines@northwind.example"),
+    ("A03", "sam@northwind.example", "in_review", 19, None),
+    ("V01", "leo@northwind.example", "in_review", 14, None),
+    ("S01", "nina@northwind.example", "changes_requested", 11, "ines@northwind.example"),
+    ("C02", "leo@northwind.example", "approved", 8, "tom@northwind.example"),
+    ("T07", "nina@northwind.example", "in_review", 5, None),
+    ("L07", "leo@northwind.example", "draft", 2, None),
+    ("A04", "sam@northwind.example", "draft", 1, None),
+]
+
+# Longer hand-written pieces so the Review Report has a realistic density of findings.
+DEMO_EXTRA = [
+    dict(
+        title="Q4 demand planning playbook",
+        content_type="blog", department="Marketing", owner="leo@northwind.example",
+        status="in_review", days_ago=6, approver=None,
+        text=(
+            "Planning for Q4 should feel calm, not chaotic. Our revolutionary platform gives every planner a "
+            "seamless weekly rhythm.\n\n"
+            "Leverage the Northwind Forecast Cloud to utilize your existing ERP export, with no rip-and-replace "
+            "project required. Teams that adopt the weekly rhythm save 11 hours per week, according to our own "
+            "analysis.\n\n"
+            "We guarantee results within one quarter. If your forecast error does not fall, we will work with you at "
+            "no cost until it does.\n\n"
+            "SET UP IN FOUR SIMPLE STEPS AND START TODAY\n\n"
+            "Connect your data. Review the first forecast. Agree the weekly cadence. Click here to book your review "
+            "call. Set the summary panel text in 12pt Inter and use #FF00FF for the alert bar. Place the old logo in "
+            "the footer.\n\n"
+            "Join 3.9 million planners who already plan their quarter with us."
+        ),
+    ),
+    dict(
+        title="Q3 accuracy update (email)",
+        content_type="email", department="Product", owner="nina@northwind.example",
+        status="changes_requested", days_ago=9, approver="tom@northwind.example",
+        text=(
+            "Hi Sam,\n\n"
+            "Your Q3 forecast accuracy came in at 94.2%, up from last quarter. That is industry-leading work, and we "
+            "are thrilled!!\n\n"
+            "Prior to your next review, utilize the planner view to compare two scenarios side by side. Our support "
+            "team responds within 4 hours on business days.\n\n"
+            "Book a slot: Learn more.\n\n"
+            "Best company for supply-chain forecasting,\nThe Northwind team"
+        ),
+    ),
+    dict(
+        title="Warehouse ad (paid social)",
+        content_type="ad", department="Sales", owner="sam@northwind.example",
+        status="in_review", days_ago=3, approver=None,
+        text=(
+            "Your warehouse deserves better than guesswork. Our cutting-edge engine turns demand signals into a "
+            "weekly plan you can defend. Risk-free for the first month, instant approval, no hidden fees. Tap here "
+            "to start."
+        ),
+    ),
+    dict(
+        title="Forecasting is a habit (blog)",
+        content_type="blog", department="Product", owner="nina@northwind.example",
+        status="approved", days_ago=17, approver="ines@northwind.example",
+        text=(
+            "Forecasting is a habit, not a project. The teams that plan well do four things every week: they look at "
+            "the spread, they ask what changed, they write down one decision, and they compare it with the outcome. "
+            "Northwind Forecast Cloud supports that habit with a single weekly view. Customers tell us the habit "
+            "matters more than the model."
+        ),
+    ),
+]
+
+TERM_RULE_MAP = {
+    "cheap": "TERM-001", "utilize": "TERM-001", "utilise": "TERM-001", "leverage": "TERM-001",
+    "synergy": "TERM-001", "prior to": "TERM-001", "ForecastCloud": "TERM-002",
+    "Northwind Cloud": "TERM-002", "Northwind Forecast Cloud": "TERM-001", "customers": "TERM-001",
+}
+
+
+def seed_if_empty() -> bool:
+    init_db()
+    with session_scope() as db:
+        existing = db.execute(select(Organisation).where(Organisation.slug == ORG["slug"])).scalars().first()
+    if existing:
+        return False
+    build_workspace()
+    return True
+
+
+def build_workspace() -> None:
+    log.info("seeding workspace %s", ORG["slug"])
+    adapter = get_adapter()
+
+    # ---------------------------------------------------------------- org/users
+    with session_scope() as db:
+        org = Organisation(name=ORG["name"], slug=ORG["slug"], department_list=ORG["departments"],
+                           settings={"max_upload_mb": settings.max_upload_mb})
+        db.add(org)
+        db.flush()
+        users: dict[str, User] = {}
+        for email, name, role, dept, password in USERS:
+            user = User(org_id=org.id, email=email, name=name, role=role, department=dept,
+                        password_hash=hash_password(password))
+            db.add(user)
+            db.flush()
+            db.add(Membership(org_id=org.id, user_id=user.id, role=role))
+            users[email] = user
+
+        kit = BrandKit(org_id=org.id, name="Northwind Brand Kit", version=1, status="active",
+                       created_by=users["maya@northwind.example"].id)
+        db.add(kit)
+        db.flush()
+
+        # ------------------------------------------------------ guideline doc
+        guideline_key = save_bytes(GUIDELINE_TEXT.encode(), org_id=org.id, prefix="documents",
+                                   filename="northwind-brand-guidelines-4.2.md")
+        doc = Document(org_id=org.id, brand_kit_id=kit.id,
+                       filename="northwind-brand-guidelines-4.2.md", mime="text/markdown",
+                       size_bytes=len(GUIDELINE_TEXT.encode()), kind="guideline", version=1, pages=6,
+                       status="extracted", storage_key=guideline_key,
+                       meta={"tokens": len(GUIDELINE_TEXT.split()), "source": "hand-written demo kit"})
+        db.add(doc)
+        db.flush()
+
+        blocks = []
+        page = 1
+        for line in GUIDELINE_TEXT.splitlines():
+            text = line.strip()
+            if not text:
+                continue
+            if text.startswith(("1.", "2.", "3.", "4.", "5.", "6.", "7.", "8.", "9.", "10.")):
+                page = min(6, max(1, int(text.split(".")[0])))
+            blocks.append({"id": "", "kind": "heading" if text[:1].isdigit() else "paragraph",
+                           "text": text, "page": page, "meta": {}})
+        body, blocks = blocks_to_text(blocks)
+        page_map = [{"start": b["start"], "end": b["end"], "page": b["page"]} for b in blocks]
+        chunks = ingest_document(db, org_id=org.id, document=doc, text=body, page_map=page_map)
+        log.info("chunked guideline into %s chunks", len(chunks))
+
+        # ------------------------------------------------------------- rules
+        rule_by_key: dict[str, Rule] = {}
+        for spec in RULES:
+            rule = Rule(org_id=org.id, brand_kit_id=kit.id, key=spec["key"], category=spec["category"],
+                        check_type=spec["check_type"], requires_approver=spec["requires_approver"],
+                        current_version=1, active=True)
+            db.add(rule)
+            db.flush()
+            db.add(RuleVersion(
+                org_id=org.id, rule_id=rule.id, version=1, title=spec["title"], body=spec["body"],
+                author_id=users["maya@northwind.example"].id, status="active",
+                source_document_id=doc.id, source_page=spec["source_page"],
+                source_section=spec["source_section"],
+                reason="Confirmed by the Admin from the brand guidelines.",
+                embedding=adapter.embed([spec["body"]])[0],
+            ))
+            rule_by_key[spec["key"]] = rule
+
+        # ------------------------------------------------------------- terms
+        for kind, value, replacement, severity, note in TERMS:
+            db.add(Term(org_id=org.id, brand_kit_id=kit.id, kind=kind, value=value,
+                        replacement=replacement, severity=severity, note=note, status="confirmed",
+                        rule_id=rule_by_key.get(TERM_RULE_MAP.get(value, ""), rule_by_key["TERM-001"]).id))
+
+        # ------------------------------------------------------------- facts
+        for statement, value, topic, page_no in FACTS:
+            db.add(Fact(org_id=org.id, brand_kit_id=kit.id, statement=statement, value=value,
+                        topic=topic, source_document_id=doc.id, source_page=page_no,
+                        status="confirmed", confirmed_by=users["ada@northwind.example"].id,
+                        confirmed_at=datetime.now(timezone.utc)))
+
+        # ------------------------------------------------------------ assets
+        for asset in ASSETS:
+            db.add(Asset(org_id=org.id, brand_kit_id=kit.id, kind=asset["kind"], name=asset["name"],
+                         value=asset["value"], version=asset.get("version"),
+                         status=asset["status"], meta=asset.get("meta") or {}))
+
+        db.flush()
+        org_id = org.id
+        kit_id = kit.id
+        owner_map = {u.email: u.id for u in users.values()}
+
+    # ------------------------------------------------------- content + analyses
+    created: list[dict] = []
+    for sample_id, owner_email, target_status, days_ago, approver_email in DEMO_ITEMS:
+        sample = by_id(sample_id)
+        with session_scope() as db:
+            extracted = extract_pasted(sample["text"])
+            item = ContentItem(org_id=org_id, title=sample["title"], content_type=sample["content_type"],
+                               department=sample["department"], owner_id=owner_map[owner_email],
+                               status="draft", current_version=1)
+            db.add(item)
+            db.flush()
+            db.add(ContentVersion(org_id=org_id, content_item_id=item.id, version=1,
+                                  body_text=extracted["text"], blocks=extracted["blocks"],
+                                  author_id=owner_map[owner_email]))
+            db.flush()
+            run = start_run(db, org_id=org_id, item=item, version=db.query(ContentVersion)
+                            .filter_by(content_item_id=item.id, version=1).one())
+            created.append({"item_id": item.id, "run_id": run.id, "status": target_status,
+                            "days_ago": days_ago, "approver": approver_email,
+                            "owner": owner_email, "sample": sample_id})
+            db.commit()
+
+    # richer hand-written pieces
+    for spec in DEMO_EXTRA:
+        with session_scope() as db:
+            extracted = extract_pasted(spec["text"])
+            item = ContentItem(org_id=org_id, title=spec["title"], content_type=spec["content_type"],
+                               department=spec["department"], owner_id=owner_map[spec["owner"]],
+                               status="draft", current_version=1)
+            db.add(item)
+            db.flush()
+            version = ContentVersion(org_id=org_id, content_item_id=item.id, version=1,
+                                     body_text=extracted["text"], blocks=extracted["blocks"],
+                                     author_id=owner_map[spec["owner"]])
+            db.add(version)
+            db.flush()
+            run = start_run(db, org_id=org_id, item=item, version=version)
+            created.append({"item_id": item.id, "run_id": run.id, "status": spec["status"],
+                            "days_ago": spec["days_ago"], "approver": spec["approver"],
+                            "owner": spec["owner"], "sample": "EXTRA-" + spec["title"][:12]})
+            db.commit()
+
+    for row in created:
+        execute_run(row["run_id"])
+
+    # -------------------------------------------------------------- workflow
+    manager = {"tom@northwind.example": None, "ines@northwind.example": None, "raj@northwind.example": None}
+    from app.security import Principal
+
+    def principal_for(email: str) -> Principal:
+        with session_scope() as db:
+            user = db.execute(select(User).where(User.email == email)).scalars().first()
+            return Principal(user_id=user.id, org_id=user.org_id, role=user.role,
+                             email=user.email, name=user.name, department=user.department)
+
+    for row in created:
+        if row["status"] == "draft":
+            continue
+        with session_scope() as db:
+            item = db.get(ContentItem, row["item_id"])
+            owner = principal_for(row["owner"])
+            submit_for_approval(db, item, owner, note="Ready for review.")
+        if row["status"] == "in_review":
+            continue
+        approver = principal_for(row["approver"] or "tom@northwind.example")
+        with session_scope() as db:
+            item = db.get(ContentItem, row["item_id"])
+            if row["status"] == "approved":
+                decide(db, item, approver, action="approve", reason="Meets the brand standard.")
+            elif row["status"] == "changes_requested":
+                decide(db, item, approver, action="request_changes",
+                       reason="Please fix the flagged issues before we publish.")
+            elif row["status"] == "rejected":
+                decide(db, item, approver, action="reject",
+                       reason="The guarantee claim cannot be substantiated; do not publish.")
+
+    # --------------------------------------------------- decisions + learning
+    manager_principal = principal_for("tom@northwind.example")
+    legal_approver = principal_for("raj@northwind.example")
+
+    def findings_for(sample_id: str, category: str | None = None) -> list[Finding]:
+        row = next(r for r in created if r["sample"] == sample_id)
+        with session_scope() as db:
+            q = select(Finding).where(Finding.analysis_run_id == row["run_id"])
+            if category:
+                q = q.where(Finding.category == category)
+            return db.execute(q).scalars().all()
+
+    # 1) accept an obvious finding (hype wording on the launch post)
+    for finding in findings_for("V01"):
+        if finding.category == "brand_voice":
+            with session_scope() as db:
+                f = db.get(Finding, finding.id)
+                decide_on_finding(db, f, manager_principal, action="accept", reason=None,
+                                  edited_suggestion=None)
+            break
+
+    # 2) manager overrides a terminology suggestion -> learning prompt -> promoted scoped rule
+    target = next(iter(findings_for("T01", "terminology")), None)
+    if target is not None:
+        with session_scope() as db:
+            f = db.get(Finding, target.id)
+            _decision, override = decide_on_finding(
+                db, f, manager_principal, action="dismiss",
+                reason="Sales wants to keep 'cheap' in paid social for the price-led campaign.",
+                edited_suggestion=None)
+            answer_learning_prompt(
+                db, override, manager_principal, make_rule=True, scope="content_type",
+                department=None, content_type="ad",
+                reason="Approved for paid social advertising only, where the audience responds to price framing.")
+            promoted_override_id = override.id
+
+    # 3) a legal override that needs an Approver, left pending so the demo shows the gate
+    legal_findings = findings_for("L01", "legal")
+    if legal_findings:
+        with session_scope() as db:
+            f = db.get(Finding, legal_findings[0].id)
+            _decision, override = decide_on_finding(
+                db, f, manager_principal, action="dismiss",
+                reason="The campaign has legal sign-off on file; the sentence stays.",
+                edited_suggestion=None)
+            answer_learning_prompt(
+                db, override, manager_principal, make_rule=True, scope="department",
+                department="Sales", content_type=None,
+                reason="Sales-only exception with legal sign-off.")
+            pending_override_id = override.id
+
+    # 4) an Approver promotes a different legal override end-to-end
+    rank_findings = findings_for("L07", "legal")
+    if rank_findings:
+        with session_scope() as db:
+            f = db.get(Finding, rank_findings[0].id)
+            _decision, override = decide_on_finding(
+                db, f, manager_principal, action="dismiss",
+                reason="Analyst report is on file; the ranking is sourced.",
+                edited_suggestion=None)
+            answer_learning_prompt(db, override, manager_principal, make_rule=True, scope="global",
+                                  department=None, content_type=None,
+                                  reason="Third-party ranking on file.")
+        with session_scope() as db:
+            override = db.get(Override, override.id)
+            promote(db, override, legal_approver, note="Analyst report verified on file.")
+
+    # 5) escalate one accessibility finding
+    a11y = findings_for("A03", "accessibility")
+    if a11y:
+        with session_scope() as db:
+            f = db.get(Finding, a11y[0].id)
+            decide_on_finding(db, f, manager_principal, action="escalate",
+                              reason="Needs an accessibility specialist before launch.",
+                              edited_suggestion=None)
+
+    # ------------------------------------------------------------ comments
+    with session_scope() as db:
+        leo = principal_for("leo@northwind.example")
+        item = db.get(ContentItem, next(r["item_id"] for r in created if r["sample"] == "S01"))
+        add_comment(db, item, leo, body="The pink bar was a placeholder; swapping to navy #0B3D91.")
+    with session_scope() as db:
+        tom = principal_for("tom@northwind.example")
+        item = db.get(ContentItem, next(r["item_id"] for r in created if r["sample"] == "S01"))
+        add_comment(db, item, tom, body="Thanks — re-run the review once the bar is navy so we can approve.",
+                    visibility="internal")
+    with session_scope() as db:
+        tom = principal_for("tom@northwind.example")
+        item = db.get(ContentItem, next(r["item_id"] for r in created if r["sample"] == "A03"))
+        add_comment(db, item, tom, body="Agency question: which link text do you prefer for the pricing sheet?",
+                    visibility="external")
+
+    # ------------------------------------------------- backdate for analytics
+    now = datetime.now(timezone.utc)
+    with session_scope() as db:
+        for row in created:
+            ts = now - timedelta(days=row["days_ago"])
+            item = db.get(ContentItem, row["item_id"])
+            item.created_at = ts
+            item.submitted_at = ts + timedelta(hours=6) if item.submitted_at else None
+            for v in db.execute(select(ContentVersion).where(ContentVersion.content_item_id == item.id)).scalars():
+                v.created_at = ts
+            for run in db.execute(select(AnalysisRun).where(AnalysisRun.content_item_id == item.id)).scalars():
+                run.created_at = ts + timedelta(minutes=4)
+                run.started_at = ts + timedelta(minutes=4)
+                run.finished_at = ts + timedelta(minutes=5)
+            for ap in db.execute(select(Approval).where(Approval.content_item_id == item.id)).scalars():
+                ap.decided_at = ts + timedelta(days=1, hours=3)
+                ap.created_at = ap.decided_at
+    log.info("seeded %s content items", len(created))
+
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s %(message)s")
+    if os.path.exists("sentinel.db") and os.getenv("SEED_FRESH", "1") == "1":
+        os.remove("sentinel.db")
+        for ext in ("-wal", "-shm"):
+            if os.path.exists("sentinel.db" + ext):
+                os.remove("sentinel.db" + ext)
+    init_db()
+    build_workspace()
+    print("Seed complete. Log in as tom@northwind.example / Sentinel!2026 (manager) "
+          "or ada@northwind.example / Sentinel!2026 (admin).")

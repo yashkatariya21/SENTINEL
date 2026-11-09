@@ -1,0 +1,49 @@
+# Render blueprint: API + managed Postgres (pgvector is available on Render Postgres).
+# Deploy with: Render Dashboard -> New -> Blueprint -> point at this repository.
+services:
+  - type: web
+    name: sentinel-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: starter
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: SENTINEL_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: sentinel-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: AUTH_MODE
+        value: supabase
+      - key: AUTH_JWKS_URL
+        sync: false            # e.g. https://<project>.supabase.co/auth/v1/.well-known/jwks.json
+      - key: AUTH_AUDIENCE
+        sync: false
+      - key: LLM_PROVIDER
+        value: openai          # or anthropic; set LLM_API_KEY in the dashboard
+      - key: LLM_MODEL
+        value: gpt-4o-mini
+      - key: EMBEDDING_MODEL
+        value: text-embedding-3-small
+      - key: LLM_API_KEY
+        sync: false            # secret, set in the dashboard only
+      - key: STORAGE_BACKEND
+        value: s3
+      - key: S3_BUCKET
+        sync: false
+      - key: S3_REGION
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false            # https://your-app.vercel.app
+      - key: SEED_ON_STARTUP
+        value: "0"
+
+databases:
+  - name: sentinel-db
+    plan: basic-256mb
+    postgresMajorVersion: "16"

@@ -1,0 +1,35 @@
+# --- secrets: never commit -------------------------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# --- python ----------------------------------------------------------------
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+*.egg-info/
+
+# --- local data (demo state, uploads) -------------------------------------
+backend/sentinel.db
+backend/sentinel.db-wal
+backend/sentinel.db-shm
+backend/storage/
+backend/eval/report.json
+
+# --- node / next ----------------------------------------------------------
+node_modules/
+frontend/.next/
+frontend/out/
+frontend/next-env.d.ts
+.next/
+
+# --- os / editors ---------------------------------------------------------
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.log
