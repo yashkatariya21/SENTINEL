@@ -3,7 +3,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, setToken } from "@/lib/api";
-import { DEMO_PASSWORD, DEMO_USERS } from "@/lib/auth";
+import { DEMO_USERS } from "@/lib/auth";
 
 export type DemoState = "idle" | "loading" | "running" | "done" | "error";
 
@@ -69,13 +69,16 @@ export function useDemoLoader() {
 
   useEffect(() => stopPolling, [stopPolling]);
 
+  /** Sign in as the demo Manager with a server-minted token.
+   *
+   *  No password: seeded demo users have no fixed one, so posting a hard-coded
+   *  value can only 401. `/demo/session` issues the token itself.
+   */
   const signInAsDemoManager = useCallback(async () => {
-    // DEMO_USERS carries display labels ("Manager"), so match the demo manager explicitly
-    const manager = DEMO_USERS.find((u) => u.email.startsWith("tom@")) ?? DEMO_USERS[0];
-    const res = await api.post<{ access_token: string }>("/auth/login", {
-      email: manager.email,
-      password: DEMO_PASSWORD,
-    });
+    const manager = DEMO_USERS.find((u) => u.primary) ?? DEMO_USERS[0];
+    const res = await api.post<{ access_token: string }>(
+      `/demo/session?as_email=${encodeURIComponent(manager.email)}`,
+    );
     setToken(res.access_token);
     return manager;
   }, []);

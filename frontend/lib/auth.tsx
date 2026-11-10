@@ -15,7 +15,6 @@ interface AuthState {
 }
 
 const AuthContext = createContext<AuthState>({} as AuthState);
-const DEMO_PASSWORD = "Sentinel!2026";
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [me, setMe] = useState<Me | null>(null);
@@ -60,9 +59,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     router.push("/");
   }, [refresh, router]);
 
+  /** Demo role switch: the server mints a token for a demo-workspace user.
+   *
+   *  No password is involved on purpose — seeded demo users have no fixed one
+   *  (SEED_PASSWORD is optional), so a browser holding a hard-coded value could
+   *  only ever fail. `POST /v1/demo/session` 404s when DEMO_MODE is off.
+   */
   const loginAs = useCallback(async (email: string) => {
-    await login(email, DEMO_PASSWORD);
-  }, [login]);
+    const data = await api.post<{ access_token: string }>(
+      `/demo/session?as_email=${encodeURIComponent(email)}`,
+    );
+    setToken(data.access_token);
+    await refresh();
+    router.push("/");
+  }, [refresh, router]);
 
   const logout = useCallback(() => {
     clearToken();
@@ -88,14 +98,22 @@ export function useAuth() {
   return useContext(AuthContext);
 }
 
-export const DEMO_USERS = [
-  { email: "ada@northwind.example", name: "Ada Okafor", role: "Admin", detail: "Workspace, Brand Kit, users" },
-  { email: "maya@northwind.example", name: "Maya Lindqvist", role: "Brand Manager", detail: "Maintains the rules" },
-  { email: "raj@northwind.example", name: "Raj Menon", role: "Approver", detail: "Compliance sign-off" },
-  { email: "tom@northwind.example", name: "Tom Ferreira", role: "Manager", detail: "Team content, promotions" },
-  { email: "ines@northwind.example", name: "Inês Duarte", role: "Manager", detail: "Sales content" },
-  { email: "leo@northwind.example", name: "Leo Park", role: "Creator", detail: "Writes and submits" },
-  { email: "nina@northwind.example", name: "Nina Haddad", role: "Creator", detail: "Product content" },
-  { email: "sam@northwind.example", name: "Sam Boateng", role: "External Creator", detail: "Limited view" },
+/** `primary: true` marks the persona the one-click demo signs you in as. */
+export interface DemoUser {
+  email: string;
+  name: string;
+  role: string;
+  detail: string;
+  primary?: boolean;
+}
+
+export const DEMO_USERS: DemoUser[] = [
+  { email: "ananya@northwind.example", name: "Ananya Iyer", role: "Admin", detail: "Workspace, Brand Kit, users" },
+  { email: "meera@northwind.example", name: "Meera Krishnan", role: "Brand Manager", detail: "Maintains the rules" },
+  { email: "arjun@northwind.example", name: "Arjun Nair", role: "Approver", detail: "Compliance sign-off" },
+  { email: "karan@northwind.example", name: "Karan Mehta", role: "Manager", detail: "Team content, promotions", primary: true },
+  { email: "priya@northwind.example", name: "Priya Raghavan", role: "Manager", detail: "Sales content" },
+  { email: "rhea@northwind.example", name: "Rhea D'Souza", role: "Creator", detail: "Writes and submits" },
+  { email: "vikram@northwind.example", name: "Vikram Sethi", role: "Creator", detail: "Product content" },
+  { email: "nikhil@northwind.example", name: "Nikhil Verma", role: "External Creator", detail: "Limited view" },
 ];
-export { DEMO_PASSWORD };

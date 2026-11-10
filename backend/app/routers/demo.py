@@ -1,11 +1,20 @@
 """One-click demo loader.
 
-Three endpoints, all guarded by `DEMO_MODE` (404 when off) and rate limited per IP:
+Four endpoints, all guarded by `DEMO_MODE` (404 when off) and rate limited per IP:
 
-* `POST /v1/demo/load`   — ensure the Northwind workspace and analyse every labelled
-                           sample. Idempotent: a second call creates no duplicates.
-* `GET  /v1/demo/status` — progress the UI polls once a second.
-* `POST /v1/demo/reset`  — delete demo-flagged rows only.
+* `POST /v1/demo/load`    — ensure the Northwind workspace and analyse every labelled
+                            sample. Idempotent: a second call creates no duplicates.
+* `GET  /v1/demo/status`  — progress the UI polls once a second.
+* `POST /v1/demo/session` — swap into a demo role without a password (see below).
+* `POST /v1/demo/reset`   — delete demo-flagged rows only.
+
+Why `/session` exists: seeded demo users have no fixed password — `SEED_PASSWORD`
+is optional and a random one is generated when it is unset (Phase 4). The browser
+therefore cannot sign in by posting a password it happens to know. Instead the
+demo asks this endpoint for a token, and the endpoint mints one only for a user
+inside the demo workspace while `DEMO_MODE` is on. Nothing is weakened for a real
+workspace: the route 404s when demo mode is off, and never issues a token for a
+user outside the demo organisation.
 
 Progress lives in the `demo_jobs` table rather than in a module global, so a restarted
 API process can still answer `/status` truthfully.
@@ -24,12 +33,13 @@ from ..config import settings
 from ..db import get_db, session_scope
 from ..models import (
     AnalysisRun, Approval, Comment, ContentItem, ContentVersion, Decision, DemoJob, Finding,
-    Organisation, Override, Term,
+    Organisation, Override, Term, User,
 )
 from ..ratelimit import hit
+from ..schemas import TokenOut
 from ..security import Principal, current_user
 from ..services.pipeline import execute_run
-from seed.brand_kit import ORG
+from seed.brand_kit import DEMO_MANAGER_EMAIL, ORG
 
 log = logging.getLogger("sentinel.demo")
 
@@ -195,6 +205,47 @@ def demo_load(request: Request, background: bool = True,
     else:
         _run_demo_job(org.id)
     return {"started": True, **status_payload(db, org.id)}
+
+
+@router.post("/session", response_model=TokenOut)
+def demo_session(request: Request, as_email: str | None = None,
+                 _: None = Depends(require_demo_mode), db: Session = Depends(get_db)):
+    """Swap into a demo role without a password.
+
+    * no `as_email` → the demo Manager (the persona the tour is written for)
+    * `as_email`    → any user of the demo workspace, so the role switcher works
+
+    Only ever for the demo organisation, and only while DEMO_MODE is on.
+    """
+    require_demo_mode()
+    hit("demo_session", request, settings.demo_session_rate_limit_per_minute)
+    from .auth import _token_payload
+
+    org = _demo_org(db)
+    if org is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND,
+                            "The demo workspace has not been loaded yet. Load the demo first.")
+
+    if as_email:
+        user = db.execute(select(User).where(User.email == as_email.lower().strip(),
+                                            User.org_id == org.id)).scalars().first()
+        if user is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "That is not a demo workspace user.")
+    else:
+        user = db.execute(select(User).where(User.org_id == org.id,
+                                            User.email == DEMO_MANAGER_EMAIL)).scalars().first()
+        if user is None:  # workspace exists but the cast is not seeded yet
+            user = db.execute(select(User).where(User.org_id == org.id,
+                                                User.role == "manager").order_by(User.email)
+                              ).scalars().first()
+    if user is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND,
+                            "The demo workspace has no users yet. Load the demo first.")
+    if not user.is_active:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "This demo account is deactivated.")
+
+    log.info("demo session issued for %s", user.email)
+    return _token_payload(user, org)
 
 
 @router.post("/reset")

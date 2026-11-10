@@ -4,17 +4,21 @@ The seeded workspace is **Northwind Analytics**, a fictional B2B SaaS company, w
 (guidelines, 14 rules, 10 terms, 8 approved facts, colours/fonts/logo) and 53 analysed submissions including
 seeded mistakes.
 
-**The demo password is configuration, not code.** It is whatever `SEED_PASSWORD` says; if you leave that
-empty the seeder generates a random password and prints it once. `docker-compose.yml` sets
-`Sentinel!2026` so the containers have a predictable local login. Never deploy with `SEED_ON_STARTUP=1` —
-in `SENTINEL_ENV=production` the API refuses to start if you do.
+**Nobody needs a password to walk the demo.** Choosing a role on `/login` calls `POST /v1/demo/session`,
+which mints a token for a user *inside the demo workspace* — and only while `DEMO_MODE=1`. That endpoint
+404s in production, so it can never become a back door into a real workspace. The typed-email/password form
+above it is for real accounts; the seeded demo users have no fixed password at all (`SEED_PASSWORD` is
+optional and a random one is printed once if you leave it empty). `docker-compose.yml` sets
+`Sentinel!2026` so the containers also have a predictable manual login. Never deploy with
+`SEED_ON_STARTUP=1` — in `SENTINEL_ENV=production` the API refuses to start if you do.
 
 ## The 60-second path: one-click demo
 
 1. Open `/login`. In the card headed **“See it with real data”**, press **Load demo data**.
 2. A full-width progress panel appears: *Preparing Northwind… 17/53 reviewed… 212 findings*. It polls
    `/v1/demo/status` once a second and shows real counts, not a fake animation.
-3. When it finishes you are signed in as the Manager and land on the report with the most findings. A
+3. When it finishes you are signed in as **Karan Mehta — Manager** (server-minted token, no password typed)
+   and land on the report with the most findings. A
    four-step tour runs: highlights → trace a citation → override “Cheap” and answer the learning prompt →
    Analytics.
 4. **Reset demo** (on the same card, or in the header) deletes demo content only — the Brand Kit, rules and
@@ -24,7 +28,8 @@ If the loader fails you get a plain-language error and a **Retry** button; nothi
 
 ## 0 · Sign in as a Creator (30s)
 
-`/login` → “Sign in as any role” → **Leo Park — Creator**.
+`/login` → “Sign in as any role” → **Rhea D'Souza — Creator** (no password; the switcher asks
+`/v1/demo/session` for that role's token).
 
 Point out the left rail: it is the product shortlist — Overview, New submission, Content queue, Brand Kit,
 Rules, Learning. **No Analytics, no Audit log** for a creator.
@@ -71,12 +76,12 @@ Toggle the severity filters and “Needs human review only” to show the panel 
 Open the **Approval view** for an item **you own** → the decision panel explains you cannot approve your own
 item (and the button is disabled; the API enforces it too).
 
-Switch the header **View as** to **Inês Duarte — Manager** → **Approve** now works, and the timeline records
+Switch the header **View as** to **Priya Raghavan — Manager** → **Approve** now works, and the timeline records
 the decision with the reason.
 
 ## 5 · The learning loop (120s)
 
-As **Tom Ferreira — Manager**, open the Q4 playbook, **Dismiss** the *“cheap”* terminology finding with a
+As **Karan Mehta — Manager**, open the Q4 playbook, **Dismiss** the *“cheap”* terminology finding with a
 reason (“price-led paid social”) → the prompt appears: **“Make this an approved rule?”** → choose
 *Yes, for one content type only → Ad*.
 
@@ -86,7 +91,7 @@ The response: a new rule version (scope `content_type = ad`), old version kept a
 `/rules` → **Version history** on `TERM-001`: two versions with author, date, scope and reason, and a
 **Revert** button. Reverting appends a third version; nothing is ever deleted.
 
-`/learn` shows a **legal** override sitting in *“Waiting for an Approver”*: switch to **Raj Menon —
+`/learn` shows a **legal** override sitting in *“Waiting for an Approver”*: switch to **Arjun Nair —
 Approver** to promote it, and note that a Manager gets a 403 if they try.
 
 ## 6 · Analytics and audit (60s)
@@ -95,7 +100,7 @@ Approver** to promote it, and note that a Manager gets a 403 if they try.
 ranked by weighted severity, department compliance, average approval time, repeated violations, 8-week trend,
 monthly report, and the provider line.
 
-`/audit` as **Maya Lindqvist — Brand Manager**: append-only entries with hashes and a verified chain badge.
+`/audit` as **Meera Krishnan — Brand Manager**: append-only entries with hashes and a verified chain badge.
 
 ## 7 · Closing line
 

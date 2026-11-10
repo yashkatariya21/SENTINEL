@@ -38,9 +38,9 @@ def _login(client: TestClient, email: str, password: str = "Sentinel!2026") -> d
 @pytest.fixture(scope="session")
 def tokens(client) -> dict:
     out = {}
-    for email in ("ada@northwind.example", "maya@northwind.example", "raj@northwind.example",
-                  "tom@northwind.example", "ines@northwind.example", "leo@northwind.example",
-                  "sam@northwind.example"):
+    for email in ("ananya@northwind.example", "meera@northwind.example", "arjun@northwind.example",
+                  "karan@northwind.example", "priya@northwind.example", "rhea@northwind.example",
+                  "nikhil@northwind.example"):
         payload = _login(client, email)
         out[email] = payload["access_token"]
     return out
@@ -55,7 +55,7 @@ def auth(tokens):
 
 @pytest.fixture(scope="session")
 def org(client, auth):
-    return client.get("/v1/auth/me", headers=auth("tom@northwind.example")).json()
+    return client.get("/v1/auth/me", headers=auth("karan@northwind.example")).json()
 
 
 def pytest_sessionfinish(session, exitstatus):

@@ -147,8 +147,10 @@ export default function OverviewPage() {
           {!items ? <Skeleton className="h-24 w-full" /> : pending.length === 0 ? (
             <EmptyState
               title="Nothing is waiting for approval"
-              body="Once someone submits a draft it appears here for a manager or approver to decide. Load the demo workspace to see the whole loop working."
-              action={<LoadDemoButton label="Load demo data" size="sm" />}
+              body={items.length === 0
+                ? "Once someone submits a draft it appears here for a manager or approver to decide. Load the demo workspace to see the whole loop working."
+                : "Every submission in this workspace has been decided. New drafts land here the moment someone submits one."}
+              action={items.length === 0 ? <LoadDemoButton label="Load demo data" size="sm" /> : undefined}
             />
           ) : (
             <ul className="space-y-2">
@@ -172,12 +174,24 @@ export default function OverviewPage() {
         <Card className="p-5">
           <SectionHeading title="Your recent submissions" subtitle="Drafts and reviews you own" />
           {!items ? <Skeleton className="h-24 w-full" /> : mine.length === 0 ? (
-            <EmptyState
-              title="No submissions yet"
-              body="Paste a draft on New submission and the six reviewers will read it against the Brand Kit."
-              action={<><Link href="/new"><Button size="sm">New submission</Button></Link>
-                        <LoadDemoButton label="Load demo data" size="sm" variant="secondary" /></>}
-            />
+            items.length === 0 ? (
+              /* nothing in the workspace at all: the honest empty state */
+              <EmptyState
+                title="No submissions yet"
+                body="Paste a draft on New submission and the six reviewers will read it against the Brand Kit."
+                action={<><Link href="/new"><Button size="sm">New submission</Button></Link>
+                          <LoadDemoButton label="Load demo data" size="sm" variant="secondary" /></>}
+              />
+            ) : (
+              /* the workspace has content, this person just does not own any of it —
+                 saying "load the demo" here would be wrong, it is already loaded */
+              <EmptyState
+                title="Nothing in your name yet"
+                body={`The workspace has ${items.length} submissions and none of them are yours. Your team's drafts are in the Content queue, or paste a new draft to review it yourself.`}
+                action={<><Link href="/new"><Button size="sm">New submission</Button></Link>
+                          <Link href="/content"><Button size="sm" variant="secondary">Content queue</Button></Link></>}
+              />
+            )
           ) : (
             <ul className="space-y-2">
               {mine.slice(0, 5).map((item) => (

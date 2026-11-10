@@ -12,16 +12,21 @@ ORG = {
     "departments": ["Marketing", "Product", "Sales", "Support", "Executive"],
 }
 
+# The persona the one-click demo and the guided tour are written for. The demo
+# session endpoint signs in as this user when no role is requested, and the
+# browser picks the same one by flag — one persona, one place to change it.
+DEMO_MANAGER_EMAIL = "karan@northwind.example"
+
 USERS = [
-    # email, name, role, department, password
-    ("ada@northwind.example", "Ada Okafor", "admin", "Executive"),
-    ("maya@northwind.example", "Maya Lindqvist", "brand_manager", "Marketing"),
-    ("raj@northwind.example", "Raj Menon", "approver", "Executive"),
-    ("tom@northwind.example", "Tom Ferreira", "manager", "Marketing"),
-    ("ines@northwind.example", "Inês Duarte", "manager", "Sales"),
-    ("leo@northwind.example", "Leo Park", "creator", "Marketing"),
-    ("nina@northwind.example", "Nina Haddad", "creator", "Product"),
-    ("sam@northwind.example", "Sam Boateng", "external_creator", "Marketing"),
+    # email, name, role, department
+    ("ananya@northwind.example", "Ananya Iyer", "admin", "Executive"),
+    ("meera@northwind.example", "Meera Krishnan", "brand_manager", "Marketing"),
+    ("arjun@northwind.example", "Arjun Nair", "approver", "Executive"),
+    ("karan@northwind.example", "Karan Mehta", "manager", "Marketing"),
+    ("priya@northwind.example", "Priya Raghavan", "manager", "Sales"),
+    ("rhea@northwind.example", "Rhea D'Souza", "creator", "Marketing"),
+    ("vikram@northwind.example", "Vikram Sethi", "creator", "Product"),
+    ("nikhil@northwind.example", "Nikhil Verma", "external_creator", "Marketing"),
 ]
 
 GUIDELINE_TEXT = """Northwind Analytics — Brand Guidelines, version 4.2

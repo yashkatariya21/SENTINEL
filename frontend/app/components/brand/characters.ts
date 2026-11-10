@@ -68,14 +68,14 @@ export interface Persona {
 }
 
 export const PERSONAS: Record<string, Persona> = {
-  "ada@northwind.example": { email: "ada@northwind.example", name: "Ada Okafor", role: "Admin", initials: "AO", accent: "#0B1437" },
-  "maya@northwind.example": { email: "maya@northwind.example", name: "Maya Lindqvist", role: "Brand Manager", initials: "ML", accent: "#3D2468" },
-  "raj@northwind.example": { email: "raj@northwind.example", name: "Raj Menon", role: "Approver", initials: "RM", accent: "#1F6F4A" },
-  "tom@northwind.example": { email: "tom@northwind.example", name: "Tom Ferreira", role: "Manager", initials: "TF", accent: "#1B2A6B" },
-  "ines@northwind.example": { email: "ines@northwind.example", name: "Inês Duarte", role: "Manager", initials: "ID", accent: "#B26A00" },
-  "leo@northwind.example": { email: "leo@northwind.example", name: "Leo Park", role: "Creator", initials: "LP", accent: "#8F7418" },
-  "nina@northwind.example": { email: "nina@northwind.example", name: "Nina Haddad", role: "Creator", initials: "NH", accent: "#9B1C31" },
-  "sam@northwind.example": { email: "sam@northwind.example", name: "Sam Boateng", role: "External Creator", initials: "SB", accent: "#5C5C72" },
+  "ananya@northwind.example": { email: "ananya@northwind.example", name: "Ananya Iyer", role: "Admin", initials: "AI", accent: "#0B1437" },
+  "meera@northwind.example": { email: "meera@northwind.example", name: "Meera Krishnan", role: "Brand Manager", initials: "MK", accent: "#3D2468" },
+  "arjun@northwind.example": { email: "arjun@northwind.example", name: "Arjun Nair", role: "Approver", initials: "AN", accent: "#1F6F4A" },
+  "karan@northwind.example": { email: "karan@northwind.example", name: "Karan Mehta", role: "Manager", initials: "KM", accent: "#1B2A6B" },
+  "priya@northwind.example": { email: "priya@northwind.example", name: "Priya Raghavan", role: "Manager", initials: "PR", accent: "#B26A00" },
+  "rhea@northwind.example": { email: "rhea@northwind.example", name: "Rhea D'Souza", role: "Creator", initials: "RD", accent: "#8F7418" },
+  "vikram@northwind.example": { email: "vikram@northwind.example", name: "Vikram Sethi", role: "Creator", initials: "VS", accent: "#9B1C31" },
+  "nikhil@northwind.example": { email: "nikhil@northwind.example", name: "Nikhil Verma", role: "External Creator", initials: "NV", accent: "#5C5C72" },
 };
 
 export function personaFor(name?: string | null, email?: string | null): Persona {

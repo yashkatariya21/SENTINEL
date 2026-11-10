@@ -67,6 +67,9 @@ class Settings(BaseSettings):
     # for local runs and switched off in render.yaml for production unless set.
     demo_mode: bool = os.getenv("DEMO_MODE", "1") == "1"
     demo_rate_limit_per_minute: int = int(os.getenv("DEMO_RATE_LIMIT_PER_MINUTE", "3"))
+    # the role switcher is clicked far more often than "load demo", so it gets its own budget
+    demo_session_rate_limit_per_minute: int = int(
+        os.getenv("DEMO_SESSION_RATE_LIMIT_PER_MINUTE", "30"))
     login_rate_limit_per_minute: int = int(os.getenv("LOGIN_RATE_LIMIT_PER_MINUTE", "10"))
     upload_rate_limit_per_minute: int = int(os.getenv("UPLOAD_RATE_LIMIT_PER_MINUTE", "20"))
     demo_analysis_concurrency: int = int(os.getenv("DEMO_ANALYSIS_CONCURRENCY", "4"))

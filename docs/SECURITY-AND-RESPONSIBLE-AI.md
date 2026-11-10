@@ -13,6 +13,11 @@
   that is empty the seeder generates a random one and prints it exactly once. `POST /v1/auth/users` refuses a
   password shorter than 12 characters instead of assigning a default. A CI job greps `backend/app` and
   `backend/seed` for the old literal and fails the build if it ever comes back.
+* **The one-click demo signs in without a password.** `POST /v1/demo/session` mints a token for a user of
+  the demo workspace (default: the Manager), which is how the browser swaps roles without holding a
+  credential. It is gated three ways: `DEMO_MODE` (404 when off, and production refuses to start unless
+  `DEMO_MODE=0`), an organisation check (a user outside the demo org can never receive a token), and its
+  own per-IP rate-limit bucket. No token is ever issued for a real customer workspace.
 * API keys never reach the browser: the frontend only talks to its own origin, which proxies `/v1`.
 * Keys are never logged. LLM errors log the exception *class*, not the request body or headers.
 
@@ -26,7 +31,7 @@ one pass:
 |---|---|
 | `SECRET_KEY` is the development default or shorter than 32 chars | anyone with the repository could mint valid tokens |
 | `SEED_ON_STARTUP=0` | seeding would write demo content into a real database |
-| `DEMO_MODE=0` | `/v1/demo/reset` deletes content |
+| `DEMO_MODE=0` | `/v1/demo/reset` deletes content and `/v1/demo/session` hands out demo tokens |
 | `DATABASE_URL` is PostgreSQL | SQLite has no pgvector and no RLS |
 | `CORS_ORIGINS` is an explicit list | `*` lets any site call the API with a stolen token |
 | `SEED_PASSWORD` is set | credentials must never come from the source tree |

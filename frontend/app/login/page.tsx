@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth, DEMO_USERS, DEMO_PASSWORD } from "@/lib/auth";
+import { useAuth, DEMO_USERS } from "@/lib/auth";
 import { LoadDemoButton, ResetDemoButton } from "../components/Demo";
 import { Crest, PatternDivider } from "../components/brand/Crest";
 import { Damask } from "../components/brand/Pattern";
@@ -15,8 +15,8 @@ export default function LoginPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [form, setForm] = useState({
-    email: "tom@northwind.example",
-    password: DEMO_PASSWORD,
+    email: "",
+    password: "",
     org_name: "",
     slug: "",
     admin_name: "",
@@ -151,7 +151,8 @@ export default function LoginPage() {
                   <Field label="Work email" htmlFor="email" required>
                     <TextInput id="email" type="email" autoComplete="email" value={form.email} onChange={set("email")} required />
                   </Field>
-                  <Field label="Password" htmlFor="password" required>
+                  <Field label="Password" htmlFor="password"
+                    hint="Your own workspace password. For the demo, use the role switcher below." required>
                     <TextInput id="password" type="password" autoComplete="current-password" value={form.password} onChange={set("password")} required />
                   </Field>
                 </>
@@ -210,8 +211,9 @@ export default function LoginPage() {
                   <option key={u.email} value={u.email}>{u.name} — {u.role} · {u.detail}</option>
                 ))}
               </Select>
-              <p className="mt-2 text-xs text-ink-mute">
-                Password for all demo users: <code className="rounded bg-ivory-deep px-1 font-mono text-2xs">{DEMO_PASSWORD}</code>
+              <p className="mt-2 text-xs leading-relaxed text-ink-mute">
+                Demo roles need no password — choosing one signs you in on this machine only. Real
+                workspaces sign in with the credentials created for them above.
               </p>
             </Card>
           )}

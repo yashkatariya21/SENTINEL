@@ -21,8 +21,7 @@ import { chromium, type Browser, type Page } from "playwright";
 
 const BASE = process.env.SCREENSHOT_BASE ?? "http://127.0.0.1:3000";
 const OUT = process.env.SCREENSHOT_OUT ?? new URL("../docs/images/screens/", import.meta.url).pathname;
-const EMAIL = process.env.SCREENSHOT_EMAIL ?? "maya@northwind.example";
-const PASSWORD = process.env.SCREENSHOT_PASSWORD ?? process.env.SEED_PASSWORD ?? "";
+const EMAIL = process.env.SCREENSHOT_EMAIL ?? "meera@northwind.example";
 
 /** Screens worth looking at. `auth: false` pages are captured signed out. */
 const SCREENS: { name: string; path: string; auth?: boolean; full?: boolean }[] = [
@@ -63,17 +62,25 @@ function watch(page: Page, problems: string[], label: string) {
   });
 }
 
+/** Sign in the way a person does: ask the demo for a role token, then keep it.
+ *
+ *  No password — seeded demo users have none to read from the code. If this
+ *  fails, either DEMO_MODE is off or the demo has not been loaded yet.
+ */
 async function signIn(page: Page) {
-  if (!PASSWORD) {
+  const response = await page.request.post(
+    `${BASE}/v1/demo/session?as_email=${encodeURIComponent(EMAIL)}`,
+  );
+  if (!response.ok()) {
     throw new Error(
-      "No password for the screenshot user. Set SCREENSHOT_PASSWORD (or SEED_PASSWORD) " +
-        "to the demo password configured in the backend.",
+      `Could not start a demo session for ${EMAIL} (${response.status()}). ` +
+        `Load the demo first (POST ${BASE}/v1/demo/load) and check DEMO_MODE=1.`,
     );
   }
+  const { access_token } = (await response.json()) as { access_token: string };
   await page.goto(`${BASE}/login`, { waitUntil: "load" });
-  await page.fill('input[type="email"]', EMAIL);
-  await page.fill('input[type="password"]', PASSWORD);
-  await page.click('form button[type="submit"]');
+  await page.evaluate((token) => window.localStorage.setItem("sentinel.token", token), access_token);
+  await page.goto(BASE, { waitUntil: "load" });
   await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 20_000 });
 }
 

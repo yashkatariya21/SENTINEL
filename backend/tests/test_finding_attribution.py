@@ -37,7 +37,7 @@ def _by_issue(findings: list[dict], needle: str) -> dict:
 
 
 def test_all_caps_finding_cites_the_caps_rule(client, auth):
-    findings = _analyse(client, auth("leo@northwind.example"), CAPS_ONLY)
+    findings = _analyse(client, auth("rhea@northwind.example"), CAPS_ONLY)
     finding = _by_issue(findings, "ALL CAPS")
     quoted = (finding.get("rule_quote") or "").lower()
     assert "capital" in quoted or "caps" in quoted, quoted
@@ -45,7 +45,7 @@ def test_all_caps_finding_cites_the_caps_rule(client, auth):
 
 
 def test_small_text_finding_cites_the_minimum_size_rule(client, auth):
-    findings = _analyse(client, auth("leo@northwind.example"), SMALL_TEXT_ONLY)
+    findings = _analyse(client, auth("rhea@northwind.example"), SMALL_TEXT_ONLY)
     finding = _by_issue(findings, "Text size")
     quoted = (finding.get("rule_quote") or "").lower()
     assert "14pt" in quoted or "16px" in quoted, quoted
@@ -53,7 +53,7 @@ def test_small_text_finding_cites_the_minimum_size_rule(client, auth):
 
 def test_every_finding_that_names_a_rule_quotes_it(client, auth):
     """No finding may claim a rule without showing the text of that rule."""
-    findings = _analyse(client, auth("leo@northwind.example"),
+    findings = _analyse(client, auth("rhea@northwind.example"),
                         "Our cheap plan gives guaranteed results. Set the body in 12pt Inter.")
     assert findings
     for f in findings:

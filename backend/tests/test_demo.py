@@ -36,7 +36,7 @@ def test_demo_load_populates_then_reports_done(client, auth):
     assert status["started_at"] and status["finished_at"]
 
     # the seeded story is present: approvals, overrides and a promoted rule
-    manager = auth("tom@northwind.example")
+    manager = auth("karan@northwind.example")
     assert client.get("/v1/overrides", headers=manager).json(), "learning page must not be empty"
     rules = client.get("/v1/rules", headers=manager).json()
     assert any(r["current_version"] >= 2 for r in rules), "a promoted rule version is expected"
@@ -45,7 +45,7 @@ def test_demo_load_populates_then_reports_done(client, auth):
 def test_demo_load_is_idempotent(client, auth):
     reset_rate_limit("demo")
     client.post("/v1/demo/load?background=false")
-    admin = auth("ada@northwind.example")
+    admin = auth("ananya@northwind.example")
     first = _counts(client, admin)
     findings_first = client.get("/v1/demo/status").json()["findings"]
 
@@ -74,7 +74,7 @@ def test_demo_status_transitions_are_forward_only(client):
 def test_demo_reset_removes_demo_rows_only(client, auth):
     reset_rate_limit("demo")
     client.post("/v1/demo/load?background=false")
-    admin = auth("ada@northwind.example")
+    admin = auth("ananya@northwind.example")
     before = len(client.get("/v1/content", headers=admin).json())
     assert before > 0
 
@@ -136,7 +136,7 @@ def test_demo_load_is_rate_limited(client, monkeypatch):
 def test_demo_status_ignores_real_content(client, auth):
     """A real submission must not make the demo panel look loaded (or, after a reset, done)."""
     reset_rate_limit("demo")
-    admin = auth("ada@northwind.example")
+    admin = auth("ananya@northwind.example")
     client.post("/v1/demo/reset", headers=admin)
     idle = client.get("/v1/demo/status").json()
     assert idle["state"] == "idle"
@@ -154,3 +154,121 @@ def test_demo_status_ignores_real_content(client, auth):
         assert status["state"] == "idle"
     finally:
         client.delete(f"/v1/content/{item_id}", headers=admin)
+
+
+# --------------------------------------------------------------------------- demo session
+# The bug these guard: the demo used to sign in by posting a hard-coded password that
+# the backend no longer has (SEED_PASSWORD is optional), so "Load demo data" built the
+# whole workspace and then failed to sign in. The browser now asks the API for a token.
+
+
+def _ensure_demo(client) -> None:
+    """These tests must also pass when run alone, so make sure the demo exists."""
+    reset_rate_limit("demo")
+    client.post("/v1/demo/load?background=false")
+
+
+def test_demo_session_signs_in_without_a_password(client):
+    _ensure_demo(client)
+    reset_rate_limit("demo_session")
+    resp = client.post("/v1/demo/session")
+    assert resp.status_code == 200, resp.text
+    token = resp.json()["access_token"]
+    assert token
+
+    me = client.get("/v1/auth/me", headers={"Authorization": f"Bearer {token}"}).json()
+    assert me["user"]["email"] == "karan@northwind.example", "the demo manager persona"
+    assert me["user"]["role"] == "manager"
+    assert me["organisation"]["slug"] == "northwind"
+
+
+def test_demo_session_switches_roles(client):
+    _ensure_demo(client)
+    reset_rate_limit("demo_session")
+    expected = {
+        "ananya@northwind.example": "admin",
+        "meera@northwind.example": "brand_manager",
+        "arjun@northwind.example": "approver",
+        "priya@northwind.example": "manager",
+        "rhea@northwind.example": "creator",
+        "nikhil@northwind.example": "external_creator",
+    }
+    for email, role in expected.items():
+        resp = client.post(f"/v1/demo/session?as_email={email}")
+        assert resp.status_code == 200, (email, resp.text)
+        token = resp.json()["access_token"]
+        me = client.get("/v1/auth/me", headers={"Authorization": f"Bearer {token}"}).json()
+        assert me["user"]["email"] == email
+        assert me["user"]["role"] == role
+
+
+def test_demo_session_refuses_an_unknown_email(client):
+    _ensure_demo(client)
+    reset_rate_limit("demo_session")
+    resp = client.post("/v1/demo/session?as_email=someone@elsewhere.example")
+    assert resp.status_code == 404
+    assert "access_token" not in resp.text
+
+
+def test_demo_session_will_not_hand_a_token_to_a_real_workspace(client):
+    """A customer's user is not a demo user, however the request is phrased."""
+    reset_rate_limit("demo_session")
+    created = client.post("/v1/auth/workspace", json={
+        "org_name": "Acme Foods", "slug": "acme-foods-session-test",
+        "admin_name": "Acme Admin", "admin_email": "admin@acme-foods.example",
+        "admin_password": "acme-admin-password", "departments": ["Marketing"],
+    })
+    assert created.status_code == 201, created.text
+    resp = client.post("/v1/demo/session?as_email=admin@acme-foods.example")
+    assert resp.status_code == 404, "demo mode must never mint a token for a real workspace"
+
+
+def test_demo_session_is_invisible_when_demo_mode_is_off(client):
+    from app.config import settings
+    reset_rate_limit("demo_session")
+    original = settings.demo_mode
+    settings.demo_mode = False
+    try:
+        assert client.post("/v1/demo/session").status_code == 404
+        assert client.get("/v1/demo/status").status_code == 404
+    finally:
+        settings.demo_mode = original
+
+
+def test_the_browser_holds_no_demo_password():
+    """No password in the client — that is what broke the demo before."""
+    import pathlib
+
+    frontend = pathlib.Path(__file__).resolve().parents[2] / "frontend"
+    if not frontend.exists():
+        import pytest
+        pytest.skip("frontend not checked out")
+
+    for path in list(frontend.glob("lib/*.ts*")) + list(frontend.glob("app/**/*.tsx")):
+        text = path.read_text(encoding="utf-8")
+        assert "DEMO_PASSWORD" not in text, f"{path} reintroduced a client-side demo password"
+        assert "Sentinel!2026" not in text, f"{path} hard-codes the docker-compose password"
+
+
+def test_reset_then_load_restores_the_whole_story(client, auth):
+    """Reset must not leave a demo that cannot be put back together.
+
+    `all_rows_for_org` used to report `status: None` for every row, so a reload ran
+    `apply_story` over a list of drafts, skipped all of them, and the workspace came back
+    as 57 drafts with an empty approval queue and no approvals anywhere.
+    """
+    reset_rate_limit("demo")
+    admin = auth("ananya@northwind.example")
+    assert client.post("/v1/demo/reset", headers=admin).status_code == 200
+
+    reset_rate_limit("demo")
+    client.post("/v1/demo/load?background=false")
+
+    items = client.get("/v1/content", headers=admin).json()
+    statuses = {item["status"] for item in items}
+    assert "in_review" in statuses, "the demo must arrive with work waiting for a human"
+    assert {"approved", "changes_requested"} & statuses, "the demo must arrive with history"
+
+    analytics = client.get("/v1/analytics/summary", headers=admin).json()
+    assert analytics["inputs"]["approval_rate"] > 0, "the approval story must survive a reset"
+    assert analytics["average_approval_hours"] is not None, "the reloaded demo must time approvals"

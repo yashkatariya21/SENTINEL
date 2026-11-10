@@ -118,6 +118,19 @@ report is returned as `null`, never as a placeholder.
 | GET | `/evaluation` | `regression` (rule engine, 53 samples), `heldout` (20 adversarial samples, strict + relaxed), `llm` (null unless `eval/run_llm_eval.py` has been run with a key), `provenance` strings, `generated` timestamps |
 | POST | `/evaluation/run` | re-runs the **rule-engine** benchmark synchronously and rewrites `eval/report.{md,json}` + `eval/heldout.json`. It never calls a hosted model — that is an operator action (`python -m eval.run_llm_eval`), because it spends money |
 
+## One-click demo
+
+All four routes are gated on `DEMO_MODE` (default on locally; **404 when off**, and production refuses to
+start unless it is off). `/load` and `/status` need no token so the login page can show progress; `/reset`
+needs the demo workspace's Admin.
+
+| Method | Path | Auth | Notes |
+|---|---|---|---|
+| POST | `/demo/load?background=true` | none | builds the Northwind workspace and analyses every labelled sample. Idempotent: a second call creates nothing and returns `started: false`. `background=false` blocks until finished (used by tests) |
+| GET | `/demo/status` | none | `state` (`idle`/`loading`/`running`/`done`/`error`), `phase`, `total`, `analysed`, `findings`, `errors[]`. Read from a table, not memory, so a restarted API still answers truthfully |
+| POST | `/demo/session?as_email=` | none | **mints a JWT for a user of the demo workspace** — this is how the browser swaps roles without a password. No `as_email` → the Manager. `404` for an email outside the demo org, `403` for a deactivated user |
+| POST | `/demo/reset` | demo Admin | deletes demo-flagged rows only (content, runs, findings, approvals, decisions, overrides, comments); the Brand Kit, rules and learned exceptions survive |
+
 ## Export
 
 | Method | Path | Role | Notes |
@@ -129,5 +142,5 @@ report is returned as `null`, never as a placeholder.
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/health` | status, database backend, AI provider info |
-| — | rate limits | `429` + `Retry-After` on login (10/min/IP), upload (20/min/IP) and demo load (3/min/IP) |
+| — | rate limits | `429` + `Retry-After` on login (10/min/IP), upload (20/min/IP), demo load (3/min/IP) and demo session (30/min/IP) |
 | GET | `/v1/meta` | product metadata: roles, the six reviewers, content types, guarantees list, provider |

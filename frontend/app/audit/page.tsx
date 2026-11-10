@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { api } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 import { Card, EmptyState, SectionHeading, Skeleton, Tag } from "../components/ui";
 
 interface Entry {
@@ -13,15 +13,36 @@ export default function AuditPage() {
   const [chain, setChain] = useState<any>(null);
   const [filter, setFilter] = useState("");
   const [error, setError] = useState("");
+  const [forbidden, setForbidden] = useState(false);
 
   useEffect(() => {
     api.get<{ entries: Entry[]; chain: any }>("/audit?limit=200")
       .then((d) => { setEntries(d.entries); setChain(d.chain); })
-      .catch((e) => setError(e.message));
+      .catch((e) => {
+        // Opening /audit by URL is not an error the reader caused. Say who can read it
+        // instead of printing a bare "403 Forbidden" on a blank page.
+        if (e instanceof ApiError && e.status === 403) setForbidden(true);
+        else setError(e.message);
+      });
   }, []);
 
   const visible = (entries || []).filter((e) =>
     !filter || `${e.action} ${e.actor} ${e.entity} ${JSON.stringify(e.detail)}`.toLowerCase().includes(filter.toLowerCase()));
+
+  if (forbidden) {
+    return (
+      <div>
+        <SectionHeading
+          title="Audit log"
+          subtitle="Append-only and hash-chained, so tampering is detectable."
+        />
+        <EmptyState
+          title="This page is for Admins, Brand Managers and Approvers"
+          body="Your role can review content and raise findings, but not read the audit trail. Ask an Admin if you need an export of it."
+        />
+      </div>
+    );
+  }
 
   if (error) return <Card className="p-6 text-sm text-critical" role="alert">{error}</Card>;
 

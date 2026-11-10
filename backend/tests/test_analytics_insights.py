@@ -11,7 +11,7 @@ def _summary(client, headers):
 
 
 def test_summary_exposes_calibration_and_insights(client, auth):
-    data = _summary(client, auth("maya@northwind.example"))
+    data = _summary(client, auth("meera@northwind.example"))
     assert [c["band"] for c in data["confidence_calibration"]] == ["low", "medium", "high"]
     for band in data["confidence_calibration"]:
         assert band["findings"] == band["agreed"] + band["disagreed"] + (
@@ -29,7 +29,7 @@ def test_summary_exposes_calibration_and_insights(client, auth):
 
 def test_insights_only_claim_what_the_data_supports(client, auth):
     """A brand-new workspace has no runs, so the only allowed insight is the empty one."""
-    admin = auth("ada@northwind.example")
+    admin = auth("ananya@northwind.example")
     data = _summary(client, admin)
     decided = sum(c["decided"] for c in data["confidence_calibration"])
     if decided == 0:
@@ -41,7 +41,7 @@ def test_insights_only_claim_what_the_data_supports(client, auth):
 
 def test_calibration_follows_decisions(client, auth):
     """Dismissing a finding moves the calibration denominator for its confidence band."""
-    manager = auth("maya@northwind.example")
+    manager = auth("meera@northwind.example")
     before = _summary(client, manager)
 
     created = client.post("/v1/content", headers=manager, json={

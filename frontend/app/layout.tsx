@@ -1,21 +1,44 @@
 import type { Metadata } from "next";
-import { Cormorant_Garamond, Inter, JetBrains_Mono, Playfair_Display } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth";
 import { PrefsProvider } from "@/lib/prefs";
 import { ToastProvider } from "./components/ui";
 import { Shell } from "./components/Shell";
 
-/* Self-hosted by Next at build time: no external CSS/font requests at runtime. */
-const playfair = Playfair_Display({
-  subsets: ["latin"], weight: ["600", "700"], variable: "--font-playfair", display: "swap",
+/* Fonts are committed in ./fonts and self-hosted from the app origin.
+ *
+ * This used to be `next/font/google`, which downloads the files from Google during
+ * `next build`. That made the build depend on network access and on Google's CSS
+ * service answering — when it did not, the build died with "An error occurred in
+ * next/font" and nothing could be shipped. Local files build offline, in CI, and in a
+ * container with no egress, and the browser still makes no third-party requests.
+ * Licences: app/fonts/OFL-NOTICE.md (SIL Open Font License 1.1).
+ */
+const playfair = localFont({
+  src: [
+    { path: "./fonts/playfair-600.woff2", weight: "600", style: "normal" },
+    { path: "./fonts/playfair-700.woff2", weight: "700", style: "normal" },
+  ],
+  variable: "--font-playfair", display: "swap", preload: true,
 });
-const cormorant = Cormorant_Garamond({
-  subsets: ["latin"], weight: ["600", "700"], variable: "--font-cormorant", display: "swap",
+const cormorant = localFont({
+  src: [
+    { path: "./fonts/cormorant-600.woff2", weight: "600", style: "normal" },
+    { path: "./fonts/cormorant-700.woff2", weight: "700", style: "normal" },
+  ],
+  variable: "--font-cormorant", display: "swap", preload: true,
 });
-const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
-const jetbrains = JetBrains_Mono({
-  subsets: ["latin"], weight: ["400", "500"], variable: "--font-jetbrains", display: "swap",
+const inter = localFont({
+  src: [{ path: "./fonts/inter-var.woff2", weight: "100 900", style: "normal" }],
+  variable: "--font-inter", display: "swap", preload: true,
+});
+const jetbrains = localFont({
+  src: [
+    { path: "./fonts/jetbrains-400.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/jetbrains-500.woff2", weight: "500", style: "normal" },
+  ],
+  variable: "--font-jetbrains", display: "swap", preload: false,
 });
 
 const SITE = process.env.NEXT_PUBLIC_SITE_URL || "https://sentinel-ai.example";

@@ -38,25 +38,25 @@ log = logging.getLogger("sentinel.seed")
 
 DEMO_ITEMS = [
     # (sample_id, owner email, target status, days ago, reviewer/approver email)
-    ("C01", "leo@northwind.example", "approved", 52, "tom@northwind.example"),
-    ("V03", "leo@northwind.example", "changes_requested", 44, "tom@northwind.example"),
-    ("T01", "nina@northwind.example", "approved", 38, "tom@northwind.example"),
-    ("L01", "leo@northwind.example", "rejected", 33, "raj@northwind.example"),
-    ("F01", "nina@northwind.example", "approved", 26, "ines@northwind.example"),
-    ("A03", "sam@northwind.example", "in_review", 19, None),
-    ("V01", "leo@northwind.example", "in_review", 14, None),
-    ("S01", "nina@northwind.example", "changes_requested", 11, "ines@northwind.example"),
-    ("C02", "leo@northwind.example", "approved", 8, "tom@northwind.example"),
-    ("T07", "nina@northwind.example", "in_review", 5, None),
-    ("L07", "leo@northwind.example", "draft", 2, None),
-    ("A04", "sam@northwind.example", "draft", 1, None),
+    ("C01", "rhea@northwind.example", "approved", 52, "karan@northwind.example"),
+    ("V03", "rhea@northwind.example", "changes_requested", 44, "karan@northwind.example"),
+    ("T01", "vikram@northwind.example", "approved", 38, "karan@northwind.example"),
+    ("L01", "rhea@northwind.example", "rejected", 33, "arjun@northwind.example"),
+    ("F01", "vikram@northwind.example", "approved", 26, "priya@northwind.example"),
+    ("A03", "nikhil@northwind.example", "in_review", 19, None),
+    ("V01", "rhea@northwind.example", "in_review", 14, None),
+    ("S01", "vikram@northwind.example", "changes_requested", 11, "priya@northwind.example"),
+    ("C02", "rhea@northwind.example", "approved", 8, "karan@northwind.example"),
+    ("T07", "vikram@northwind.example", "in_review", 5, None),
+    ("L07", "rhea@northwind.example", "draft", 2, None),
+    ("A04", "nikhil@northwind.example", "draft", 1, None),
 ]
 
 # Longer hand-written pieces so the Review Report has a realistic density of findings.
 DEMO_EXTRA = [
     dict(
         title="Q4 demand planning playbook",
-        content_type="blog", department="Marketing", owner="leo@northwind.example",
+        content_type="blog", department="Marketing", owner="rhea@northwind.example",
         status="in_review", days_ago=6, approver=None,
         text=(
             "Planning for Q4 should feel calm, not chaotic. Our revolutionary platform gives every planner a "
@@ -75,10 +75,10 @@ DEMO_EXTRA = [
     ),
     dict(
         title="Q3 accuracy update (email)",
-        content_type="email", department="Product", owner="nina@northwind.example",
-        status="changes_requested", days_ago=9, approver="tom@northwind.example",
+        content_type="email", department="Product", owner="vikram@northwind.example",
+        status="changes_requested", days_ago=9, approver="karan@northwind.example",
         text=(
-            "Hi Sam,\n\n"
+            "Hi Nikhil,\n\n"
             "Your Q3 forecast accuracy came in at 94.2%, up from last quarter. That is industry-leading work, and we "
             "are thrilled!!\n\n"
             "Prior to your next review, utilize the planner view to compare two scenarios side by side. Our support "
@@ -89,7 +89,7 @@ DEMO_EXTRA = [
     ),
     dict(
         title="Warehouse ad (paid social)",
-        content_type="ad", department="Sales", owner="sam@northwind.example",
+        content_type="ad", department="Sales", owner="nikhil@northwind.example",
         status="in_review", days_ago=3, approver=None,
         text=(
             "Your warehouse deserves better than guesswork. Our cutting-edge engine turns demand signals into a "
@@ -99,8 +99,8 @@ DEMO_EXTRA = [
     ),
     dict(
         title="Forecasting is a habit (blog)",
-        content_type="blog", department="Product", owner="nina@northwind.example",
-        status="approved", days_ago=17, approver="ines@northwind.example",
+        content_type="blog", department="Product", owner="vikram@northwind.example",
+        status="approved", days_ago=17, approver="priya@northwind.example",
         text=(
             "Forecasting is a habit, not a project. The teams that plan well do four things every week: they look at "
             "the spread, they ask what changed, they write down one decision, and they compare it with the outcome. "
@@ -164,7 +164,7 @@ def ensure_workspace() -> str:
             users[email] = user
 
         kit = BrandKit(org_id=org.id, name="Northwind Brand Kit", version=1, status="active",
-                       created_by=users["maya@northwind.example"].id)
+                       created_by=users["meera@northwind.example"].id)
         db.add(kit)
         db.flush()
 
@@ -204,7 +204,7 @@ def ensure_workspace() -> str:
             db.flush()
             db.add(RuleVersion(
                 org_id=org.id, rule_id=rule.id, version=1, title=spec["title"], body=spec["body"],
-                author_id=users["maya@northwind.example"].id, status="active",
+                author_id=users["meera@northwind.example"].id, status="active",
                 source_document_id=doc.id, source_page=spec["source_page"],
                 source_section=spec["source_section"],
                 reason="Confirmed by the Admin from the brand guidelines.",
@@ -222,7 +222,7 @@ def ensure_workspace() -> str:
         for statement, value, topic, page_no in FACTS:
             db.add(Fact(org_id=org.id, brand_kit_id=kit.id, statement=statement, value=value,
                         topic=topic, source_document_id=doc.id, source_page=page_no,
-                        status="confirmed", confirmed_by=users["ada@northwind.example"].id,
+                        status="confirmed", confirmed_by=users["ananya@northwind.example"].id,
                         confirmed_at=datetime.now(timezone.utc)))
 
         # ------------------------------------------------------------ assets
@@ -321,7 +321,7 @@ def apply_story(org_id: str, created: list[dict]) -> None:
             submit_for_approval(db, item, _principal_for(row["owner"]), note="Ready for review.")
         if row["status"] == "in_review":
             continue
-        approver = _principal_for(row.get("approver") or "tom@northwind.example")
+        approver = _principal_for(row.get("approver") or "karan@northwind.example")
         with session_scope() as db:
             item = db.get(ContentItem, row["item_id"])
             if row["status"] == "approved":
@@ -333,8 +333,8 @@ def apply_story(org_id: str, created: list[dict]) -> None:
                 decide(db, item, approver, action="reject",
                        reason="The guarantee claim cannot be substantiated; do not publish.")
 
-    manager_principal = _principal_for("tom@northwind.example")
-    legal_approver = _principal_for("raj@northwind.example")
+    manager_principal = _principal_for("karan@northwind.example")
+    legal_approver = _principal_for("arjun@northwind.example")
 
     def findings_for(sample_id: str, category: str | None = None) -> list[Finding]:
         matches = [r for r in created if r.get("sample") == sample_id]
@@ -416,16 +416,16 @@ def apply_story(org_id: str, created: list[dict]) -> None:
     s01 = _item_for("S01")
     if s01:
         with session_scope() as db:
-            add_comment(db, db.get(ContentItem, s01), _principal_for("leo@northwind.example"),
+            add_comment(db, db.get(ContentItem, s01), _principal_for("rhea@northwind.example"),
                         body="The pink bar was a placeholder; swapping to navy #0B3D91.")
         with session_scope() as db:
-            add_comment(db, db.get(ContentItem, s01), _principal_for("tom@northwind.example"),
+            add_comment(db, db.get(ContentItem, s01), _principal_for("karan@northwind.example"),
                         body="Thanks — re-run the review once the bar is navy so we can approve.",
                         visibility="internal")
     a03 = _item_for("A03")
     if a03:
         with session_scope() as db:
-            add_comment(db, db.get(ContentItem, a03), _principal_for("tom@northwind.example"),
+            add_comment(db, db.get(ContentItem, a03), _principal_for("karan@northwind.example"),
                         body="Agency question: which link text do you prefer for the pricing sheet?",
                         visibility="external")
 
@@ -488,7 +488,7 @@ def demo_specs() -> list[dict]:
     """
     from seed.samples import SAMPLES
 
-    owners = ["leo@northwind.example", "nina@northwind.example", "sam@northwind.example"]
+    owners = ["rhea@northwind.example", "vikram@northwind.example", "nikhil@northwind.example"]
     specs: list[dict] = []
     for index, sample in enumerate(SAMPLES):
         specs.append(dict(title=sample["title"], text=sample["text"],
@@ -551,15 +551,54 @@ def load_demo(on_progress=None, on_phase=None, *, concurrency: int = 4) -> dict:
     return {"org_id": org_id, "created": len(created), "total": len(total), "errors": errors}
 
 
+def story_targets() -> dict[str, tuple[str, str | None, int | None]]:
+    """Story key -> (target status, approver email, days ago).
+
+    The workflow story (who submitted what, who approved it, what was rejected) lives in
+    `DEMO_ITEMS` and `DEMO_EXTRA`. Nothing else may invent it: if a reload reads `status:
+    None` for every row, `apply_story` silently skips everything and the demo comes back
+    as 57 drafts with an empty approval queue.
+    """
+    targets: dict[str, tuple[str, str | None, int | None]] = {}
+    for sample_id, _owner, target_status, days_ago, approver in DEMO_ITEMS:
+        targets[sample_id] = (target_status, approver, days_ago)
+    for spec in DEMO_EXTRA:
+        targets[_extra_key(str(spec["title"]))] = (spec["status"], spec["approver"],
+                                                   spec["days_ago"])
+    return targets
+
+
+def _extra_key(title: str) -> str:
+    return "EXTRA-" + title[:12]
+
+
+def _story_key_for_title(title: str) -> str | None:
+    sample_id = _sample_id_for_title(title)
+    if sample_id and sample_id in story_targets():
+        return sample_id
+    key = _extra_key(title)
+    return key if key in story_targets() else None
+
+
 def all_rows_for_org(org_id: str) -> list[dict]:
-    """Every demo content item, shaped like the `created` rows used by apply_story."""
+    """Every demo content item, shaped like the `created` rows used by apply_story.
+
+    Carries the story targets so a reload (after "Reset demo", or on a database that was
+    never seeded) can rebuild the approvals instead of leaving every item a draft.
+    """
+    targets = story_targets()
     with session_scope() as db:
         items = db.execute(select(ContentItem).where(ContentItem.org_id == org_id)
                            .order_by(ContentItem.created_at)).scalars().all()
         owners = {u.id: u.email for u in db.execute(select(User).where(User.org_id == org_id)).scalars()}
-        return [{"item_id": i.id, "title": i.title, "owner": owners.get(i.owner_id),
-                 "status": None, "days_ago": None, "approver": None,
-                 "sample": _sample_id_for_title(i.title)} for i in items]
+        rows = []
+        for item in items:
+            key = _story_key_for_title(item.title)
+            status, approver, days_ago = targets.get(key, (None, None, None))
+            rows.append({"item_id": item.id, "title": item.title, "owner": owners.get(item.owner_id),
+                         "status": status, "days_ago": days_ago, "approver": approver,
+                         "sample": key})
+        return rows
 
 
 def _sample_id_for_title(title: str) -> str | None:
@@ -599,6 +638,6 @@ if __name__ == "__main__":
                 os.remove("sentinel.db" + ext)
     init_db()
     build_workspace()
-    print("Seed complete. Demo users: tom@northwind.example (manager), "
-          "ada@northwind.example (admin). Password = SEED_PASSWORD "
+    print("Seed complete. Demo users: karan@northwind.example (manager), "
+          "ananya@northwind.example (admin). Password = SEED_PASSWORD "
           "(generated and printed once above if you did not set it).")

@@ -79,11 +79,11 @@ def test_login_is_rate_limited(client):
     ratelimit.reset("login")
     codes = []
     for _ in range(12):
-        resp = client.post("/v1/auth/login", json={"email": "tom@northwind.example", "password": "wrong"})
+        resp = client.post("/v1/auth/login", json={"email": "karan@northwind.example", "password": "wrong"})
         codes.append(resp.status_code)
     assert 429 in codes, codes
     limited = client.post("/v1/auth/login",
-                          json={"email": "tom@northwind.example", "password": "wrong"})
+                          json={"email": "karan@northwind.example", "password": "wrong"})
     assert limited.status_code == 429
     assert limited.headers.get("Retry-After")
     ratelimit.reset("login")
@@ -92,7 +92,7 @@ def test_login_is_rate_limited(client):
 def test_upload_is_rate_limited_and_type_checked(client, auth):
     from app import ratelimit
 
-    manager = auth("maya@northwind.example")
+    manager = auth("meera@northwind.example")
     ratelimit.reset("upload")
 
     # type allow-list first: an executable is not content
@@ -123,7 +123,7 @@ def test_upload_is_rate_limited_and_type_checked(client, auth):
 def test_upload_rejects_oversized_files(client, auth):
     from app.config import settings
 
-    manager = auth("maya@northwind.example")
+    manager = auth("meera@northwind.example")
     from app import ratelimit
 
     ratelimit.reset("upload")
@@ -144,7 +144,7 @@ def test_stale_running_runs_are_failed_not_left_polling(client, auth):
     from app.db import session_scope
     from app.models import AnalysisRun
 
-    manager = auth("maya@northwind.example")
+    manager = auth("meera@northwind.example")
     created = client.post("/v1/content", headers=manager, json={
         "title": "Abandoned run probe", "content_type": "blog", "department": "Marketing",
         "text": "A draft whose worker died mid-review.",
@@ -180,7 +180,7 @@ def test_completed_runs_are_never_recovered(client, auth):
     from app.models import AnalysisRun
     from app.services.pipeline import recover_stale_runs
 
-    manager = auth("maya@northwind.example")
+    manager = auth("meera@northwind.example")
     with session_scope() as db:
         complete = db.query(AnalysisRun).filter(AnalysisRun.status == "complete").first()
         assert complete is not None
@@ -197,7 +197,7 @@ def test_completed_runs_are_never_recovered(client, auth):
 # telemetry that must stay honest
 # --------------------------------------------------------------------------- #
 def test_runs_record_measured_telemetry(client, auth):
-    creator = auth("leo@northwind.example")
+    creator = auth("rhea@northwind.example")
     created = client.post("/v1/content", headers=creator, json={
         "title": "Telemetry probe", "content_type": "social_post", "department": "Marketing",
         "text": "Our cheapest plan is guaranteed for every customer, forever.",
@@ -228,7 +228,7 @@ def test_runs_record_measured_telemetry(client, auth):
 # PDF export
 # --------------------------------------------------------------------------- #
 def test_review_report_pdf_is_served_with_disclaimer(client, auth):
-    manager = auth("maya@northwind.example")
+    manager = auth("meera@northwind.example")
     items = client.get("/v1/content", headers=manager).json()
     item = next(i for i in items if i.get("active_run_id"))
     resp = client.get(f"/v1/content/{item['id']}/report.pdf", headers=manager)
@@ -259,7 +259,7 @@ def test_pdf_export_is_refused_cross_organisation(client, auth):
         "email": "fran@fabrikam-pdf.example", "password": "Password!2026"}).json()["access_token"]
     other = {"Authorization": f"Bearer {token}"}
 
-    manager = auth("maya@northwind.example")
+    manager = auth("meera@northwind.example")
     items = client.get("/v1/content", headers=manager).json()
     item = items[0]
     # another tenant must not be able to tell whether the item exists

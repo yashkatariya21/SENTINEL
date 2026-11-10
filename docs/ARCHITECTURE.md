@@ -85,7 +85,9 @@ behaviour is identical in tests and demos.
   human records a decision and adds a version.
 * Design tokens live once, in `tailwind.config.js` + `app/globals.css` (`--royal-navy`, `--gold`, …). Brand art
   is original inline SVG in `app/components/brand/` (crest, patterns, six reviewer avatars, Sentri the owl,
-  seals) — no external requests at runtime; fonts are self-hosted via `next/font`. Severity is never colour
+  seals) — no external requests at runtime. Fonts are committed as latin `.woff2` in `app/fonts/` and loaded
+  with `next/font/local` (`app/fonts/OFL-NOTICE.md` has the licences): `next/font/google` fetched them at
+  build time, so a build with no egress — or a rate-limited Google response — failed outright. Severity is never colour
   alone: every chip carries a glyph and a word, and highlighted spans carry distinct underline styles.
 * `PrefsProvider` stores two browser-only preferences (dark theme, "Show characters"). Turning characters off
   hides the avatars and mascot; every fact they carry is also present as text.
@@ -97,6 +99,7 @@ behaviour is identical in tests and demos.
 |---|---|
 | One reviewer crashes / model errors | Logged, that reviewer contributes nothing, other five still report; run completes |
 | Model returns invalid JSON | Hosted adapter drops invalid findings during Pydantic validation; local engine is typed end to end |
+| Demo sign-in | `POST /v1/demo/session` mints a JWT for a user **of the demo workspace only**, and only while `DEMO_MODE` is on (404 otherwise). This is how the browser swaps roles without holding a password — the old client-side constant no longer exists |
 | Model invents a citation | Citation is dropped unless it resolves to a retrieved chunk bearing on the span → UI shows “No approved source found” |
 | Suggestion rewrites the whole document | Dropped (span-locality check) |
 | Analysis still running when submitting | `409` with the current status |

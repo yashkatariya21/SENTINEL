@@ -37,24 +37,35 @@ npm install
 npm run dev                     # http://localhost:3000  (proxies /v1 → 127.0.0.1:8000)
 ```
 
-**Demo sign-in** (all users share the password `Sentinel!2026`):
+**Demo sign-in** — no password needed: the “View as” switcher asks `POST /v1/demo/session` for that
+role's token (the endpoint 404s in production). The password for these users is whatever `SEED_PASSWORD`
+says, or a random one printed once at seed time.
 
 | Email | Role | Why you'd sign in as them |
 |---|---|---|
-| `ada@northwind.example` | Admin | Workspace, Brand Kit, audit log |
-| `maya@northwind.example` | Brand Manager | Confirms extracted rules, edits rules |
-| `raj@northwind.example` | Approver | Confirms legal/accessibility rule changes |
-| `tom@northwind.example` | Manager | Reviews team content, answers the learning prompt |
-| `ines@northwind.example` | Manager | Second manager (needed to approve Tom's items) |
-| `leo@northwind.example` | Creator | Submits content, sees only their own |
-| `nina@northwind.example` | Creator | Product team |
-| `sam@northwind.example` | External Creator | Limited, external-comment-only view |
+| `ananya@northwind.example` | Admin | Workspace, Brand Kit, audit log |
+| `meera@northwind.example` | Brand Manager | Confirms extracted rules, edits rules |
+| `arjun@northwind.example` | Approver | Confirms legal/accessibility rule changes |
+| `karan@northwind.example` | Manager | Reviews team content, answers the learning prompt |
+| `priya@northwind.example` | Manager | Second manager (needed to approve Karan's items) |
+| `rhea@northwind.example` | Creator | Submits content, sees only their own |
+| `vikram@northwind.example` | Creator | Product team |
+| `nikhil@northwind.example` | External Creator | Limited, external-comment-only view |
 
 The login screen has a **“View as” switcher** in the header so you can jump between roles mid-session and
 watch permissions change.
 
 Screens: [`docs/images/`](docs/images) — login, overview, review report, Brand Kit, rules history,
 approval, learning, analytics.
+
+### If the demo does not load
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| “Load demo data” spins, then *“The demo could not be prepared.”* | `DEMO_MODE=0` in the backend's `.env` (or a production-style env) | set `DEMO_MODE=1` and restart the API; `/v1/demo/*` 404s when it is off |
+| The workspace fills up, then you are bounced back to `/login` | backend unreachable through the Next proxy | the proxy target is fixed **at build time**: set `API_URL=http://127.0.0.1:8000` before `next build` / `next start`. `next build` now prints a warning when it is missing |
+| `/content`, `/kit` look empty after a load | a stale `sentinel.db` from an older schema | delete `backend/sentinel.db*` and restart (or `POST /v1/demo/load` again) |
+| `next build` dies with *“An error occurred in `next/font`”* | it used to fetch fonts from Google at build time | fixed: fonts are committed in `frontend/app/fonts/` and loaded with `next/font/local`, so builds work with no egress |
 
 **No paid service is required.** The default `LLM_PROVIDER=local` runs a deterministic, offline
 implemented reviewer engine, so the whole product is demonstrable with zero keys and zero spend. Switching
@@ -293,7 +304,8 @@ dependency of the app (so `npm ci` stays fast); install it on demand:
 cd frontend
 npm i -D playwright && npx playwright install chromium
 API_URL=http://127.0.0.1:8000 npm run dev          # in another shell
-SCREENSHOT_PASSWORD=<the SEED_PASSWORD you chose> npx tsx ../scripts/screenshots.ts
+curl -X POST http://127.0.0.1:3000/v1/demo/load    # load the demo once, if you have not
+npx tsx ../scripts/screenshots.ts                  # SCREENSHOT_EMAIL picks the role
 # → docs/images/screens/<screen>-<width>.png
 ```
 
@@ -340,7 +352,9 @@ migration.
 **Frontend — Vercel**
 
 * Root directory `frontend`; `vercel.json` rewrites `/v1/*` to the API and sets security headers.
-* Set `API_URL` (build-time) or edit the rewrite destination in `vercel.json`.
+* Set `API_URL` (build-time — the rewrite destination is baked into the build) or edit the rewrite
+  destination in `vercel.json`. `npm run build` warns loudly when `API_URL` is unset, because otherwise
+  every API call 500s in the browser and it looks like a broken app.
 
 **Local production-like stack**: `docker compose up --build` (Postgres+pgvector, API, web).
 
