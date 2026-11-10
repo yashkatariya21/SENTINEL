@@ -111,7 +111,7 @@ export default function RulesPage() {
                           {(versions[rule.id] || []).map((v) => (
                             <tr key={v.id} className="border-t border-ink/5 align-top">
                               <td className="py-1.5 pr-3">
-                                v{v.version} {v.is_current && <span className="text-ok-600">current</span>}
+                                v{v.version} {v.is_current && <span className="text-confirmed">current</span>}
                                 {v.status === "superseded" && <span className="text-ink-mute"> (superseded)</span>}
                               </td>
                               <td className="py-1.5 pr-3">{v.author_name || "—"}</td>

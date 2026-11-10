@@ -185,7 +185,7 @@ export default function ApprovalPage({ params }: { params: { id: string } }) {
                     <li key={v.id} className="rounded-lg border border-ink/10 p-3">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <p className="text-sm font-medium text-ink">Version {v.version}
-                          {v.version === item.current_version && <span className="ml-2 text-xs text-ok-600">current</span>}
+                          {v.version === item.current_version && <span className="ml-2 text-xs text-confirmed">current</span>}
                         </p>
                         <time className="text-xs text-ink-mute" dateTime={v.created_at}>
                           {new Date(v.created_at).toLocaleString()}
@@ -266,7 +266,7 @@ export default function ApprovalPage({ params }: { params: { id: string } }) {
             <SectionHeading title="Decision" subtitle="Manager and Approver roles only" />
 
             {blocking && (
-              <p className="mb-3 rounded-lg border border-amber-500/40 bg-amber-100 px-3 py-2 text-xs text-amber-700" role="note">
+              <p className="mb-3 rounded-lg border border-possible/40 bg-possible-tint px-3 py-2 text-xs text-possible" role="note">
                 You own this item, so you cannot approve it yourself. Ask another manager or the compliance Approver.
               </p>
             )}
@@ -321,7 +321,7 @@ export default function ApprovalPage({ params }: { params: { id: string } }) {
             )}
 
             {openHigh.length > 0 && (
-              <p className="mt-4 rounded-lg border border-danger-500/30 bg-danger-50 px-3 py-2 text-xs text-danger-700">
+              <p className="mt-4 rounded-lg border border-critical/30 bg-critical-tint px-3 py-2 text-xs text-critical">
                 {openHigh.length} high or critical finding{openHigh.length === 1 ? "" : "s"} still open. Approving now is
                 a human decision that will be visible in analytics and the audit log.
               </p>

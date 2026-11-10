@@ -1,11 +1,16 @@
 "use client";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth, DEMO_USERS, DEMO_PASSWORD } from "@/lib/auth";
+import { LoadDemoButton, ResetDemoButton } from "../components/Demo";
+import { Crest, PatternDivider } from "../components/brand/Crest";
+import { Damask } from "../components/brand/Pattern";
 import { Button, Card, Field, Select, TextInput, useToast } from "../components/ui";
 
 export default function LoginPage() {
   const { login, setup, loginAs } = useAuth();
   const { push } = useToast();
+  const router = useRouter();
   const [mode, setMode] = useState<"signin" | "setup">("signin");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -48,47 +53,79 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="grid min-h-screen lg:grid-cols-2">
-      {/* Left: product story */}
-      <section className="flex flex-col justify-between bg-navy-900 px-8 py-10 text-white lg:px-14">
-        <div>
+    <div className="grid min-h-screen lg:grid-cols-[1.05fr_1fr]">
+      {/* ------------------------------------------------ left: the charter */}
+      <section className="relative flex flex-col justify-between overflow-hidden bg-gradient-royal px-7 py-10 text-ivory lg:px-14">
+        <Damask className="pointer-events-none absolute inset-0 h-full w-full text-gold-soft" opacity={0.07} />
+        <div className="relative">
           <div className="flex items-center gap-3">
-            <span aria-hidden="true" className="grid h-10 w-10 place-items-center rounded-xl bg-amber-500 text-lg font-bold text-navy-900">S</span>
+            <Crest size={44} tone="gold" />
             <div>
-              <p className="text-lg font-semibold leading-tight">Sentinel AI</p>
-              <p className="text-xs text-white/60">Pre-publication brand governance</p>
+              <p className="font-crest text-xl font-semibold leading-none tracking-wide">SENTINEL AI</p>
+              <p className="mt-1 text-2xs uppercase tracking-[0.22em] text-gold-soft/80">
+                Pre-publication brand governance
+              </p>
             </div>
           </div>
 
-          <h1 className="mt-12 max-w-md text-3xl font-semibold leading-tight">
-            Six reviewers read every draft. Every finding shows its source. Humans decide.
+          <h1 className="mt-14 max-w-lg font-display text-[2.6rem] font-semibold leading-[1.08] text-ivory">
+            Every word,
+            <span className="block text-gold-soft">approved.</span>
           </h1>
-          <ul className="mt-8 space-y-3 text-sm text-white/80">
+          <p className="mt-5 max-w-md text-sm leading-relaxed text-ivory/80">
+            Six specialist reviewers read each draft against your Brand Kit. Every finding quotes the rule,
+            shows its source, and waits for a human.
+          </p>
+
+          <PatternDivider className="my-8 max-w-md text-gold/50" />
+
+          <ul className="max-w-md space-y-3.5 text-sm text-ivory/85">
             {[
-              ["Brand Voice", "tone and style against the guideline"],
-              ["Terminology", "approved words, not banned ones"],
-              ["Fact Checker", "claims compared with approved documents"],
-              ["Visual", "logo version, colours, fonts, ratio"],
-              ["Accessibility", "contrast, text size, alt text"],
-              ["Legal", "risky claims without proof"],
-            ].map(([name, job]) => (
-              <li key={name} className="flex gap-3">
-                <span aria-hidden="true" className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
-                <span><span className="font-medium text-white">{name}</span> — {job}</span>
+              ["Every finding is explained", "the rule, the quoted section and the evidence page — or an honest “no approved source found”."],
+              ["Humans decide, always", "nothing publishes, nothing auto-fixes, no rule changes without a manager’s click."],
+              ["The system learns on your terms", "a manager’s override becomes a versioned exception, scoped and reversible."],
+            ].map(([title, body]) => (
+              <li key={title} className="flex gap-3">
+                <span aria-hidden className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-gold" />
+                <span>
+                  <span className="font-semibold text-ivory">{title}</span>
+                  <span className="block text-ivory/70">{body}</span>
+                </span>
               </li>
             ))}
           </ul>
         </div>
-        <p className="mt-10 max-w-md rounded-lg border border-white/15 bg-white/5 p-3 text-xs leading-relaxed text-white/70">
+
+        <p className="relative mt-10 max-w-md rounded-lg border border-gold/25 bg-navy/40 p-3 text-2xs leading-relaxed text-ivory/70">
           Sentinel reviews and explains. It never publishes, never auto-fixes, and never changes a rule without a
-          manager&apos;s click. Legal reviewer output is an AI risk perspective, not legal advice.
+          manager’s click. Legal reviewer output is an AI risk perspective, not legal advice.
         </p>
       </section>
 
-      {/* Right: auth */}
-      <section className="flex items-center justify-center px-6 py-10">
+      {/* --------------------------------------------------- right: sign in */}
+      <section id="main" className="flex items-center justify-center px-5 py-10 sm:px-6">
         <div className="w-full max-w-md">
-          <div className="mb-6 flex gap-1 rounded-lg border border-ink/10 bg-white p-1" role="tablist" aria-label="Authentication mode">
+          {/* Phase 1: one-click demo, before sign-in */}
+          <Card className="mb-5 border-gold/40 p-4">
+            <p className="font-display text-base font-semibold text-navy">See it with real data</p>
+            <p className="mt-1 text-xs leading-relaxed text-ink-soft">
+              Builds the fictional Northwind Analytics workspace, reviews {53} submissions with the six
+              reviewers, and signs you in as the Manager. About a minute on the local engine.
+            </p>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <LoadDemoButton
+                label="Load demo data"
+                onDone={(itemId) => itemId && router.push(`/content/${itemId}`)}
+              />
+              <ResetDemoButton />
+            </div>
+          </Card>
+
+          <div
+            className="mb-5 flex gap-1 rounded-lg border border-ink/10 bg-white p-1 dark:border-ivory/15 dark:bg-night-card"
+            role="tablist"
+            aria-label="Authentication mode"
+          >
             {[
               { key: "signin", label: "Sign in" },
               { key: "setup", label: "Create workspace" },
@@ -98,8 +135,8 @@ export default function LoginPage() {
                 role="tab"
                 aria-selected={mode === tab.key}
                 onClick={() => setMode(tab.key as "signin" | "setup")}
-                className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition ${
-                  mode === tab.key ? "bg-navy-700 text-white" : "text-ink-soft hover:bg-paper"
+                className={`flex-1 rounded-md px-3 py-2 text-xs font-semibold transition duration-200 ease-royal ${
+                  mode === tab.key ? "bg-navy text-ivory shadow-card" : "text-ink-soft hover:bg-ivory-deep"
                 }`}
               >
                 {tab.label}
@@ -107,7 +144,7 @@ export default function LoginPage() {
             ))}
           </div>
 
-          <Card className="p-6">
+          <Card className="corner-ornament p-6">
             <form onSubmit={submit} aria-describedby={error ? "auth-error" : undefined}>
               {mode === "signin" ? (
                 <>
@@ -139,7 +176,7 @@ export default function LoginPage() {
               )}
 
               {error && (
-                <p id="auth-error" role="alert" className="mb-3 rounded-lg border border-danger-500/40 bg-danger-50 px-3 py-2 text-sm text-danger-700">
+                <p id="auth-error" role="alert" className="mb-3 rounded-lg border border-critical/40 bg-critical-tint px-3 py-2 text-xs text-critical">
                   {error}
                 </p>
               )}
@@ -152,8 +189,10 @@ export default function LoginPage() {
 
           {mode === "signin" && (
             <Card className="mt-4 p-4">
-              <p className="mb-2 text-xs font-medium uppercase tracking-wide text-ink-mute">Demo workspace — Northwind Analytics</p>
-              <label className="mb-2 block text-xs text-ink-mute" htmlFor="quick">
+              <p className="text-2xs font-semibold uppercase tracking-[0.16em] text-ink-mute">
+                Demo workspace — Northwind Analytics
+              </p>
+              <label className="mb-2 mt-2 block text-xs text-ink-mute" htmlFor="quick">
                 Sign in as any role to see its permissions
               </label>
               <Select
@@ -171,7 +210,9 @@ export default function LoginPage() {
                   <option key={u.email} value={u.email}>{u.name} — {u.role} · {u.detail}</option>
                 ))}
               </Select>
-              <p className="mt-2 text-xs text-ink-mute">Password for all demo users: <code className="rounded bg-paper px-1">{DEMO_PASSWORD}</code></p>
+              <p className="mt-2 text-xs text-ink-mute">
+                Password for all demo users: <code className="rounded bg-ivory-deep px-1 font-mono text-2xs">{DEMO_PASSWORD}</code>
+              </p>
             </Card>
           )}
         </div>

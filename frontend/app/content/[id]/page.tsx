@@ -1,9 +1,11 @@
 "use client";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { api, AnalysisRun, ContentItem, Finding, REVIEWERS } from "@/lib/api";
+import { api, AnalysisRun, ContentItem, Finding, REVIEWERS, fetchBlob } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { HighlightedText } from "../../components/HighlightedText";
+import { DocumentView } from "../../components/brand/DocumentView";
+import { ReviewerAvatar } from "../../components/brand/ReviewerAvatar";
+import { characterFor } from "../../components/brand/characters";
 import { FindingCard } from "../../components/FindingCard";
 import { LearningPrompt, LearningPromptData } from "../../components/LearningPrompt";
 import {
@@ -29,6 +31,7 @@ export default function ReviewReportPage({ params }: { params: { id: string } })
   const [label, setLabel] = useState("all");
   const [onlyHuman, setOnlyHuman] = useState(false);
   const [groupByReviewer, setGroupByReviewer] = useState(true);
+  const [applied, setApplied] = useState<Record<string, string>>({});
 
   const loadItem = useCallback(async () => {
     const data = await api.get<ContentItem>(`/content/${id}`);
@@ -139,7 +142,7 @@ export default function ReviewReportPage({ params }: { params: { id: string } })
   }
 
   if (error) {
-    return <Card className="p-6 text-sm text-danger-700" role="alert">{error}</Card>;
+    return <Card className="p-6 text-sm text-critical" role="alert">{error}</Card>;
   }
 
   const bodyText = item?.version?.body_text ?? "";
@@ -152,7 +155,7 @@ export default function ReviewReportPage({ params }: { params: { id: string } })
           <nav className="mb-1 text-xs text-ink-mute" aria-label="Breadcrumb">
             <Link href="/content" className="hover:underline">Content queue</Link> <span aria-hidden="true">/</span> Review report
           </nav>
-          <h1 className="text-2xl font-semibold tracking-tight text-ink">{item?.title ?? "Review report"}</h1>
+          <h1 className="font-display text-3xl font-semibold tracking-tight text-navy">{item?.title ?? "Review report"}</h1>
           <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-ink-mute">
             {item && <StatusPill status={item.status} />}
             <Tag>{item?.content_type.replace("_", " ")}</Tag>
@@ -162,6 +165,21 @@ export default function ReviewReportPage({ params }: { params: { id: string } })
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Button
+            onClick={async () => {
+              try {
+                const blob = await fetchBlob(`/content/${id}/report.pdf`);
+                const url = URL.createObjectURL(blob);
+                window.open(url, "_blank", "noopener");
+                setTimeout(() => URL.revokeObjectURL(url), 60_000);
+              } catch (err: any) {
+                push(err.message, "error");
+              }
+            }}
+            disabled={run?.status !== "complete"}
+          >
+            Export PDF
+          </Button>
           <Button onClick={() => startAnalysis()} disabled={run?.status === "running"}>
             Re-run review
           </Button>
@@ -180,7 +198,7 @@ export default function ReviewReportPage({ params }: { params: { id: string } })
       )}
 
       {run?.status === "failed" && (
-        <Card className="mb-4 border-danger-500/40 bg-danger-50 p-4 text-sm text-danger-700" role="alert">
+        <Card className="mb-4 border-critical/40 bg-critical-tint p-4 text-sm text-critical" role="alert">
           Review failed: {run.error}
         </Card>
       )}
@@ -196,6 +214,24 @@ export default function ReviewReportPage({ params }: { params: { id: string } })
             <KeyValue label="Rules applied">{run.rule_versions.length}</KeyValue>
             <KeyValue label="Words">{run.stats?.words ?? "—"}</KeyValue>
           </dl>
+          {run.metrics && (
+            <p className="mt-3 flex flex-wrap gap-x-4 gap-y-1 border-t border-ink/10 pt-2 font-mono text-2xs text-ink-mute">
+              <span>
+                run measured in {Math.round((run.metrics as any).wall_ms ?? 0)} ms
+              </span>
+              {(run.metrics as any).mean_reviewer_ms != null && (
+                <span>mean reviewer call {(run.metrics as any).mean_reviewer_ms} ms</span>
+              )}
+              <span>
+                {(run.metrics as any).prompt_tokens
+                  ? `${(run.metrics as any).prompt_tokens} prompt + ${(run.metrics as any).completion_tokens} completion tokens`
+                  : "no model tokens — deterministic engine"}
+              </span>
+              {(run.metrics as any).cost_usd_estimate != null && (
+                <span>estimated cost ${(run.metrics as any).cost_usd_estimate.toFixed(4)}</span>
+              )}
+            </p>
+          )}
           <p className="mt-3 border-t border-ink/10 pt-2 text-[11px] text-ink-mute">
             AI provider <span className="font-medium text-ink-soft">{run.model_provider}</span> · model{" "}
             <span className="font-medium text-ink-soft">{run.model_name}</span> · embeddings{" "}
@@ -204,7 +240,7 @@ export default function ReviewReportPage({ params }: { params: { id: string } })
             {run.rule_versions.map((r) => `${r.key} v${r.version}`).join(", ") || "none"}
           </p>
           {injection?.detected && (
-            <p className="mt-2 rounded-lg border border-amber-500/40 bg-amber-100 px-3 py-2 text-xs text-amber-700" role="alert">
+            <p className="mt-2 rounded-md border border-possible/40 bg-possible-tint px-3 py-2 text-xs text-possible" role="alert">
               <strong>Instruction-like text detected in the submission.</strong> It was treated as content, never as
               instructions: {injection.matches?.join(", ")}.
             </p>
@@ -215,32 +251,25 @@ export default function ReviewReportPage({ params }: { params: { id: string } })
       <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(380px,460px)]">
         {/* content */}
         <div>
-          <Card className="p-5">
-            <SectionHeading
-              title="Submitted content"
-              subtitle="Highlighted spans are the only text a suggestion may change. Activate a highlight to open its card."
-              action={
-                <div className="flex items-center gap-1.5 text-[11px] text-ink-mute">
-                  {SEVERITIES.slice().reverse().map((s) => (
-                    <span key={s} className="flex items-center gap-1">
-                      <SeverityChip severity={s} compact />
-                    </span>
-                  ))}
-                </div>
-              }
-            />
-            {bodyText ? (
-              <HighlightedText text={bodyText} findings={filtered} activeId={activeId}
-                               onSelect={focusFinding} showHighlights />
-            ) : (
-              <Skeleton className="h-40 w-full" />
-            )}
-            {item?.version?.filename && (
-              <p className="mt-4 border-t border-ink/10 pt-2 text-xs text-ink-mute">
-                Source file: {item.version.filename}
-              </p>
-            )}
-          </Card>
+          <DocumentView
+            item={item}
+            text={bodyText}
+            findings={filtered}
+            activeId={activeId}
+            onSelect={focusFinding}
+            applied={applied}
+            onUndo={(fid) => setApplied((prev) => {
+              const next = { ...prev };
+              delete next[fid];
+              return next;
+            })}
+            status={item?.status}
+          />
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-2xs text-ink-mute">
+            <span className="font-mono uppercase tracking-[0.18em]">Highlighted spans</span>
+            {SEVERITIES.slice().reverse().map((sev) => <SeverityChip key={sev} severity={sev} compact />)}
+            <span className="ml-auto">Activate a highlight to open its card.</span>
+          </div>
 
           <Card className="mt-4 p-5">
             <SectionHeading title="What this review did not do"
@@ -253,7 +282,7 @@ export default function ReviewReportPage({ params }: { params: { id: string } })
                 "It did not invent citations: findings without a source say “No approved source found”.",
               ].map((line) => (
                 <li key={line} className="flex gap-2">
-                  <span aria-hidden="true" className="text-ok-600">✓</span> {line}
+                  <span aria-hidden="true" className="font-semibold text-confirmed">✓</span> {line}
                 </li>
               ))}
             </ul>
@@ -337,8 +366,12 @@ export default function ReviewReportPage({ params }: { params: { id: string } })
                 <section key={group.key} aria-label={group.key === "all" ? "All findings" : REVIEWERS[group.key]?.label}>
                   {groupByReviewer && (
                     <h3 className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-ink-mute">
+                      <ReviewerAvatar reviewer={group.key} size={22} />
                       {REVIEWERS[group.key]?.label}
-                      <span className="rounded bg-paper px-1.5 py-0.5 font-normal normal-case text-ink-mute">
+                      <span className="text-2xs font-normal normal-case text-gold-deep">
+                        {characterFor(group.key).name}
+                      </span>
+                      <span className="rounded-sm border border-ink/15 bg-ivory-deep px-1.5 py-0.5 font-mono text-2xs font-normal">
                         {group.items.length}
                       </span>
                     </h3>
@@ -353,6 +386,13 @@ export default function ReviewReportPage({ params }: { params: { id: string } })
                         active={activeId === finding.id}
                         onActivate={() => setActiveId(finding.id)}
                         onDecision={onDecision}
+                        isApplied={applied[finding.id] !== undefined}
+                        onApplySuggestion={(f) => setApplied((prev) => {
+                          const next = { ...prev };
+                          if (next[f.id] !== undefined) delete next[f.id];
+                          else next[f.id] = f.suggestion || f.span_text;
+                          return next;
+                        })}
                       />
                     ))}
                   </div>

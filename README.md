@@ -15,7 +15,7 @@ system learns from manager decisions.
 | Auth | JWT (local HS256) or Supabase/Clerk JWKS verification |
 | AI | Provider-agnostic adapter: offline deterministic engine (default) or hosted LLM + embeddings, **server-side only** |
 | Parsing | PyMuPDF, python-docx, optional OCR (pytesseract) |
-| Tests | 54 pytest cases (`pytest -q`), plus a labelled-set evaluation harness |
+| Tests | 66 pytest cases (`pytest -q`), a rule-engine regression benchmark, a held-out adversarial set and an LLM evaluation harness |
 
 ---
 
@@ -233,7 +233,7 @@ Provider transparency: `/v1/provider`, `/v1/meta` and every finding expose provi
 
 ```bash
 cd backend
-pytest -q                 # 54 passed
+pytest -q                 # 66 passed
 python -m eval.run_eval   # precision / recall / F1 / FP-rate per reviewer vs. single-prompt baseline
 ```
 
@@ -247,7 +247,7 @@ own content, **cross-organisation access returns 404**, duplicate workspace slug
 verifies, override promotion creates a new rule version with scope, legal overrides need an Approver,
 prompt-injection text is reviewed as data and never obeyed.
 
-### Labelled-set results (53 hand-labelled samples, 8 deliberately clean)
+### What is measured — and what is not
 
 | Reviewer | Precision | Recall | F1 | FP rate | Baseline P | Baseline R | Baseline F1 | Δ F1 |
 |---|---|---|---|---|---|---|---|---|
@@ -259,15 +259,43 @@ prompt-injection text is reviewed as data and never obeyed.
 | legal | 1.00 | 1.00 | 1.00 | 0.00 | 0.90 | 1.00 | 0.95 | +0.05 |
 | **micro** | **0.98** | **0.98** | **0.98** | **0.00** | 0.74 | 0.70 | 0.72 | +0.26 |
 
-False-positive rate is *sample-level* (share of clean samples that still got a finding — the “crying wolf”
-number brand teams care about). Matching is span overlap IoU ≥ 0.3 with one-to-one label matching. The
-**single-prompt baseline** is a faithful, deterministic proxy for a one-shot LLM prompt: all patterns in one
-pass, no per-reviewer job, no cited rule, no evidence requirement, no duplicate merging.
+The table above is the **pipeline regression benchmark**: it scores the rule-based engine against samples
+written alongside those rules. It catches regressions; it does not measure generalisation, and its
+single-prompt column is a keyword sweep, **not** an LLM.
 
-Read the full method and the missed-detection list in [`docs/EVALUATION.md`](docs/EVALUATION.md) and
-[`backend/eval/report.md`](backend/eval/report.md).
+The honest generalisation number comes from the **held-out adversarial set** — 20 samples written after the
+rules and never used for tuning:
+
+| Held-out set (20 samples) | Precision | Recall | F1 |
+|---|---|---|---|
+| strict (correct reviewer *and* span) | 0.29 | 0.26 | 0.27 |
+| relaxed (any reviewer covering the span) | 0.52 | 0.48 | 0.50 |
+
+**LLM quality is not measured in this build**: `python -m eval.run_llm_eval` needs a provider key, and with
+none it exits with a clear message instead of inventing numbers. When a key is present it measures three
+configurations (single prompt / six specialists / six specialists with retrieved rules) and reports
+precision, recall, F1, false-positive rate, latency p50–p95, tokens and cost into `eval/report_llm.{md,json}`.
+
+Matching everywhere: span overlap IoU ≥ 0.3, one-to-one label matching; false-positive rate is
+sample-level (share of clean samples that still received a finding — the "crying wolf" number).
+Full method, the disclosed circularity, and every miss: [`docs/EVALUATION.md`](docs/EVALUATION.md),
+[`backend/eval/report.md`](backend/eval/report.md) and the in-app `/evaluation` page.
 
 ---
+
+## 8a. Screenshots and visual checks
+
+`scripts/screenshots.ts` captures every screen at 1440 px and 360 px plus a reduced-motion pass, and
+**fails** if a page throws, logs a React error, fails a request, or returns 4xx. Playwright is not a
+dependency of the app (so `npm ci` stays fast); install it on demand:
+
+```bash
+cd frontend
+npm i -D playwright && npx playwright install chromium
+API_URL=http://127.0.0.1:8000 npm run dev          # in another shell
+SCREENSHOT_PASSWORD=<the SEED_PASSWORD you chose> npx tsx ../scripts/screenshots.ts
+# → docs/images/screens/<screen>-<width>.png
+```
 
 ## 9. Security and responsible AI
 

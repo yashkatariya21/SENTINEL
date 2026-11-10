@@ -49,6 +49,25 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   return (await res.json()) as T;
 }
 
+/** Fetch a binary endpoint (PDF export) with the same auth and error handling. */
+export async function fetchBlob(path: string): Promise<Blob> {
+  const token = getToken();
+  const res = await fetch(`/v1${path}`, {
+    headers: token ? { authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) {
+    let detail = `${res.status} ${res.statusText}`;
+    try {
+      const body = await res.json();
+      if (typeof body.detail === "string") detail = body.detail;
+    } catch {
+      /* keep default */
+    }
+    throw new ApiError(res.status, detail);
+  }
+  return res.blob();
+}
+
 export const api = {
   get: <T,>(path: string) => request<T>(path),
   post: <T,>(path: string, body?: unknown) =>
@@ -66,6 +85,28 @@ export interface Me {
   user: { id: string; email: string; name: string; role: Role; department: string | null };
   organisation: { id: string; name: string; slug: string; departments: string[] };
   permissions: Record<string, boolean>;
+}
+
+export interface FindingMetrics {
+  latency_ms?: number;
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  cost_usd?: number | null;
+  provider?: string;
+  model?: string;
+  deterministic?: boolean;
+}
+
+export interface RunMetrics {
+  wall_ms?: number;
+  mean_reviewer_ms?: number | null;
+  slowest_reviewer_ms?: number | null;
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  cost_usd_estimate?: number | null;
+  provider?: string;
+  model?: string;
+  note?: string | null;
 }
 
 export interface Finding {
@@ -98,6 +139,7 @@ export interface Finding {
   prompt_version: string;
   agreement: number;
   evidence_strength: number;
+  metrics?: FindingMetrics;
   decision_status: "open" | "accepted" | "edited" | "dismissed" | "escalated";
 }
 
@@ -112,6 +154,7 @@ export interface AnalysisRun {
   prompt_version: string;
   repeat_runs: number;
   stats: Record<string, any>;
+  metrics?: RunMetrics;
   rule_versions: { key: string; version: number; category: string; requires_approver: boolean }[];
   error?: string | null;
   findings: Finding[];

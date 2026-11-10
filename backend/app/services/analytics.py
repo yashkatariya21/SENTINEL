@@ -157,6 +157,54 @@ def summary(db: Session, *, org_id: str, window_days: int = 90) -> dict:
             "brand_score": score,
         })
 
+    # ---- confidence calibration ------------------------------------------
+    # For each confidence band: how often did a human agree with the reviewer?
+    # "agreed" = accepted or edited (edited still confirms the finding was real);
+    # "disagreed" = dismissed by a manager. Undecided findings are counted but not scored.
+    calib = {}
+    for band in ("low", "medium", "high"):
+        band_findings = [f for f in findings if (f.confidence_band or "medium") == band]
+        agreed = sum(1 for f in band_findings if f.decision_status in ("accepted", "edited"))
+        disagreed = sum(1 for f in band_findings if f.decision_status == "dismissed")
+        decided = agreed + disagreed
+        calib[band] = {
+            "band": band,
+            "findings": len(band_findings),
+            "decided": decided,
+            "agreed": agreed,
+            "disagreed": disagreed,
+            "agreement_rate": round(agreed / decided, 3) if decided else None,
+            "mean_confidence": round(
+                sum(f.confidence for f in band_findings) / len(band_findings), 3
+            ) if band_findings else None,
+        }
+    confidence_calibration = [calib[b] for b in ("low", "medium", "high")]
+
+    # ---- run telemetry (measured, not modelled) ---------------------------
+    telemetry_runs = [r for r in runs if (r.metrics or {}).get("wall_ms") is not None]
+    telemetry = {
+        "runs_measured": len(telemetry_runs),
+        "mean_wall_ms": round(sum(r.metrics["wall_ms"] for r in telemetry_runs) / len(telemetry_runs), 1)
+        if telemetry_runs else None,
+        "slowest_wall_ms": max((r.metrics["wall_ms"] for r in telemetry_runs), default=None),
+        "prompt_tokens": sum((r.metrics or {}).get("prompt_tokens") or 0 for r in telemetry_runs),
+        "completion_tokens": sum((r.metrics or {}).get("completion_tokens") or 0 for r in telemetry_runs),
+        "cost_usd_estimate": (
+            round(sum((r.metrics or {}).get("cost_usd_estimate") or 0 for r in telemetry_runs), 6)
+            if any((r.metrics or {}).get("cost_usd_estimate") is not None for r in telemetry_runs) else None
+        ),
+        "provider": provider_info().get("provider"),
+        "note": ("The offline engine makes no model calls, so tokens and cost are zero by fact, "
+                 "not by assumption. Latency is wall-clock per run."),
+    }
+
+    insights = _insights(
+        findings=findings, runs=runs, most_common=most_common,
+        department_compliance=department_compliance, repeated=repeated,
+        confidence_calibration=confidence_calibration, approval_rate=approval_rate,
+        average_approval_hours=average_approval_hours, severity_index=severity_index,
+    )
+
     top_violated = None
     if most_common:
         top = most_common[0]
@@ -192,6 +240,9 @@ def summary(db: Session, *, org_id: str, window_days: int = 90) -> dict:
         "repeated_violations": repeated[:8],
         "brand_health_trend": trend,
         "top_violated_guideline": top_violated,
+        "confidence_calibration": confidence_calibration,
+        "telemetry": telemetry,
+        "insights": insights,
         "monthly_report": monthly,
         "provider": provider_info(),
         "inputs": {
@@ -202,6 +253,90 @@ def summary(db: Session, *, org_id: str, window_days: int = 90) -> dict:
             "analysed_submissions": len(runs),
         },
     }
+
+
+def _insights(*, findings, runs, most_common, department_compliance, repeated,
+              confidence_calibration, approval_rate, average_approval_hours,
+              severity_index) -> list[dict]:
+    """Plain-language observations computed from this org's own numbers.
+
+    Every sentence is derived; nothing is a target, benchmark or prediction. If the
+    data needed for a sentence is missing, the sentence is simply not produced.
+    """
+    out: list[dict] = []
+
+    if most_common:
+        top = most_common[0]
+        share = round(top["share"] * 100)
+        out.append({
+            "kind": "concentration",
+            "text": (f"{share}% of the weighted findings come from one rule "
+                     f"({top['rule_key']}). Fixing it would move the score more than any other change."),
+            "evidence": {"rule_key": top["rule_key"], "count": top["count"], "share": top["share"]},
+        })
+
+    decided = [f for f in findings if f.decision_status in ("accepted", "edited", "dismissed")]
+    dismissed = [f for f in decided if f.decision_status == "dismissed"]
+    if decided:
+        rate = round(100 * (1 - len(dismissed) / len(decided)))
+        out.append({
+            "kind": "human_agreement",
+            "text": (f"Humans have agreed with {rate}% of the {len(decided)} findings they have decided so far "
+                     f"({len(decided) - len(dismissed)} accepted or edited, {len(dismissed)} dismissed)."),
+            "evidence": {"decided": len(decided), "dismissed": len(dismissed)},
+        })
+
+    low = next((c for c in confidence_calibration if c["band"] == "low"), None)
+    high = next((c for c in confidence_calibration if c["band"] == "high"), None)
+    if low and high and low["agreement_rate"] is not None and high["agreement_rate"] is not None \
+            and low["decided"] >= 3 and high["decided"] >= 3:
+        delta = round((high["agreement_rate"] - low["agreement_rate"]) * 100)
+        if abs(delta) >= 10:
+            direction = "higher" if delta > 0 else "lower"
+            out.append({
+                "kind": "calibration",
+                "text": (f"High-confidence findings are agreed with {abs(delta)} points {direction} often than "
+                         f"low-confidence ones — confidence is "
+                         f"{'calibrated' if delta > 0 else 'not yet informative'} on this data."),
+                "evidence": {"low": low["agreement_rate"], "high": high["agreement_rate"]},
+            })
+
+    if repeated:
+        worst = repeated[0]
+        out.append({
+            "kind": "repetition",
+            "text": (f"{worst['rule_key']} has been flagged on {worst['content_items']} different items — "
+                     "a training gap, not a one-off mistake."),
+            "evidence": worst,
+        })
+
+    if department_compliance:
+        worst_dept = min(department_compliance, key=lambda d: d["compliance"])
+        if worst_dept["compliance"] < 1.0:
+            out.append({
+                "kind": "department",
+                "text": (f"{worst_dept['department']} clears {round(worst_dept['compliance'] * 100)}% of "
+                         f"{worst_dept['submissions']} submissions without a high or critical finding — "
+                         "the lowest of the departments that have submitted."),
+                "evidence": worst_dept,
+            })
+
+    if average_approval_hours is not None:
+        out.append({
+            "kind": "throughput",
+            "text": (f"A human decision takes {average_approval_hours:.1f} hours on average after submission; "
+                     "nothing is published before that."),
+            "evidence": {"average_approval_hours": average_approval_hours},
+        })
+
+    if not runs:
+        out.append({
+            "kind": "empty",
+            "text": "No run has completed in this window yet, so every number above is zero rather than measured.",
+            "evidence": {},
+        })
+
+    return out[:5]
 
 
 def _aware(dt: datetime) -> datetime:

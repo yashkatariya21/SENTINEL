@@ -79,6 +79,10 @@ def evaluate(samples: list[dict], reviewers: tuple[str, ...] = REVIEWERS) -> dic
         f1 = 2 * precision * recall / (precision + recall) if (precision + recall) else 0.0
         per_reviewer[reviewer] = {
             "tp": tp, "fp": fp, "fn": fn,
+            # how many findings this reviewer actually produced: precision is only
+            # meaningful when it is > 0, so the UI can show "—" instead of a fake 1.00
+            "predicted": tp + fp,
+            "labelled": tp + fn,
             "precision": round(precision, 3),
             "recall": round(recall, 3),
             "f1": round(f1, 3),
@@ -106,8 +110,46 @@ def evaluate(samples: list[dict], reviewers: tuple[str, ...] = REVIEWERS) -> dic
             "macro_precision": round(macro_p, 3),
             "macro_recall": round(macro_r, 3),
             "mean_false_positive_rate": round(macro_fpr, 3),
+            "predicted": total_tp + total_fp,
+            "labelled": total_tp + total_fn,
         },
     }
+
+
+def relaxed(samples: list[dict]) -> dict:
+    """Reviewer-agnostic scoring: did *any* reviewer cover the labelled span?
+
+    Strict scoring (the default above) requires the right reviewer *and* span
+    overlap. That is the fair test of the six-lens claim, but it makes a
+    partially-right system look worse than it is: flagging the right span with the
+    wrong reviewer counts as a miss. Published alongside the strict numbers so a
+    reader can see both.
+    """
+    tp = fp = fn = 0
+    for sample in samples:
+        labels = list(sample["labels"])
+        preds = list(sample["predictions"])
+        used: set[int] = set()
+        for label in labels:
+            best_i, best_score = None, 0.0
+            for i, pred in enumerate(preds):
+                if i in used:
+                    continue
+                score = _overlap((label["start"], label["end"]), (pred["start"], pred["end"]))
+                if score > best_score:
+                    best_i, best_score = i, score
+            if best_i is not None and best_score >= 0.3:
+                used.add(best_i)
+                tp += 1
+            else:
+                fn += 1
+        fp += max(0, len(preds) - len(used))
+    precision = tp / (tp + fp) if (tp + fp) else 1.0
+    recall = tp / (tp + fn) if (tp + fn) else 1.0
+    f1 = 2 * precision * recall / (precision + recall) if (precision + recall) else 0.0
+    return {"precision": round(precision, 3), "recall": round(recall, 3),
+            "f1": round(f1, 3), "tp": tp, "fp": fp, "fn": fn, "predicted": tp + fp,
+            "labelled": tp + fn}
 
 
 def compare(candidate: dict, baseline: dict) -> dict:

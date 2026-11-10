@@ -28,6 +28,7 @@ services:
       STORAGE_DIR: /app/storage
       CORS_ORIGINS: http://localhost:3000
       SEED_ON_STARTUP: "1"
+      SEED_PASSWORD: "Sentinel!2026"
     ports: ["8000:8000"]
     volumes: ["uploads:/app/storage"]
 

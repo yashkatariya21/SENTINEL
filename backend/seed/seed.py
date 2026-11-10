@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import logging
 import os
+import secrets
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
@@ -22,7 +23,7 @@ from app.models import (
     AnalysisRun, Approval, Asset, BrandKit, Chunk, Comment, ContentItem, ContentVersion, Decision,
     Document, Fact, Finding, Membership, Organisation, Override, Rule, RuleVersion, Term, User,
 )
-from app.security import hash_password
+from app.security import Principal, hash_password
 from app.services.extraction import blocks_to_text, extract_pasted
 from app.services.pipeline import execute_run, start_run
 from app.services.retrieval import chunk_text, ingest_document
@@ -115,7 +116,6 @@ TERM_RULE_MAP = {
     "Northwind Cloud": "TERM-002", "Northwind Forecast Cloud": "TERM-001", "customers": "TERM-001",
 }
 
-
 def seed_if_empty() -> bool:
     init_db()
     with session_scope() as db:
@@ -126,20 +126,38 @@ def seed_if_empty() -> bool:
     return True
 
 
-def build_workspace() -> None:
+# --------------------------------------------------------------------------- #
+# Reusable pieces. `build_workspace()` (the CLI / startup path) and the
+# one-click demo loader (`app/routers/demo.py`) both compose these, so there is
+# exactly one implementation of "what the demo contains".
+# --------------------------------------------------------------------------- #
+def _owner_map(db, org_id: str) -> dict[str, str]:
+    return {u.email: u.id for u in db.execute(select(User).where(User.org_id == org_id)).scalars()}
+
+
+def ensure_workspace() -> str:
+    """Create org, users, Brand Kit, guideline document and reference data.
+
+    Idempotent: if the demo organisation already exists it is returned untouched, so
+    POST /v1/demo/load can be called repeatedly (and from a cold database) safely.
+    """
+    with session_scope() as db:
+        existing = db.execute(select(Organisation).where(Organisation.slug == ORG["slug"])).scalars().first()
+        if existing is not None:
+            return existing.id
+
     log.info("seeding workspace %s", ORG["slug"])
     adapter = get_adapter()
-
-    # ---------------------------------------------------------------- org/users
     with session_scope() as db:
         org = Organisation(name=ORG["name"], slug=ORG["slug"], department_list=ORG["departments"],
-                           settings={"max_upload_mb": settings.max_upload_mb})
+                           settings={"max_upload_mb": settings.max_upload_mb}, is_demo=True)
         db.add(org)
         db.flush()
         users: dict[str, User] = {}
-        for email, name, role, dept, password in USERS:
+        demo_password = demo_password_for_seed()
+        for email, name, role, dept in USERS:
             user = User(org_id=org.id, email=email, name=name, role=role, department=dept,
-                        password_hash=hash_password(password))
+                        password_hash=hash_password(demo_password))
             db.add(user)
             db.flush()
             db.add(Membership(org_id=org.id, user_id=user.id, role=role))
@@ -214,75 +232,96 @@ def build_workspace() -> None:
                          status=asset["status"], meta=asset.get("meta") or {}))
 
         db.flush()
-        org_id = org.id
-        kit_id = kit.id
-        owner_map = {u.email: u.id for u in users.values()}
+        return org.id
 
-    # ------------------------------------------------------- content + analyses
-    created: list[dict] = []
-    for sample_id, owner_email, target_status, days_ago, approver_email in DEMO_ITEMS:
-        sample = by_id(sample_id)
-        with session_scope() as db:
-            extracted = extract_pasted(sample["text"])
-            item = ContentItem(org_id=org_id, title=sample["title"], content_type=sample["content_type"],
-                               department=sample["department"], owner_id=owner_map[owner_email],
-                               status="draft", current_version=1)
-            db.add(item)
-            db.flush()
-            db.add(ContentVersion(org_id=org_id, content_item_id=item.id, version=1,
-                                  body_text=extracted["text"], blocks=extracted["blocks"],
-                                  author_id=owner_map[owner_email]))
-            db.flush()
-            run = start_run(db, org_id=org_id, item=item, version=db.query(ContentVersion)
-                            .filter_by(content_item_id=item.id, version=1).one())
-            created.append({"item_id": item.id, "run_id": run.id, "status": target_status,
-                            "days_ago": days_ago, "approver": approver_email,
-                            "owner": owner_email, "sample": sample_id})
-            db.commit()
 
-    # richer hand-written pieces
-    for spec in DEMO_EXTRA:
-        with session_scope() as db:
-            extracted = extract_pasted(spec["text"])
-            item = ContentItem(org_id=org_id, title=spec["title"], content_type=spec["content_type"],
-                               department=spec["department"], owner_id=owner_map[spec["owner"]],
-                               status="draft", current_version=1)
-            db.add(item)
-            db.flush()
-            version = ContentVersion(org_id=org_id, content_item_id=item.id, version=1,
-                                     body_text=extracted["text"], blocks=extracted["blocks"],
-                                     author_id=owner_map[spec["owner"]])
-            db.add(version)
-            db.flush()
-            run = start_run(db, org_id=org_id, item=item, version=version)
-            created.append({"item_id": item.id, "run_id": run.id, "status": spec["status"],
-                            "days_ago": spec["days_ago"], "approver": spec["approver"],
-                            "owner": spec["owner"], "sample": "EXTRA-" + spec["title"][:12]})
-            db.commit()
+def existing_titles(org_id: str) -> set[str]:
+    """Titles already present for the demo organisation (used to stay idempotent)."""
+    with session_scope() as db:
+        return {t for t in db.execute(
+            select(ContentItem.title).where(ContentItem.org_id == org_id)).scalars().all()}
 
-    for row in created:
-        execute_run(row["run_id"])
 
-    # -------------------------------------------------------------- workflow
-    manager = {"tom@northwind.example": None, "ines@northwind.example": None, "raj@northwind.example": None}
-    from app.security import Principal
+def create_item(org_id: str, *, title: str, content_type: str, department: str | None,
+                owner_email: str, body_text: str) -> dict:
+    """Create one content item + version + queued analysis run."""
+    with session_scope() as db:
+        owners = _owner_map(db, org_id)
+        extracted = extract_pasted(body_text)
+        item = ContentItem(org_id=org_id, title=title, content_type=content_type,
+                           department=department, owner_id=owners[owner_email],
+                           status="draft", current_version=1, is_demo=True)
+        db.add(item)
+        db.flush()
+        version = ContentVersion(org_id=org_id, content_item_id=item.id, version=1,
+                                 body_text=extracted["text"], blocks=extracted["blocks"],
+                                 author_id=owners[owner_email])
+        db.add(version)
+        db.flush()
+        run = start_run(db, org_id=org_id, item=item, version=version)
+        return {"item_id": item.id, "run_id": run.id, "title": title, "owner": owner_email}
 
-    def principal_for(email: str) -> Principal:
-        with session_scope() as db:
-            user = db.execute(select(User).where(User.email == email)).scalars().first()
-            return Principal(user_id=user.id, org_id=user.org_id, role=user.role,
-                             email=user.email, name=user.name, department=user.department)
 
-    for row in created:
+def run_analyses(created: list[dict], *, concurrency: int = 1, on_progress=None) -> list[str]:
+    """Run the real pipeline for each queued run, capped at `concurrency` threads.
+
+    `on_progress(done, total)` is called after each run so the demo endpoint can keep a
+    live counter for the UI. A single failing run never aborts the batch.
+    """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    errors: list[str] = []
+    total = len(created)
+    done = 0
+    if concurrency <= 1:
+        for row in created:
+            try:
+                execute_run(row["run_id"])
+            except Exception as exc:  # noqa: BLE001 - recorded, never fatal
+                errors.append(f"{row['title']}: {type(exc).__name__}")
+            done += 1
+            if on_progress:
+                on_progress(done, total)
+        return errors
+
+    with ThreadPoolExecutor(max_workers=concurrency) as pool:
+        futures = {pool.submit(execute_run, row["run_id"]): row for row in created}
+        for future in as_completed(futures):
+            row = futures[future]
+            try:
+                future.result()
+            except Exception as exc:  # noqa: BLE001
+                errors.append(f"{row['title']}: {type(exc).__name__}")
+            done += 1
+            if on_progress:
+                on_progress(done, total)
+    return errors
+
+
+def _principal_for(email: str) -> Principal:
+    with session_scope() as db:
+        user = db.execute(select(User).where(User.email == email)).scalars().first()
+        return Principal(user_id=user.id, org_id=user.org_id, role=user.role,
+                         email=user.email, name=user.name, department=user.department)
+
+
+def apply_story(org_id: str, created: list[dict]) -> None:
+    """Approvals, manager overrides, the learning loop, comments and backdating.
+
+    `created` rows may carry optional keys: target status, approver email, days_ago and
+    `sample` (used to pick specific findings for the story). Rows without a status are
+    left as drafts.
+    """
+    rows = [r for r in created if r.get("status")]
+    for row in rows:
         if row["status"] == "draft":
             continue
         with session_scope() as db:
             item = db.get(ContentItem, row["item_id"])
-            owner = principal_for(row["owner"])
-            submit_for_approval(db, item, owner, note="Ready for review.")
+            submit_for_approval(db, item, _principal_for(row["owner"]), note="Ready for review.")
         if row["status"] == "in_review":
             continue
-        approver = principal_for(row["approver"] or "tom@northwind.example")
+        approver = _principal_for(row.get("approver") or "tom@northwind.example")
         with session_scope() as db:
             item = db.get(ContentItem, row["item_id"])
             if row["status"] == "approved":
@@ -294,14 +333,16 @@ def build_workspace() -> None:
                 decide(db, item, approver, action="reject",
                        reason="The guarantee claim cannot be substantiated; do not publish.")
 
-    # --------------------------------------------------- decisions + learning
-    manager_principal = principal_for("tom@northwind.example")
-    legal_approver = principal_for("raj@northwind.example")
+    manager_principal = _principal_for("tom@northwind.example")
+    legal_approver = _principal_for("raj@northwind.example")
 
     def findings_for(sample_id: str, category: str | None = None) -> list[Finding]:
-        row = next(r for r in created if r["sample"] == sample_id)
+        matches = [r for r in created if r.get("sample") == sample_id]
+        if not matches:
+            return []
         with session_scope() as db:
-            q = select(Finding).where(Finding.analysis_run_id == row["run_id"])
+            q = select(Finding).join(AnalysisRun, AnalysisRun.id == Finding.analysis_run_id).where(
+                AnalysisRun.content_item_id == matches[0]["item_id"])
             if category:
                 q = q.where(Finding.category == category)
             return db.execute(q).scalars().all()
@@ -328,7 +369,6 @@ def build_workspace() -> None:
                 db, override, manager_principal, make_rule=True, scope="content_type",
                 department=None, content_type="ad",
                 reason="Approved for paid social advertising only, where the audience responds to price framing.")
-            promoted_override_id = override.id
 
     # 3) a legal override that needs an Approver, left pending so the demo shows the gate
     legal_findings = findings_for("L01", "legal")
@@ -343,7 +383,6 @@ def build_workspace() -> None:
                 db, override, manager_principal, make_rule=True, scope="department",
                 department="Sales", content_type=None,
                 reason="Sales-only exception with legal sign-off.")
-            pending_override_id = override.id
 
     # 4) an Approver promotes a different legal override end-to-end
     rank_findings = findings_for("L07", "legal")
@@ -355,8 +394,8 @@ def build_workspace() -> None:
                 reason="Analyst report is on file; the ranking is sourced.",
                 edited_suggestion=None)
             answer_learning_prompt(db, override, manager_principal, make_rule=True, scope="global",
-                                  department=None, content_type=None,
-                                  reason="Third-party ranking on file.")
+                                   department=None, content_type=None,
+                                   reason="Third-party ranking on file.")
         with session_scope() as db:
             override = db.get(Override, override.id)
             promote(db, override, legal_approver, note="Analyst report verified on file.")
@@ -371,27 +410,39 @@ def build_workspace() -> None:
                               edited_suggestion=None)
 
     # ------------------------------------------------------------ comments
-    with session_scope() as db:
-        leo = principal_for("leo@northwind.example")
-        item = db.get(ContentItem, next(r["item_id"] for r in created if r["sample"] == "S01"))
-        add_comment(db, item, leo, body="The pink bar was a placeholder; swapping to navy #0B3D91.")
-    with session_scope() as db:
-        tom = principal_for("tom@northwind.example")
-        item = db.get(ContentItem, next(r["item_id"] for r in created if r["sample"] == "S01"))
-        add_comment(db, item, tom, body="Thanks — re-run the review once the bar is navy so we can approve.",
-                    visibility="internal")
-    with session_scope() as db:
-        tom = principal_for("tom@northwind.example")
-        item = db.get(ContentItem, next(r["item_id"] for r in created if r["sample"] == "A03"))
-        add_comment(db, item, tom, body="Agency question: which link text do you prefer for the pricing sheet?",
-                    visibility="external")
+    def _item_for(sample_id: str) -> str | None:
+        return next((r["item_id"] for r in created if r.get("sample") == sample_id), None)
 
-    # ------------------------------------------------- backdate for analytics
+    s01 = _item_for("S01")
+    if s01:
+        with session_scope() as db:
+            add_comment(db, db.get(ContentItem, s01), _principal_for("leo@northwind.example"),
+                        body="The pink bar was a placeholder; swapping to navy #0B3D91.")
+        with session_scope() as db:
+            add_comment(db, db.get(ContentItem, s01), _principal_for("tom@northwind.example"),
+                        body="Thanks — re-run the review once the bar is navy so we can approve.",
+                        visibility="internal")
+    a03 = _item_for("A03")
+    if a03:
+        with session_scope() as db:
+            add_comment(db, db.get(ContentItem, a03), _principal_for("tom@northwind.example"),
+                        body="Agency question: which link text do you prefer for the pricing sheet?",
+                        visibility="external")
+
+    backdate(created)
+
+
+def backdate(created: list[dict]) -> None:
+    """Spread the demo items across ~8 weeks so the analytics trend has real shape."""
     now = datetime.now(timezone.utc)
     with session_scope() as db:
         for row in created:
+            if row.get("days_ago") is None:
+                continue
             ts = now - timedelta(days=row["days_ago"])
             item = db.get(ContentItem, row["item_id"])
+            if item is None:
+                continue
             item.created_at = ts
             item.submitted_at = ts + timedelta(hours=6) if item.submitted_at else None
             for v in db.execute(select(ContentVersion).where(ContentVersion.content_item_id == item.id)).scalars():
@@ -403,7 +454,140 @@ def build_workspace() -> None:
             for ap in db.execute(select(Approval).where(Approval.content_item_id == item.id)).scalars():
                 ap.decided_at = ts + timedelta(days=1, hours=3)
                 ap.created_at = ap.decided_at
+
+
+def build_workspace() -> None:
+    """The seeded demo used by the CLI, tests and SEED_ON_STARTUP."""
+    org_id = ensure_workspace()
+    created: list[dict] = []
+    for sample_id, owner_email, target_status, days_ago, approver_email in DEMO_ITEMS:
+        sample = by_id(sample_id)
+        row = create_item(org_id, title=sample["title"], content_type=sample["content_type"],
+                          department=sample["department"], owner_email=owner_email,
+                          body_text=sample["text"])
+        row.update(status=target_status, days_ago=days_ago, approver=approver_email, sample=sample_id)
+        created.append(row)
+    for spec in DEMO_EXTRA:
+        row = create_item(org_id, title=spec["title"], content_type=spec["content_type"],
+                          department=spec["department"], owner_email=spec["owner"],
+                          body_text=spec["text"])
+        row.update(status=spec["status"], days_ago=spec["days_ago"], approver=spec["approver"],
+                   sample="EXTRA-" + spec["title"][:12])
+        created.append(row)
+
+    run_analyses(created)
+    apply_story(org_id, created)
     log.info("seeded %s content items", len(created))
+
+
+def demo_specs() -> list[dict]:
+    """Everything the one-click demo creates: the 53 labelled samples + showcase pieces.
+
+    One list, used by the demo loader and by anyone refreshing a demo workspace, so the
+    two paths can never drift apart.
+    """
+    from seed.samples import SAMPLES
+
+    owners = ["leo@northwind.example", "nina@northwind.example", "sam@northwind.example"]
+    specs: list[dict] = []
+    for index, sample in enumerate(SAMPLES):
+        specs.append(dict(title=sample["title"], text=sample["text"],
+                          content_type=sample["content_type"], department=sample["department"],
+                          owner=owners[index % len(owners)], sample=sample["id"],
+                          days_ago=index % 56))
+    for spec in DEMO_EXTRA:
+        specs.append(dict(title=spec["title"], text=spec["text"], content_type=spec["content_type"],
+                          department=spec["department"], owner=spec["owner"],
+                          sample="EXTRA-" + spec["title"][:12], days_ago=spec["days_ago"]))
+    return specs
+
+
+STORY_SAMPLES = ("V01", "T01", "L01", "L07", "A03", "S01", "C01", "C02", "F01", "V03", "T07")
+
+
+def load_demo(on_progress=None, on_phase=None, *, concurrency: int = 4) -> dict:
+    """One-click demo: ensure the workspace, create any missing item, analyse, tell the story.
+
+    Idempotent — a second call reuses every existing title, analyses nothing twice and
+    creates no duplicates.
+    """
+    org_id = ensure_workspace()
+    have = existing_titles(org_id)
+    specs = demo_specs()
+
+    if on_phase:
+        on_phase("Reading the Brand Kit")
+    created: list[dict] = []
+    for spec in specs:
+        if spec["title"] in have:
+            continue
+        row = create_item(org_id, title=spec["title"], content_type=spec["content_type"],
+                          department=spec["department"], owner_email=spec["owner"],
+                          body_text=spec["text"])
+        row.update(sample=spec["sample"], days_ago=spec["days_ago"], owner=spec["owner"],
+                   status="draft", approver=None)
+        created.append(row)
+        have.add(spec["title"])
+
+    if on_phase:
+        on_phase("Six reviewers are reading")
+    errors: list[str] = []
+    if created:
+        errors = run_analyses(created, concurrency=concurrency, on_progress=on_progress)
+
+    with session_scope() as db:
+        already_storied = db.execute(select(Approval).where(Approval.org_id == org_id)).scalars().first()
+    if already_storied is None:
+        if on_phase:
+            on_phase("Signing the approvals and the learning loop")
+        rows = all_rows_for_org(org_id)
+        story = [r for r in rows if r.get("sample") in STORY_SAMPLES]
+        if story:
+            apply_story(org_id, story)
+
+    backdate(all_rows_for_org(org_id))
+    with session_scope() as db:
+        total = db.execute(select(ContentItem).where(ContentItem.org_id == org_id)).scalars().all()
+    return {"org_id": org_id, "created": len(created), "total": len(total), "errors": errors}
+
+
+def all_rows_for_org(org_id: str) -> list[dict]:
+    """Every demo content item, shaped like the `created` rows used by apply_story."""
+    with session_scope() as db:
+        items = db.execute(select(ContentItem).where(ContentItem.org_id == org_id)
+                           .order_by(ContentItem.created_at)).scalars().all()
+        owners = {u.id: u.email for u in db.execute(select(User).where(User.org_id == org_id)).scalars()}
+        return [{"item_id": i.id, "title": i.title, "owner": owners.get(i.owner_id),
+                 "status": None, "days_ago": None, "approver": None,
+                 "sample": _sample_id_for_title(i.title)} for i in items]
+
+
+def _sample_id_for_title(title: str) -> str | None:
+    from seed.samples import SAMPLES
+    for sample in SAMPLES:
+        if sample["title"] == title:
+            return sample["id"]
+    return None
+
+
+def demo_password_for_seed() -> str:
+    """The password given to seeded demo users.
+
+    There is no hard-coded default. `SEED_PASSWORD` must be set explicitly for a
+    demo workspace; if it is missing we generate a random one and print it exactly
+    once, so a deployment can never end up with credentials that are in the
+    repository.
+    """
+    configured = (settings.seed_password or "").strip()
+    if configured:
+        return configured
+    generated = secrets.token_urlsafe(12)
+    log.warning(
+        "SEED_PASSWORD was not set. Generated a one-off demo password: %s "
+        "(set SEED_PASSWORD to choose your own; it is never written to the repository).",
+        generated,
+    )
+    return generated
 
 
 if __name__ == "__main__":
@@ -415,5 +599,6 @@ if __name__ == "__main__":
                 os.remove("sentinel.db" + ext)
     init_db()
     build_workspace()
-    print("Seed complete. Log in as tom@northwind.example / Sentinel!2026 (manager) "
-          "or ada@northwind.example / Sentinel!2026 (admin).")
+    print("Seed complete. Demo users: tom@northwind.example (manager), "
+          "ada@northwind.example (admin). Password = SEED_PASSWORD "
+          "(generated and printed once above if you did not set it).")

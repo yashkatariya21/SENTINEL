@@ -1,8 +1,26 @@
 # Demo script (8 minutes)
 
 The seeded workspace is **Northwind Analytics**, a fictional B2B SaaS company, with a hand-written Brand Kit
-(guidelines, 14 rules, 10 terms, 8 approved facts, colours/fonts/logo) and 16 submissions including eleven
-labelled mistakes. Password for every demo user: `Sentinel!2026`.
+(guidelines, 14 rules, 10 terms, 8 approved facts, colours/fonts/logo) and 53 analysed submissions including
+seeded mistakes.
+
+**The demo password is configuration, not code.** It is whatever `SEED_PASSWORD` says; if you leave that
+empty the seeder generates a random password and prints it once. `docker-compose.yml` sets
+`Sentinel!2026` so the containers have a predictable local login. Never deploy with `SEED_ON_STARTUP=1` —
+in `SENTINEL_ENV=production` the API refuses to start if you do.
+
+## The 60-second path: one-click demo
+
+1. Open `/login`. In the card headed **“See it with real data”**, press **Load demo data**.
+2. A full-width progress panel appears: *Preparing Northwind… 17/53 reviewed… 212 findings*. It polls
+   `/v1/demo/status` once a second and shows real counts, not a fake animation.
+3. When it finishes you are signed in as the Manager and land on the report with the most findings. A
+   four-step tour runs: highlights → trace a citation → override “Cheap” and answer the learning prompt →
+   Analytics.
+4. **Reset demo** (on the same card, or in the header) deletes demo content only — the Brand Kit, rules and
+   learned exceptions survive, and real content in the same workspace is never touched.
+
+If the loader fails you get a plain-language error and a **Retry** button; nothing is left half-built.
 
 ## 0 · Sign in as a Creator (30s)
 
@@ -90,7 +108,9 @@ monthly report, and the provider line.
 
 | Question | Answer |
 |---|---|
-| “Is this a real LLM?” | By default no — it runs the built-in deterministic engine so the demo costs nothing and the evaluation is reproducible. Flip `LLM_PROVIDER=openai` (or `anthropic`) and the same contracts call a hosted model; `eval.run_eval` re-scores it. |
+| “Is this a real LLM?” | By default no — it runs the built-in deterministic engine so the demo costs nothing and the regression benchmark is reproducible. Flip `LLM_PROVIDER=openai` (or `anthropic`) and the same contracts call a hosted model. The honest generalisation number is the held-out set (0.27 strict / 0.50 relaxed F1); LLM quality is only reported by `eval/run_llm_eval.py`, which needs a key and refuses to print numbers without one. |
+| “How fast and how expensive?” | Every run records measured wall time and, where a model was called, provider-reported tokens and an estimated cost. They appear under the report's provenance strip and on `/analytics` → *Cost and latency*. The offline engine shows zero tokens because it makes no calls, not because it was not measured. |
+| “Can I take this to a meeting?” | **Export PDF** on the report generates the review record server-side: every finding with its rule quote, citation, confidence and decision, plus the disclaimer on every page. |
 | “What stops it inventing a citation?” | Citations must resolve to a retrieved chunk that shares content words (or the claimed number) with the span, otherwise the UI says “No approved source found”. |
 | “Who can change a rule?” | Only via an explicit manager action that starts with the “Make this an approved rule?” prompt; legal and accessibility changes need an Approver; every change is a new version with author, date, scope and reason. |
 | “Can it approve content?” | No. There is no approve-on-behalf path in the API, and self-approval is blocked in both the service layer and a Postgres trigger. |

@@ -125,7 +125,7 @@ export default function NewSubmissionPage() {
           )}
 
           {error && (
-            <p role="alert" className="mb-3 rounded-lg border border-danger-500/40 bg-danger-50 px-3 py-2 text-sm text-danger-700">
+            <p role="alert" className="mb-3 rounded-lg border border-critical/40 bg-critical-tint px-3 py-2 text-sm text-critical">
               {error}
             </p>
           )}

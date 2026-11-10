@@ -14,6 +14,7 @@ os.environ["STORAGE_DIR"] = f"{TMP}/storage"
 os.environ["SEED_ON_STARTUP"] = "1"
 os.environ["LLM_PROVIDER"] = "local"
 os.environ["SECRET_KEY"] = "test-secret"
+os.environ["SEED_PASSWORD"] = "Sentinel!2026"  # explicit config, never a code default
 os.environ["LLM_REPEAT_RUNS"] = "2"
 os.makedirs(f"{TMP}/storage", exist_ok=True)
 

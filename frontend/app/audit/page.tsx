@@ -23,7 +23,7 @@ export default function AuditPage() {
   const visible = (entries || []).filter((e) =>
     !filter || `${e.action} ${e.actor} ${e.entity} ${JSON.stringify(e.detail)}`.toLowerCase().includes(filter.toLowerCase()));
 
-  if (error) return <Card className="p-6 text-sm text-danger-700" role="alert">{error}</Card>;
+  if (error) return <Card className="p-6 text-sm text-critical" role="alert">{error}</Card>;
 
   return (
     <div>
@@ -32,7 +32,7 @@ export default function AuditPage() {
         subtitle="Append-only and hash-chained: each entry commits to the one before it, so tampering is detectable."
         action={chain && (
           <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs ${
-            chain.ok ? "border-ok-600/30 bg-ok-50 text-ok-600" : "border-danger-500/30 bg-danger-50 text-danger-700"}`}>
+            chain.ok ? "border-confirmed/30 bg-confirmed-tint text-confirmed" : "border-critical/30 bg-critical-tint text-critical"}`}>
             <span aria-hidden="true">{chain.ok ? "⛓" : "!"}</span>
             {chain.ok ? `Chain verified · ${chain.entries} entries` : `Chain broken at ${chain.broken_at}`}
           </span>

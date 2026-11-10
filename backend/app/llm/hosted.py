@@ -71,6 +71,11 @@ class HostedLLM(LLMAdapter):
         self.embedding_dim = 1536
         self._key = api_key
         self._base = base_url.rstrip("/")
+        # Usage accounting for the evaluation harness: every chat call records the
+        # provider-reported token counts so cost per finding is measured, not guessed.
+        self.calls = 0
+        self.prompt_tokens = 0
+        self.completion_tokens = 0
 
     # ------------------------------------------------------------------ #
     def _chat(self, system: str, user: str, *, max_tokens: int = 3000) -> str:
@@ -98,6 +103,11 @@ class HostedLLM(LLMAdapter):
                     resp = client.post(url, headers=headers, json=body)
                 resp.raise_for_status()
                 data = resp.json()
+                usage = data.get("usage") or {}
+                self.calls += 1
+                self.prompt_tokens += int(usage.get("prompt_tokens") or usage.get("input_tokens") or 0)
+                self.completion_tokens += int(
+                    usage.get("completion_tokens") or usage.get("output_tokens") or 0)
                 if self.provider_name == "anthropic":
                     return "".join(b.get("text", "") for b in data.get("content", []))
                 return data["choices"][0]["message"]["content"]

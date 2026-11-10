@@ -41,6 +41,8 @@ class Organisation(Base, TimestampMixin):
     slug: Mapped[str] = mapped_column(String(80), unique=True, nullable=False)
     department_list: Mapped[list] = mapped_column(JSON, default=list)
     settings: Mapped[dict] = mapped_column(JSON, default=dict)
+    # demo rows are removable in one click and are never mixed with real content
+    is_demo: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
@@ -205,6 +207,7 @@ class ContentItem(Base, TimestampMixin):
     owner_id: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
     status: Mapped[str] = mapped_column(String(30), default="draft")  # draft|in_review|changes_requested|approved|rejected
     current_version: Mapped[int] = mapped_column(Integer, default=1)
+    is_demo: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
@@ -240,6 +243,8 @@ class AnalysisRun(Base, TimestampMixin):
     rule_versions: Mapped[list] = mapped_column(JSON, default=list)  # snapshot of rule keys+versions used
     repeat_runs: Mapped[int] = mapped_column(Integer, default=1)
     stats: Mapped[dict] = mapped_column(JSON, default=dict)
+    # aggregated telemetry for the whole run (wall time, tokens, cost estimate)
+    metrics: Mapped[dict] = mapped_column(JSON, default=dict)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -281,6 +286,8 @@ class Finding(Base, TimestampMixin):
     evidence_strength: Mapped[float] = mapped_column(Float, default=0.5)
     deterministic_backing: Mapped[float] = mapped_column(Float, default=0.0)
     dedupe_key: Mapped[str] = mapped_column(String(200), default="", index=True)
+    # measured cost of producing *this* finding: latency, tokens, estimated cost
+    metrics: Mapped[dict] = mapped_column(JSON, default=dict)
     decision_status: Mapped[str] = mapped_column(String(20), default="open")  # open|accepted|edited|dismissed|escalated
 
 
@@ -294,6 +301,24 @@ class Decision(Base, TimestampMixin):
     reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     edited_suggestion: Mapped[str | None] = mapped_column(Text, nullable=True)
     manager_override: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class DemoJob(Base, TimestampMixin):
+    """Progress record for the one-click demo loader (one active job per organisation).
+
+    Deliberately a database row rather than in-process state: a reloaded API process
+    must still be able to answer GET /v1/demo/status truthfully.
+    """
+    __tablename__ = "demo_jobs"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=uid)
+    org_id: Mapped[str] = mapped_column(ForeignKey("organisations.id"), index=True, nullable=False)
+    state: Mapped[str] = mapped_column(String(20), default="idle")  # idle|loading|running|done|error
+    phase: Mapped[str] = mapped_column(String(80), default="")       # human-readable step
+    total: Mapped[int] = mapped_column(Integer, default=0)
+    analysed: Mapped[int] = mapped_column(Integer, default=0)
+    errors: Mapped[list] = mapped_column(JSON, default=list)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class Override(Base, TimestampMixin):

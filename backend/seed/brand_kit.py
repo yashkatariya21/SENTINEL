@@ -14,14 +14,14 @@ ORG = {
 
 USERS = [
     # email, name, role, department, password
-    ("ada@northwind.example", "Ada Okafor", "admin", "Executive", "Sentinel!2026"),
-    ("maya@northwind.example", "Maya Lindqvist", "brand_manager", "Marketing", "Sentinel!2026"),
-    ("raj@northwind.example", "Raj Menon", "approver", "Executive", "Sentinel!2026"),
-    ("tom@northwind.example", "Tom Ferreira", "manager", "Marketing", "Sentinel!2026"),
-    ("ines@northwind.example", "Inês Duarte", "manager", "Sales", "Sentinel!2026"),
-    ("leo@northwind.example", "Leo Park", "creator", "Marketing", "Sentinel!2026"),
-    ("nina@northwind.example", "Nina Haddad", "creator", "Product", "Sentinel!2026"),
-    ("sam@northwind.example", "Sam Boateng", "external_creator", "Marketing", "Sentinel!2026"),
+    ("ada@northwind.example", "Ada Okafor", "admin", "Executive"),
+    ("maya@northwind.example", "Maya Lindqvist", "brand_manager", "Marketing"),
+    ("raj@northwind.example", "Raj Menon", "approver", "Executive"),
+    ("tom@northwind.example", "Tom Ferreira", "manager", "Marketing"),
+    ("ines@northwind.example", "Inês Duarte", "manager", "Sales"),
+    ("leo@northwind.example", "Leo Park", "creator", "Marketing"),
+    ("nina@northwind.example", "Nina Haddad", "creator", "Product"),
+    ("sam@northwind.example", "Sam Boateng", "external_creator", "Marketing"),
 ]
 
 GUIDELINE_TEXT = """Northwind Analytics — Brand Guidelines, version 4.2

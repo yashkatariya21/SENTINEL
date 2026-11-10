@@ -2,16 +2,18 @@
 from __future__ import annotations
 
 from fastapi import (
-    APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile, status,
+    APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Request, Response, UploadFile, status,
 )
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from .. import ratelimit
 from ..audit import record
 from ..config import settings
 from ..db import get_db
 from ..models import (
-    AnalysisRun, Approval, Comment, ContentItem, ContentVersion, Decision, Finding, Override, User,
+    AnalysisRun, Approval, Comment, ContentItem, ContentVersion, Decision, Finding, Organisation,
+    Override, User,
 )
 from ..schemas import (
     AnalysisRunOut, ApprovalIn, CommentIn, ContentIn, ContentOut, ContentVersionOut, DecisionIn,
@@ -102,6 +104,7 @@ def create_content(body: ContentIn, principal: Principal = Depends(current_user)
 
 @router.post("/content/upload", response_model=ContentOut, status_code=status.HTTP_201_CREATED)
 async def upload_content(
+    request: Request,
     file: UploadFile = File(...),
     title: str = Form(...),
     content_type: str = Form("blog"),
@@ -111,6 +114,7 @@ async def upload_content(
     db: Session = Depends(get_db),
 ):
     principal.require("content:create")
+    ratelimit.hit("upload", request, settings.upload_rate_limit_per_minute)
     if content_type not in ("social_post", "blog", "ad", "email"):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Unknown content type.")
     from .. import storage
@@ -145,6 +149,62 @@ def get_content(item_id: str, principal: Principal = Depends(current_user),
     if not _can_see(principal, item):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "You can only view your own content.")
     return _item_out(db, item)
+
+
+@router.get("/content/{item_id}/report.pdf")
+def review_report_pdf(item_id: str, run_id: str | None = None,
+                      principal: Principal = Depends(current_user),
+                      db: Session = Depends(get_db)):
+    """The review record as a PDF, generated server-side.
+
+    Same facts as the screen — rule, citation, confidence, decision — and the
+    disclaimer on every page, because a PDF is the artefact that leaves the app.
+    """
+    item = get_owned(db, ContentItem, item_id, principal)
+    if not _can_see(principal, item):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "You can only view your own content.")
+
+    version = db.execute(select(ContentVersion).where(
+        ContentVersion.content_item_id == item.id, ContentVersion.version == item.current_version
+    )).scalars().first()
+    query = select(AnalysisRun).where(AnalysisRun.content_item_id == item.id)
+    if run_id:
+        query = query.where(AnalysisRun.id == run_id)
+    else:
+        query = query.where(AnalysisRun.status == "complete")
+    run = db.execute(query.order_by(AnalysisRun.created_at.desc())).scalars().first()
+    if run is None:
+        raise HTTPException(status.HTTP_409_CONFLICT,
+                            "This content has no completed review to export.")
+
+    findings = db.execute(
+        select(Finding).where(Finding.analysis_run_id == run.id)
+        .order_by(Finding.span_start)
+    ).scalars().all()
+    owner = db.get(User, item.owner_id)
+    org = db.get(Organisation, principal.org_id)
+
+    from ..services.pdf import review_pdf
+
+    pdf = review_pdf(
+        item={
+            "title": item.title, "owner_name": owner.name if owner else None,
+            "department": item.department, "content_type": item.content_type,
+            "current_version": item.current_version, "status": item.status,
+            "body_text": version.body_text if version else "",
+        },
+        run={
+            "model_provider": run.model_provider, "model_name": run.model_name,
+            "embedding_model": run.embedding_model, "prompt_version": run.prompt_version,
+            "repeat_runs": run.repeat_runs, "metrics": run.metrics or {},
+        },
+        findings=[finding_out(f).model_dump() for f in findings],
+        organisation=org.name if org else "Sentinel",
+    )
+    safe_title = "".join(c for c in (item.title or "review") if c.isalnum() or c in " -_")[:60].strip()
+    filename = f"{(safe_title or 'review').replace(' ', '-').lower()}-review.pdf"
+    return Response(content=pdf, media_type="application/pdf",
+                    headers={"content-disposition": f'inline; filename="{filename}"'})
 
 
 @router.get("/content/{item_id}/versions", response_model=list[ContentVersionOut])
@@ -195,6 +255,10 @@ def analyze(item_id: str, background: BackgroundTasks,
     )).scalars().first()
     if version is None:
         raise HTTPException(status.HTTP_409_CONFLICT, "Content has no version to analyse.")
+    # a previous run on this org that never finished must not block the new one
+    from ..services.pipeline import recover_stale_runs
+
+    recover_stale_runs(db, org_id=principal.org_id)
     run = start_run(db, org_id=principal.org_id, item=item, version=version)
     record(db, org_id=principal.org_id, action="analysis.started", actor_id=principal.user_id,
            actor_role=principal.role, entity="analysis_run", entity_id=run.id,
@@ -223,7 +287,8 @@ def finding_out(f: Finding) -> FindingOut:
         suggestion=f.suggestion if f.decision_status != "dismissed" else None,
         deterministic=f.deterministic, provider=f.provider, model=f.model,
         prompt_version=f.prompt_version, agreement=f.agreement,
-        evidence_strength=f.evidence_strength, decision_status=f.decision_status,
+        evidence_strength=f.evidence_strength, metrics=f.metrics or {},
+        decision_status=f.decision_status,
     )
 
 
@@ -383,6 +448,7 @@ def get_run(run_id: str, principal: Principal = Depends(current_user), db: Sessi
         content_version_id=run.content_version_id, model_provider=run.model_provider,
         model_name=run.model_name, embedding_model=run.embedding_model,
         prompt_version=run.prompt_version, repeat_runs=run.repeat_runs, stats=run.stats or {},
+        metrics=run.metrics or {},
         rule_versions=run.rule_versions or [], error=run.error, started_at=run.started_at,
         finished_at=run.finished_at, findings=[finding_out(f) for f in findings],
     )

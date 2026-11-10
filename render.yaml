@@ -42,6 +42,9 @@ services:
         sync: false            # https://your-app.vercel.app
       - key: SEED_ON_STARTUP
         value: "0"
+      # one-click demo is off in production unless you deliberately turn it on
+      - key: DEMO_MODE
+        value: "0"
 
 databases:
   - name: sentinel-db

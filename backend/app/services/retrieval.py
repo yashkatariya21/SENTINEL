@@ -129,7 +129,7 @@ def ingest_document(db: Session, *, org_id: str, document: Document, text: str,
     return rows
 
 
-def _mirror_vectors(db: Session, rows: list[Chunk]) -> None:  # pragma: no cover - pg only
+def _mirror_vectors(db: Session, rows: list[Chunk]) -> None:
     db.execute(sql("CREATE TABLE IF NOT EXISTS chunk_vectors (chunk_id text PRIMARY KEY, org_id text, embedding vector(1536))"))
     for row in rows:
         vec = "[" + ",".join(str(round(v, 6)) for v in row.embedding) + "]"
@@ -146,7 +146,7 @@ def retrieve(db: Session, *, org_id: str, brand_kit_id: str, query: str,
     adapter = get_adapter()
     qvec = adapter.embed([query])[0]
 
-    if settings.is_postgres:  # pragma: no cover - exercised in deployment only
+    if settings.is_postgres:
         rows = db.execute(sql(
             """
             SELECT c.id, c.text, c.page, c.heading, c.brand_kit_id, d.filename,

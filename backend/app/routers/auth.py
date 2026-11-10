@@ -1,10 +1,12 @@
 """Auth, workspace setup and user management. Every route is org-scoped."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from .. import ratelimit
+from ..config import settings
 from ..audit import record
 from ..db import get_db
 from ..models import Membership, Organisation, User
@@ -45,7 +47,10 @@ def create_workspace(body: WorkspaceSetupIn, db: Session = Depends(get_db)):
 
 
 @router.post("/login", response_model=TokenOut)
-def login(body: LoginIn, db: Session = Depends(get_db)):
+def login(body: LoginIn, request: Request, db: Session = Depends(get_db)):
+    # Brute-force guard: per-IP budget, counted before the password is checked so a
+    # wrong guess costs the same as a right one.
+    ratelimit.hit("login", request, settings.login_rate_limit_per_minute)
     user = db.execute(select(User).where(User.email == body.email.lower().strip())).scalars().first()
     if user is None:
         org = db.execute(select(Organisation).where(Organisation.slug == body.email.lower())).scalars().first()
@@ -101,9 +106,15 @@ def create_user(body: dict, principal: Principal = Depends(current_user), db: Se
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Unknown role.")
     if db.execute(select(User).where(User.org_id == principal.org_id, User.email == email)).scalar_one_or_none():
         raise HTTPException(status.HTTP_409_CONFLICT, "That email already exists in this workspace.")
+    password = (body.get("password") or "").strip()
+    if len(password) < 12:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "A password of at least 12 characters is required. Sentinel does not assign a default one.",
+        )
     user = User(org_id=principal.org_id, email=email, name=body.get("name") or email.split("@")[0],
                 role=role, department=body.get("department"),
-                password_hash=hash_password(body.get("password") or "Sentinel!2026"))
+                password_hash=hash_password(password))
     db.add(user)
     db.flush()
     db.add(Membership(org_id=principal.org_id, user_id=user.id, role=role))

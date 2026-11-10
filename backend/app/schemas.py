@@ -274,6 +274,8 @@ class FindingOut(BaseModel):
     prompt_version: str
     agreement: float
     evidence_strength: float
+    # measured cost of producing this finding (latency, tokens, estimated cost)
+    metrics: dict = {}
     decision_status: str
 
 
@@ -288,6 +290,7 @@ class AnalysisRunOut(BaseModel):
     prompt_version: str
     repeat_runs: int
     stats: dict = {}
+    metrics: dict = {}
     rule_versions: list = []
     error: Optional[str] = None
     started_at: Optional[datetime] = None
@@ -350,6 +353,9 @@ class AnalyticsSummaryOut(BaseModel):
     repeated_violations: list
     brand_health_trend: list
     top_violated_guideline: Optional[dict]
+    confidence_calibration: list = []
+    telemetry: dict = {}
+    insights: list = []
     inputs: dict = {}
     monthly_report: dict
     provider: dict

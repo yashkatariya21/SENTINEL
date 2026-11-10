@@ -7,10 +7,32 @@
   `.env`, `.env.*`, `*.pem`, `*.key` while keeping `.env.example`.
 * `render.yaml` marks `LLM_API_KEY`, `S3_*`, `AUTH_*` and `CORS_ORIGINS` as `sync: false`, so they are
   entered in the platform dashboard, not the repository.
-* `SECRET_KEY` uses `generateValue: true` on Render. The development default prints a warning-worthy value
-  and should never be deployed (`dev-only-insecure-change-me`).
+* `SECRET_KEY` uses `generateValue: true` on Render. The development default
+  (`dev-only-insecure-change-me`) can never be deployed: see *Production guards* below.
+* **There is no hard-coded password anywhere in the source.** The seeded demo users get `SEED_PASSWORD`; if
+  that is empty the seeder generates a random one and prints it exactly once. `POST /v1/auth/users` refuses a
+  password shorter than 12 characters instead of assigning a default. A CI job greps `backend/app` and
+  `backend/seed` for the old literal and fails the build if it ever comes back.
 * API keys never reach the browser: the frontend only talks to its own origin, which proxies `/v1`.
 * Keys are never logged. LLM errors log the exception *class*, not the request body or headers.
+
+## 1a. Production guards
+
+`SENTINEL_ENV=production` makes the API **refuse to start** (`RuntimeError` at startup, before the port is
+opened) unless every one of these is true. It lists *all* the problems at once, so an operator fixes them in
+one pass:
+
+| Condition | Why it blocks |
+|---|---|
+| `SECRET_KEY` is the development default or shorter than 32 chars | anyone with the repository could mint valid tokens |
+| `SEED_ON_STARTUP=0` | seeding would write demo content into a real database |
+| `DEMO_MODE=0` | `/v1/demo/reset` deletes content |
+| `DATABASE_URL` is PostgreSQL | SQLite has no pgvector and no RLS |
+| `CORS_ORIGINS` is an explicit list | `*` lets any site call the API with a stolen token |
+| `SEED_PASSWORD` is set | credentials must never come from the source tree |
+
+Covered by `tests/test_hardening.py::test_production_refuses_unsafe_defaults` (one case per row, plus a case
+proving a correct configuration passes).
 
 ## 2. Authentication & authorisation
 
@@ -34,6 +56,30 @@
 | Never changes a rule without a manager's click | Rules change only via `PATCH /rules/{id}`, `revert`, or `/overrides/{id}/answer` → `promote`; every path writes a new version and an audit entry | `test_override_promotion_creates_a_new_rule_version` |
 | Legal & accessibility rules need an Approver | `workflows.answer_learning_prompt()` puts them in `pending_approval`; `promote()` rejects a manager with 403 | `test_legal_override_needs_an_approver` |
 | Dismissal must be justified | Schema validator: reason required for `dismiss` and `escalate` | `test_dismiss_requires_a_reason` |
+
+## 3a. Abuse limits and uploads
+
+| Limit | Default | Where |
+|---|---|---|
+| `POST /v1/auth/login` | 10 / minute / IP | `app/ratelimit.py`, counted before the password is checked so a wrong guess costs the same as a right one |
+| `POST /v1/content/upload` | 20 / minute / IP | same limiter |
+| `POST /v1/demo/load` | 3 / minute / IP | same limiter |
+| Upload size | `MAX_UPLOAD_MB` (20) → **413** | `storage.read_upload`, reads `limit + 1` bytes and stops |
+| Upload type | allow-list, sniffed from magic bytes **and** the declared type → **415** | `storage.sniff_mime` + `settings.allowed_mimes` |
+
+The limiter is in-process and per-IP (honouring `X-Forwarded-For`). That matches the single-process deployment
+shape here; behind several replicas, enforce the same budgets at the edge or back the limiter with Redis.
+
+Tests: `test_login_is_rate_limited`, `test_upload_is_rate_limited_and_type_checked`,
+`test_upload_rejects_oversized_files`.
+
+## 3b. Long-running work
+
+Analysis runs execute in a background task. If the process dies mid-run, the row would otherwise stay
+`running` for ever and the UI would poll a ghost. `recover_stale_runs()` runs at startup and before every new
+run: anything in `queued`/`running` for more than 15 minutes is marked **failed** with an explicit
+"Abandoned… re-run the review" message. It is deliberately *not* auto-requeued — re-running a hosted model
+costs money and should be a human decision. Test: `test_stale_running_runs_are_failed_not_left_polling`.
 
 ## 4. Prompt-injection defence
 

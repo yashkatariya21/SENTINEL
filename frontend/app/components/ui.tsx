@@ -2,16 +2,27 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 
 /* ------------------------------------------------------------------ basics */
-export function Card({ className = "", children, ...rest }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={`rounded-xl border border-ink/10 bg-white shadow-card ${className}`} {...rest}>{children}</div>;
+export function Card({ className = "", children, ornament, ...rest }:
+  React.HTMLAttributes<HTMLDivElement> & { ornament?: boolean }) {
+  return (
+    <div
+      className={`rounded-xl border border-ink/12 bg-white/90 shadow-card backdrop-blur-[2px] ${
+        ornament ? "corner-ornament" : ""} ${className}`}
+      {...rest}
+    >
+      {children}
+    </div>
+  );
 }
 
-export function SectionHeading({ title, subtitle, action }: { title: string; subtitle?: string; action?: React.ReactNode }) {
+export function SectionHeading({ title, subtitle, action, className = "" }: {
+  title: string; subtitle?: string; action?: React.ReactNode; className?: string;
+}) {
   return (
-    <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-      <div>
-        <h2 className="text-lg font-semibold tracking-tight text-ink">{title}</h2>
-        {subtitle && <p className="mt-1 max-w-2xl text-sm text-ink-mute">{subtitle}</p>}
+    <div className={`mb-4 flex flex-wrap items-end justify-between gap-3 ${className}`}>
+      <div className="rule-double">
+        <h2 className="font-display text-lg font-semibold tracking-tight text-navy">{title}</h2>
+        {subtitle && <p className="mt-1 max-w-2xl text-sm text-ink-soft">{subtitle}</p>}
       </div>
       {action}
     </div>
@@ -26,14 +37,15 @@ type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
 
 export function Button({ variant = "secondary", size = "md", loading, className = "", children, ...rest }: ButtonProps) {
   const base =
-    "inline-flex items-center justify-center gap-2 rounded-lg font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
+    "inline-flex items-center justify-center gap-2 rounded-md font-semibold transition duration-200 ease-royal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold focus-visible:ring-offset-2 focus-visible:ring-offset-navy disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0";
   const variants = {
-    primary: "bg-navy-700 text-white hover:bg-navy-900 border border-transparent",
-    secondary: "bg-white text-ink border border-ink/15 hover:bg-paper",
-    ghost: "bg-transparent text-navy-700 border border-transparent hover:bg-navy-50",
-    danger: "bg-danger-500 text-white border border-transparent hover:bg-danger-700",
+    primary:
+      "bg-gradient-gold text-navy border border-gold-deep/60 shadow-[0_1px_0_rgba(255,255,255,0.45)_inset,0_2px_6px_-2px_rgba(143,116,24,0.6)] hover:brightness-[1.04] hover:-translate-y-px",
+    secondary: "bg-white/70 text-navy border border-navy/30 hover:bg-ivory-deep hover:border-navy/50",
+    ghost: "bg-transparent text-navy border border-transparent hover:bg-navy/[0.06]",
+    danger: "bg-critical text-white border border-critical hover:brightness-110",
   };
-  const sizes = { sm: "px-2.5 py-1.5 text-xs", md: "px-3.5 py-2 text-sm" };
+  const sizes = { sm: "min-h-[36px] px-3 py-1.5 text-xs", md: "min-h-[44px] px-4 py-2 text-xs" };
   return (
     <button className={`${base} ${variants[variant]} ${sizes[size]} ${className}`} {...rest}>
       {loading && <Spinner small />}
@@ -57,7 +69,7 @@ export function Field({ label, hint, children, htmlFor, required }: {
   return (
     <div className="mb-4">
       <label htmlFor={htmlFor} className="mb-1.5 block text-sm font-medium text-ink">
-        {label} {required && <span className="text-danger-500" aria-hidden="true">*</span>}
+        {label} {required && <span className="text-critical" aria-hidden="true">*</span>}
       </label>
       {children}
       {hint && <p className="mt-1 text-xs text-ink-mute">{hint}</p>}
@@ -66,7 +78,7 @@ export function Field({ label, hint, children, htmlFor, required }: {
 }
 
 const inputClass =
-  "w-full rounded-lg border border-ink/20 bg-white px-3 py-2 text-sm text-ink placeholder:text-ink-mute/70 focus:border-navy-500 focus:outline-none focus:ring-2 focus:ring-navy-500/30";
+  "w-full rounded-md border border-ink/20 bg-white px-3 py-2 text-xs text-ink placeholder:text-ink-mute/70 transition duration-200 ease-royal focus:border-gold focus:outline-none focus:ring-2 focus:ring-gold/40 disabled:opacity-60";
 
 export function TextInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return <input {...props} className={`${inputClass} ${props.className || ""}`} />;
@@ -80,10 +92,10 @@ export function Select(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
 
 /* ------------------------------------------------------- semantic badges */
 const SEVERITY = {
-  critical: { label: "Critical", dot: "bg-danger-700", chip: "bg-danger-50 text-danger-700 border-danger-500/40", glyph: "■" },
-  high: { label: "High", dot: "bg-danger-500", chip: "bg-danger-50 text-danger-700 border-danger-500/30", glyph: "▲" },
-  medium: { label: "Medium", dot: "bg-amber-500", chip: "bg-amber-100 text-amber-700 border-amber-500/40", glyph: "◆" },
-  low: { label: "Low", dot: "bg-navy-500", chip: "bg-navy-50 text-navy-700 border-navy-500/30", glyph: "●" },
+  critical: { label: "Critical", dot: "bg-critical", chip: "bg-critical-tint text-critical border-critical/40", glyph: "■" },
+  high: { label: "High", dot: "bg-critical", chip: "bg-critical-tint text-critical border-critical/30", glyph: "▲" },
+  medium: { label: "Medium", dot: "bg-possible", chip: "bg-possible-tint text-possible border-possible/40", glyph: "◆" },
+  low: { label: "Low", dot: "bg-royal", chip: "bg-info-tint text-info border-info/30", glyph: "●" },
 } as const;
 
 export function SeverityChip({ severity, compact }: { severity: keyof typeof SEVERITY | string; compact?: boolean }) {
@@ -100,11 +112,11 @@ export function SeverityChip({ severity, compact }: { severity: keyof typeof SEV
 
 export function LabelChip({ label }: { label: "confirmed" | "possible" }) {
   return label === "confirmed" ? (
-    <span className="inline-flex items-center gap-1 rounded-full border border-ok-600/30 bg-ok-50 px-2 py-0.5 text-xs font-medium text-ok-600">
+    <span className="inline-flex items-center gap-1 rounded-full border border-confirmed/40 bg-confirmed-tint px-2 py-0.5 text-2xs font-semibold uppercase tracking-wide text-confirmed">
       <span aria-hidden="true">✓</span> Confirmed
     </span>
   ) : (
-    <span className="inline-flex items-center gap-1 rounded-full border border-ink-mute/40 bg-paper px-2 py-0.5 text-xs font-medium text-ink-soft">
+    <span className="inline-flex items-center gap-1 rounded-full border border-possible/40 bg-possible-tint px-2 py-0.5 text-2xs font-semibold uppercase tracking-wide text-possible">
       <span aria-hidden="true">?</span> Possible
     </span>
   );
@@ -116,22 +128,22 @@ export function ConfidenceChip({ band, value }: { band: "low" | "medium" | "high
     <span className="inline-flex items-center gap-1.5 text-xs text-ink-soft">
       <span className="inline-flex items-end gap-0.5" aria-hidden="true">
         {[0, 1, 2].map((i) => (
-          <span key={i} className={`w-1 rounded-sm ${i < bars ? "bg-ink-soft" : "bg-ink/15"}`} style={{ height: 5 + i * 3 }} />
+          <span key={i} className={`w-1.5 rounded-sm ${i < bars ? "bg-gold-deep" : "bg-ink/15"}`} style={{ height: 5 + i * 3 }} />
         ))}
       </span>
       <span className="capitalize">{band} confidence</span>
-      <span className="text-ink-mute">({Math.round(value * 100)}%)</span>
+      <span className="font-mono text-2xs text-ink-mute">({Math.round(value * 100)}%)</span>
     </span>
   );
 }
 
 export function StatusPill({ status }: { status: string }) {
   const map: Record<string, string> = {
-    draft: "border-ink/20 bg-paper text-ink-soft",
-    in_review: "border-navy-500/30 bg-navy-50 text-navy-700",
-    changes_requested: "border-amber-500/40 bg-amber-100 text-amber-700",
-    approved: "border-ok-600/30 bg-ok-50 text-ok-600",
-    rejected: "border-danger-500/30 bg-danger-50 text-danger-700",
+    draft: "border-ink/20 bg-ivory-deep text-ink-soft",
+    in_review: "border-royal/30 bg-info-tint text-info",
+    changes_requested: "border-possible/40 bg-possible-tint text-possible",
+    approved: "border-confirmed/40 bg-confirmed-tint text-confirmed",
+    rejected: "border-critical/30 bg-critical-tint text-critical",
   };
   const labels: Record<string, string> = {
     draft: "Draft", in_review: "In review", changes_requested: "Changes requested",
@@ -146,11 +158,15 @@ export function StatusPill({ status }: { status: string }) {
 
 export function Tag({ children, tone = "neutral" }: { children: React.ReactNode; tone?: "neutral" | "navy" | "amber" }) {
   const tones = {
-    neutral: "border-ink/15 bg-paper text-ink-soft",
-    navy: "border-navy-500/30 bg-navy-50 text-navy-700",
-    amber: "border-amber-500/40 bg-amber-100 text-amber-700",
+    neutral: "border-ink/15 bg-ivory-deep text-ink-soft",
+    navy: "border-royal/30 bg-info-tint text-info",
+    amber: "border-gold/50 bg-gold/10 text-gold-deep",
   };
-  return <span className={`inline-flex items-center rounded border px-2 py-0.5 text-xs ${tones[tone]}`}>{children}</span>;
+  return (
+    <span className={`inline-flex items-center rounded border px-2 py-0.5 font-mono text-2xs uppercase tracking-wide ${tones[tone]}`}>
+      {children}
+    </span>
+  );
 }
 
 /* --------------------------------------------------------------- overlays */
@@ -184,11 +200,11 @@ export function Modal({ open, onClose, title, children, footer }: {
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-title"
-        className="max-h-[90vh] w-full max-w-lg overflow-auto rounded-t-2xl bg-white p-5 shadow-xl sm:rounded-2xl"
+        className="corner-ornament max-h-[90vh] w-full max-w-lg overflow-auto rounded-t-xl border border-gold/40 bg-ivory p-5 shadow-herald sm:rounded-xl"
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="mb-3 flex items-start justify-between gap-4">
-          <h2 id="modal-title" className="text-base font-semibold text-ink">{title}</h2>
+          <h2 id="modal-title" className="font-display text-base font-semibold text-navy">{title}</h2>
           <button onClick={onClose} aria-label="Close dialog" className="rounded p-1 text-ink-mute hover:bg-paper focus-visible:ring-2 focus-visible:ring-navy-500">
             ✕
           </button>
@@ -219,9 +235,9 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
           <div
             key={t.id}
             className={`rounded-lg border px-3 py-2 text-sm shadow-card ${
-              t.tone === "ok" ? "border-ok-600/30 bg-ok-50 text-ok-600"
-              : t.tone === "error" ? "border-danger-500/40 bg-danger-50 text-danger-700"
-              : "border-ink/15 bg-white text-ink"}`}
+              t.tone === "ok" ? "border-confirmed/40 bg-confirmed-tint text-confirmed"
+              : t.tone === "error" ? "border-critical/40 bg-critical-tint text-critical"
+              : "border-gold/40 bg-ivory text-ink"}`}
           >
             {t.message}
           </div>
@@ -234,23 +250,36 @@ export const useToast = () => useContext(ToastCtx);
 
 export function EmptyState({ title, body, action }: { title: string; body?: string; action?: React.ReactNode }) {
   return (
-    <div className="rounded-xl border border-dashed border-ink/20 bg-white/60 p-8 text-center">
-      <p className="font-medium text-ink">{title}</p>
-      {body && <p className="mx-auto mt-1 max-w-md text-sm text-ink-mute">{body}</p>}
-      {action && <div className="mt-4 flex justify-center">{action}</div>}
+    <div className="relative isolate overflow-hidden rounded-xl border border-dashed border-gold/50 bg-ivory/70 p-8 text-center">
+      <svg className="pointer-events-none absolute inset-0 -z-10 h-full w-full text-gold" aria-hidden focusable="false" opacity={0.08}>
+        <defs>
+          <pattern id="snt-empty-damask" width="64" height="64" patternUnits="userSpaceOnUse">
+            <path d="M32 8c6 8 14 10 14 20s-9 14-14 20c-5-6-14-10-14-20S26 16 32 8z" fill="currentColor" opacity="0.6" />
+          </pattern>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#snt-empty-damask)" />
+      </svg>
+      <p className="font-display text-base font-semibold text-navy">{title}</p>
+      {body && <p className="mx-auto mt-1.5 max-w-md text-sm leading-relaxed text-ink-soft">{body}</p>}
+      {action && <div className="mt-5 flex flex-wrap justify-center gap-2">{action}</div>}
     </div>
   );
 }
 
 export function Skeleton({ className = "" }: { className?: string }) {
-  return <div className={`animate-pulse rounded-md bg-ink/10 ${className}`} />;
+  return (
+    <div
+      className={`animate-pulse rounded-md bg-gradient-to-r from-ink/[0.06] via-ink/[0.11] to-ink/[0.06] ${className}`}
+      aria-hidden
+    />
+  );
 }
 
 export function KeyValue({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-0.5">
-      <dt className="text-xs uppercase tracking-wide text-ink-mute">{label}</dt>
-      <dd className="text-sm text-ink">{children}</dd>
+      <dt className="font-mono text-2xs uppercase tracking-[0.14em] text-ink-mute">{label}</dt>
+      <dd className="text-xs text-ink">{children}</dd>
     </div>
   );
 }

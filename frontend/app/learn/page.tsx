@@ -113,15 +113,15 @@ export default function LearningPage() {
                   {row.regression && !row.regression.error && (
                     <p className="mt-1 text-[11px] text-ink-mute">
                       Regression suite: {row.regression.passed === false
-                        ? <span className="font-medium text-danger-700">regressions detected</span>
-                        : <span className="font-medium text-ok-600">no regressions</span>}{" "}
+                        ? <span className="font-medium text-critical">regressions detected</span>
+                        : <span className="font-medium text-confirmed">no regressions</span>}{" "}
                       · {row.regression.samples ?? 0} labelled samples
                     </p>
                   )}
                 </div>
                 <div className="flex flex-col items-end gap-2">
                   {row.status === "awaiting_answer" && (
-                    <p className="max-w-56 text-right text-[11px] text-amber-700">
+                    <p className="max-w-56 text-right text-[11px] text-possible">
                       Open the review report to answer “Make this an approved rule?”.
                     </p>
                   )}
@@ -157,7 +157,7 @@ export default function LearningPage() {
                   <td className="py-1.5 pr-3">{new Date(r.created_at).toLocaleString()}</td>
                   <td className="py-1.5 pr-3">{r.trigger}</td>
                   <td className="py-1.5 pr-3">
-                    {r.passed ? <span className="text-ok-600">passed</span> : <span className="text-danger-700">regressions</span>}
+                    {r.passed ? <span className="text-confirmed">passed</span> : <span className="text-critical">regressions</span>}
                   </td>
                   <td className="py-1.5 pr-3">{r.metrics?.candidate?.overall?.micro_precision}</td>
                   <td className="py-1.5">{r.metrics?.candidate?.overall?.micro_recall}</td>

@@ -3,7 +3,13 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { api, ContentItem } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { Button, Card, EmptyState, SectionHeading, SeverityChip, Skeleton, StatusPill, Tag } from "./components/ui";
+import {
+  Button, Card, EmptyState, Field, SectionHeading, SeverityChip, Skeleton, StatusPill, Tag, TextArea, useToast,
+} from "./components/ui";
+import { LoadDemoButton } from "./components/Demo";
+import { BrandScoreRing } from "./components/brand/BrandScoreRing";
+import { Sentri } from "./components/brand/Sentri";
+import { useRouter } from "next/navigation";
 
 interface Summary {
   brand_score: number;
@@ -19,6 +25,10 @@ interface Summary {
 
 export default function OverviewPage() {
   const { me, can } = useAuth();
+  const router = useRouter();
+  const { push } = useToast();
+  const [draft, setDraft] = useState("");
+  const [trying, setTrying] = useState(false);
   const [items, setItems] = useState<ContentItem[] | null>(null);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [error, setError] = useState("");
@@ -37,7 +47,10 @@ export default function OverviewPage() {
     <div>
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-ink">
+          <p className="font-mono text-2xs uppercase tracking-[0.24em] text-gold-deep">
+            {me?.organisation.name} · workspace overview
+          </p>
+          <h1 className="mt-1 font-display text-4xl font-semibold tracking-tight text-navy">
             Good to see you, {me?.user.name.split(" ")[0]}.
           </h1>
           <p className="mt-1 max-w-2xl text-sm text-ink-mute">
@@ -48,24 +61,38 @@ export default function OverviewPage() {
         <Link href="/new"><Button variant="primary">Review new content</Button></Link>
       </div>
 
-      {error && <Card className="mb-4 border-danger-500/40 p-4 text-sm text-danger-700">{error}</Card>}
+      {error && <Card className="mb-4 border-critical/40 p-4 text-sm text-critical">{error}</Card>}
 
       <div className="grid gap-4 lg:grid-cols-3">
         {/* brand score */}
-        <Card className="p-5">
+        <Card className="relative overflow-hidden p-5">
           <SectionHeading title="Brand Score" subtitle="Last 90 days across the workspace" />
           {summary ? (
             <>
-              <div className="flex items-end gap-3">
-                <p className="text-4xl font-semibold tracking-tight text-ink">{summary.brand_score}</p>
-                <p className="pb-1 text-sm text-ink-mute">/ 100</p>
+              <div className="flex items-center gap-4">
+                <BrandScoreRing value={summary.brand_score} size={104} />
+                <div>
+                  <p className="font-display text-2xl font-semibold text-navy">
+                    {summary.submissions} <span className="text-sm font-normal text-ink-mute">submissions reviewed</span>
+                  </p>
+                  <p className="mt-1 text-xs text-ink-soft">
+                    {summary.findings_by_severity.critical ?? 0} critical ·{" "}
+                    {summary.findings_by_severity.high ?? 0} high severity findings
+                  </p>
+                  <p className="mt-1 text-xs text-ink-mute">
+                    Average approval {summary.average_approval_hours != null
+                      ? `${summary.average_approval_hours.toFixed(1)} h`
+                      : "not measured yet"}
+                  </p>
+                </div>
               </div>
-              <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-ink/10" role="img"
-                   aria-label={`Brand score ${summary.brand_score} out of 100`}>
-                <div className="h-full rounded-full bg-navy-700" style={{ width: `${summary.brand_score}%` }} />
-              </div>
-              <p className="mt-3 text-[11px] leading-relaxed text-ink-mute">{summary.formula}</p>
-              <Link href="/analytics" className="mt-3 inline-block text-xs font-medium text-navy-700 hover:underline">
+              <details className="mt-3 group">
+                <summary className="cursor-pointer text-2xs font-semibold uppercase tracking-[0.14em] text-gold-deep focus-visible:ring-2 focus-visible:ring-gold">
+                  How this is calculated
+                </summary>
+                <p className="mt-1 text-[11px] leading-relaxed text-ink-mute">{summary.formula}</p>
+              </details>
+              <Link href="/analytics" className="mt-3 inline-block text-xs font-semibold text-navy-700 underline-offset-2 hover:underline">
                 Open analytics →
               </Link>
             </>
@@ -76,11 +103,53 @@ export default function OverviewPage() {
           )}
         </Card>
 
+        {/* try your own text */}
+        <Card ornament className="p-5">
+          <SectionHeading title="Try your own text" subtitle="Paste two sentences — the six reviewers read them in seconds" />
+          <Field label="Draft copy" htmlFor="try-text" hint="Nothing is published. You can delete the result afterwards.">
+            <TextArea
+              id="try-text"
+              rows={4}
+              value={draft}
+              placeholder="Our fee-free account is the cheapest on the market — guaranteed."
+              onChange={(e) => setDraft(e.target.value)}
+            />
+          </Field>
+          <div className="mt-3 flex items-center gap-2">
+            <Button
+              variant="primary"
+              loading={trying}
+              disabled={draft.trim().length < 12}
+              onClick={async () => {
+                setTrying(true);
+                try {
+                  const created = await api.post<ContentItem>("/content", {
+                    title: `Quick check — ${new Date().toLocaleString()}`,
+                    content_type: "social_post",
+                    text: draft,
+                  });
+                  router.push(`/content/${created.id}`);
+                } catch (err: any) {
+                  push(err.message, "error");
+                  setTrying(false);
+                }
+              }}
+            >
+              Read this draft
+            </Button>
+            <Sentri mood="scanning" size={40} decorative />
+          </div>
+        </Card>
+
         {/* queue */}
         <Card className="p-5">
           <SectionHeading title="Waiting on a human" subtitle="Items in review across your workspace" />
           {!items ? <Skeleton className="h-24 w-full" /> : pending.length === 0 ? (
-            <p className="text-sm text-ink-mute">Nothing is waiting for approval right now.</p>
+            <EmptyState
+              title="Nothing is waiting for approval"
+              body="Once someone submits a draft it appears here for a manager or approver to decide. Load the demo workspace to see the whole loop working."
+              action={<LoadDemoButton label="Load demo data" size="sm" />}
+            />
           ) : (
             <ul className="space-y-2">
               {pending.slice(0, 5).map((item) => (
@@ -103,7 +172,12 @@ export default function OverviewPage() {
         <Card className="p-5">
           <SectionHeading title="Your recent submissions" subtitle="Drafts and reviews you own" />
           {!items ? <Skeleton className="h-24 w-full" /> : mine.length === 0 ? (
-            <p className="text-sm text-ink-mute">You have not submitted any content yet.</p>
+            <EmptyState
+              title="No submissions yet"
+              body="Paste a draft on New submission and the six reviewers will read it against the Brand Kit."
+              action={<><Link href="/new"><Button size="sm">New submission</Button></Link>
+                        <LoadDemoButton label="Load demo data" size="sm" variant="secondary" /></>}
+            />
           ) : (
             <ul className="space-y-2">
               {mine.slice(0, 5).map((item) => (
@@ -157,7 +231,7 @@ export default function OverviewPage() {
               "Submitted content is data, never instructions.",
             ].map((line) => (
               <li key={line} className="flex gap-2">
-                <span aria-hidden="true" className="text-ok-600">✓</span> {line}
+                <span aria-hidden="true" className="text-confirmed">✓</span> {line}
               </li>
             ))}
           </ul>
@@ -178,7 +252,7 @@ export default function OverviewPage() {
               <li key={m.rule_key} className="flex items-center gap-3 text-sm">
                 <span className="w-24 shrink-0"><Tag>{m.rule_key}</Tag></span>
                 <span className="h-2 flex-1 overflow-hidden rounded-full bg-ink/10">
-                  <span className="block h-full rounded-full bg-amber-500"
+                  <span className="block h-full rounded-full bg-possible"
                         style={{ width: `${Math.min(100, (m.count / Math.max(1, summary.most_common_mistakes[0].count)) * 100)}%` }} />
                 </span>
                 <span className="w-8 text-right text-xs text-ink-mute">{m.count}</span>

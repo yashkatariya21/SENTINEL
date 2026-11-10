@@ -404,7 +404,7 @@ export default function BrandKitPage() {
               <ul className="space-y-2">
                 {health.checks.map((c: any) => (
                   <li key={c.item} className="flex items-center gap-2 text-sm">
-                    <span aria-hidden="true" className={c.ok ? "text-ok-600" : "text-amber-700"}>{c.ok ? "✓" : "○"}</span>
+                    <span aria-hidden="true" className={c.ok ? "text-confirmed" : "text-possible"}>{c.ok ? "✓" : "○"}</span>
                     <span className={c.ok ? "text-ink-soft" : "text-ink"}>{c.item}</span>
                     <span className="sr-only">{c.ok ? "complete" : "not complete"}</span>
                   </li>

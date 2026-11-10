@@ -1,0 +1,156 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------------------------------- backend
+  backend:
+    name: Backend tests (PostgreSQL + pgvector)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: sentinel
+          POSTGRES_PASSWORD: sentinel
+          POSTGRES_DB: sentinel_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U sentinel"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install
+        working-directory: backend
+        run: pip install -r requirements.txt
+
+      # The suite runs against real PostgreSQL + pgvector, so the `_mirror_vectors`
+      # path and the RLS policies are exercised rather than skipped on SQLite.
+      - name: Configure environment
+        working-directory: backend
+        run: |
+          cat > .env <<'EOF'
+          DATABASE_URL=postgresql+psycopg://sentinel:sentinel@localhost:5432/sentinel_test
+          SECRET_KEY=ci-only-not-a-real-secret-key-0123456789
+          SEED_PASSWORD=Sentinel!2026
+          SEED_ON_STARTUP=1
+          LLM_PROVIDER=local
+          LLM_REPEAT_RUNS=2
+          DEMO_MODE=1
+          SENTINEL_ENV=development
+          EOF
+
+      - name: Wait for PostgreSQL
+        run: |
+          for i in $(seq 1 30); do
+            pg_isready -h localhost -p 5432 -U sentinel && break
+            sleep 2
+          done
+
+      - name: pytest
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql+psycopg://sentinel:sentinel@localhost:5432/sentinel_test
+          SECRET_KEY: ci-only-not-a-real-secret-key-0123456789
+          SEED_PASSWORD: Sentinel!2026
+          LLM_PROVIDER: local
+          LLM_REPEAT_RUNS: "2"
+        run: python -m pytest -q
+
+      - name: Rule-engine regression benchmark
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql+psycopg://sentinel:sentinel@localhost:5432/sentinel_test
+          SECRET_KEY: ci-only-not-a-real-secret-key-0123456789
+        run: |
+          python -m seed.seed || true
+          python -m eval.run_eval
+
+      - name: LLM benchmark must refuse to invent numbers without a key
+        working-directory: backend
+        run: |
+          set +e
+          python -m eval.run_llm_eval > /tmp/llm.out 2>&1
+          code=$?
+          cat /tmp/llm.out
+          if [ "$code" -eq 0 ]; then
+            echo "::error::run_llm_eval exited 0 without a key — it must refuse"
+            exit 1
+          fi
+          if grep -qiE "precision|recall|f1" /tmp/llm.out; then
+            echo "::error::run_llm_eval printed metrics without a key"
+            exit 1
+          fi
+
+  # --------------------------------------------------------------- frontend
+  frontend:
+    name: Frontend lint + build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: npm ci
+      - name: Lint
+        run: npm run lint --if-present
+      - name: Build
+        run: npm run build
+        env:
+          API_URL: http://127.0.0.1:8000
+
+  # ----------------------------------------------------------------- policy
+  policy:
+    name: Repository policy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: No secrets, no local data, no vendored builds
+        run: |
+          fail=0
+          for pattern in 'backend/sentinel.db*' 'backend/storage/' 'frontend/.next/' 'node_modules/' '*.zip' 'backend/.eval-cache'; do
+            if git ls-files | grep -qE "^${pattern%/}|${pattern}"; then
+              echo "::error::tracked artefact matching $pattern"
+              fail=1
+            fi
+          done
+          if git ls-files | grep -qE '(^|/)\.env$'; then
+            echo "::error::.env is tracked"
+            fail=1
+          fi
+          exit $fail
+      - name: No hard-coded demo password in source
+        run: |
+          if grep -rn "Sentinel!2026" backend/app backend/seed --include=*.py; then
+            echo "::error::demo password hard-coded in source"
+            exit 1
+          fi
+      - name: No placeholder evaluation numbers in docs
+        run: |
+          if grep -rniE "faithful proxy for a one-shot LLM" README.md docs/ backend/eval/*.md; then
+            echo "::error::the baseline is described as an LLM proxy"
+            exit 1
+          fi

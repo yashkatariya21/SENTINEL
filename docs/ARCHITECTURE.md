@@ -79,8 +79,16 @@ behaviour is identical in tests and demos.
 * `AuthProvider` holds `/auth/me` (role + permission flags) and redirects to `/login` when there is no
   token.
 * Each page loads its own data; the Review Report polls the run every 900 ms while `queued|running`.
-* Highlighting works on the server-provided `span_start`/`span_end` character offsets: `HighlightedText`
-  cuts the text at every span boundary, and where spans overlap the most severe wins visually.
+* Highlighting works on the server-provided `span_start`/`span_end` character offsets: `DocumentView` cuts the
+  text at every span boundary, and where spans overlap the most severe wins visually. Applying a suggestion
+  renders an inline tracked change (`<del>`/`<ins>`) in the browser session only — nothing is saved until a
+  human records a decision and adds a version.
+* Design tokens live once, in `tailwind.config.js` + `app/globals.css` (`--royal-navy`, `--gold`, …). Brand art
+  is original inline SVG in `app/components/brand/` (crest, patterns, six reviewer avatars, Sentri the owl,
+  seals) — no external requests at runtime; fonts are self-hosted via `next/font`. Severity is never colour
+  alone: every chip carries a glyph and a word, and highlighted spans carry distinct underline styles.
+* `PrefsProvider` stores two browser-only preferences (dark theme, "Show characters"). Turning characters off
+  hides the avatars and mascot; every fact they carry is also present as text.
 * Every mutation surfaces the API's error message through the toast system — no silent failures.
 
 ## Failure modes considered
@@ -94,7 +102,9 @@ behaviour is identical in tests and demos.
 | Analysis still running when submitting | `409` with the current status |
 | Upload too large / wrong type | `413` / `415` before anything is stored |
 | Token for another org | `404` (never `403`), so existence does not leak |
-| Background task dies | Run marked `failed` with the exception class; UI shows it |
+| Background task dies | `recover_stale_runs()` marks anything stuck in `queued`/`running` for >15 min as `failed` with an "Abandoned… re-run" message, at startup and before each new run. Never auto-requeued: re-running a hosted model spends money |
+| Production started with dev defaults | `settings.assert_production_safe()` raises at startup and lists every problem; the port never opens |
+| Login / upload hammered | `429` with `Retry-After` from the per-IP limiter |
 
 ## The learning loop, concretely
 

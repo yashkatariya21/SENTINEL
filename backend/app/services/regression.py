@@ -66,12 +66,15 @@ def evaluate_dataset(db: Session, *, org_id: str, samples: list[dict] | None = N
     from seed.samples import SAMPLES
 
     samples = samples if samples is not None else SAMPLES
-    candidate = evaluate(predictions_for(db, org_id=org_id, samples=samples, repeat_runs=repeat_runs,
-                                         honour_exceptions=honour_exceptions))
+    raw = predictions_for(db, org_id=org_id, samples=samples, repeat_runs=repeat_runs,
+                          honour_exceptions=honour_exceptions)
+    candidate = evaluate(raw)
     baseline = evaluate(baseline_for(samples))
     comparison = compare(candidate, baseline)
     return {
         "candidate": candidate,
+        # kept so callers can score the same predictions more than one way
+        "predictions": raw,
         "baseline": baseline,
         "comparison": comparison,
         "samples": len(samples),

@@ -15,7 +15,7 @@ from fastapi.responses import JSONResponse
 from .config import settings
 from .db import init_db
 from .llm.factory import provider_info
-from .routers import analytics, auth, brand_kit, content, overrides
+from .routers import analytics, auth, brand_kit, content, demo, evaluation, overrides
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 log = logging.getLogger("sentinel")
@@ -23,7 +23,14 @@ log = logging.getLogger("sentinel")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Refuse to serve real traffic with development defaults. Lists every problem at once.
+    settings.assert_production_safe()
     init_db()
+    from .db import session_scope
+    from .services.pipeline import recover_stale_runs
+
+    with session_scope() as db:
+        recover_stale_runs(db)
     log.info("Sentinel AI starting: provider=%s model=%s", settings.llm_provider, settings.llm_model)
     if settings.seed_on_startup:
         try:
@@ -68,7 +75,7 @@ def health():
             "ai": provider_info()}
 
 
-for module in (auth, brand_kit, content, overrides, analytics):
+for module in (auth, brand_kit, content, overrides, analytics, demo, evaluation):
     app.include_router(module.router, prefix=settings.api_prefix)
 
 

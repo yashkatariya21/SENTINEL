@@ -33,3 +33,20 @@ Thumbs.db
 .idea/
 .vscode/
 *.log
+
+# --- evaluation artefacts ------------------------------------------------
+backend/.eval-cache/
+eval/report_llm.json
+eval/report_llm.md
+
+# --- build artefacts and snapshots ----------------------------------------
+*.zip
+backend/storage/
+backend/sentinel.db*
+
+# --- tool caches (never committed) ---------------------------------------
+.cache/
+.npm/
+.config/
+.local/
+.sudo_as_admin_successful

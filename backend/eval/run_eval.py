@@ -1,4 +1,12 @@
-"""Labelled-set evaluation: six specialist reviewers vs. a single-prompt baseline.
+"""Pipeline regression benchmark (rule-based engine).
+
+This scores the shipped deterministic rule engine plus the local reviewer adapter
+against 53 hand-labelled samples. It answers one question: *did a code or rule
+change break something?* It is **not** a measurement of LLM quality — for that,
+run `eval/run_llm_eval.py`, which needs an API key and reports its own numbers.
+
+The samples were written alongside the rules, and the pattern lists are shared
+between them, so treat these figures as regression numbers, not generalisation.
 
 Usage (from backend/):
     python -m eval.run_eval               # score the shipped labelled set
@@ -35,6 +43,8 @@ def main() -> int:
     parser.add_argument("--repeat", type=int, default=3)
     parser.add_argument("--json", default="eval/report.json")
     parser.add_argument("--md", default="eval/report.md")
+    parser.add_argument("--heldout", default="eval/heldout.json",
+                        help="where to write the held-out adversarial set results")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.WARNING)
@@ -78,15 +88,92 @@ def main() -> int:
         json.dump(result, fh, indent=2, default=str)
     with open(args.md, "w") as fh:
         fh.write(to_markdown(result))
-    print(f"\nwrote {args.json} and {args.md}")
+
+    # ---- held-out adversarial set, scored and reported separately ----------
+    from seed.heldout_samples import HELDOUT, SHARED_VOCABULARY_NOTE
+
+    with session_scope() as db:
+        heldout = evaluate_dataset(db, org_id=org_id, samples=HELDOUT, repeat_runs=args.repeat,
+                                   honour_exceptions=False)
+    from eval.metrics import relaxed
+
+    heldout["relaxed"] = relaxed(heldout["predictions"])
+    heldout["note"] = SHARED_VOCABULARY_NOTE
+    heldout["kind"] = "heldout_adversarial"
+    with open(args.heldout, "w") as fh:
+        json.dump(heldout, fh, indent=2, default=str)
+
+    # append the held-out section to the markdown so both numbers are always read together
+    with open(args.md, "a") as fh:
+        fh.write(to_heldout_markdown(heldout))
+
+    ho = heldout["comparison"]["candidate_overall"]
+    print(f"\nheld-out adversarial set ({heldout['samples']} samples, never used for tuning)")
+    rl = heldout["relaxed"]
+    print(f"  strict (right reviewer AND span) P/R/F1 {ho['micro_precision']:.2f}/{ho['micro_recall']:.2f}/"
+          f"{ho['micro_f1']:.2f}  mean FP rate {ho['mean_false_positive_rate']:.2f}")
+    print(f"  relaxed (any reviewer, span covered)  P/R/F1 {rl['precision']:.2f}/{rl['recall']:.2f}/{rl['f1']:.2f}")
+    if heldout["comparison"]["regressions"]:
+        print(f"  regressions: {heldout['comparison']['regressions']}")
+
+    print(f"\nwrote {args.json}, {args.md} and {args.heldout}")
     return 0
+
+
+def to_heldout_markdown(heldout: dict) -> str:
+    ho = heldout["comparison"]["candidate_overall"]
+    rl = heldout["relaxed"]
+    lines = [
+        "",
+        "---",
+        "",
+        "## Held-out adversarial set (reported separately)",
+        "",
+        f"**{heldout['samples']} samples written after the rules and never used for tuning.** "
+        "This is the number to trust for generalisation, not the regression table above.",
+        "",
+        f"{heldout['note']}",
+        "",
+        "| Scoring | Precision | Recall | F1 |",
+        "|---|---|---|---|",
+        f"| strict (correct reviewer *and* span overlap) | {ho['micro_precision']:.2f} | "
+        f"{ho['micro_recall']:.2f} | {ho['micro_f1']:.2f} |",
+        f"| relaxed (any reviewer covering the span) | {rl['precision']:.2f} | {rl['recall']:.2f} | "
+        f"{rl['f1']:.2f} |",
+        "",
+        f"Mean sample-level false-positive rate across the six reviewers on samples that carry no "
+        f"seeded mistake: {ho['mean_false_positive_rate']:.2f}.",
+        "",
+        "### What it missed",
+        "",
+    ]
+    for reviewer, metrics in heldout["candidate"]["per_reviewer"].items():
+        if not metrics["missed"]:
+            continue
+        lines.append(f"**{reviewer}**")
+        for miss in metrics["missed"]:
+            lines.append(f"- `{miss['sample']}` {miss['type']}: \u201c{miss['span']}\u201d")
+        lines.append("")
+    lines += [
+        "Read this honestly: the rule engine is a regression-checked heuristic, not a language "
+        "model. It reproduces the tuning set almost perfectly and generalises at roughly half that "
+        "on unfamiliar paraphrases. The LLM configuration is what closes that gap — see "
+        "`eval/report_llm.md` (requires an API key; no numbers are written without one).",
+        "",
+    ]
+    return "\n".join(lines)
 
 
 def to_markdown(result: dict) -> str:
     rows = result["comparison"]["rows"]
     o, b = result["comparison"]["candidate_overall"], result["comparison"]["baseline_overall"]
     lines = [
-        "# Sentinel AI — evaluation report",
+        "# Sentinel AI — pipeline regression benchmark (rule-based engine)",
+        "",
+        "This report scores the shipped rule engine against hand-labelled samples. It exists to catch "
+        "regressions when rules change. It is **not** an LLM quality measurement: the samples were written "
+        "alongside the rules and share their pattern vocabulary, so the numbers describe fit to this set, "
+        "not generalisation to unseen copy. LLM quality is measured separately by `eval/run_llm_eval.py`.",
         "",
         f"Labelled samples: **{result['samples']}** (fictional Northwind Analytics content with seeded mistakes; "
         "8 samples are deliberately clean to measure the false-positive rate).",
@@ -110,11 +197,16 @@ def to_markdown(result: dict) -> str:
         "hand-labelled span (IoU >= 0.3). Each label can only be matched once.",
         "* **False-positive rate** is sample-level: share of samples with no seeded mistake for that reviewer "
         "that nevertheless received a finding. This is the 'crying wolf' number brand teams care about.",
-        "* The **single-prompt baseline** is a faithful proxy for a one-shot LLM prompt: all patterns in one pass, "
-        "no per-reviewer job description, no cited rule, no evidence requirement, no duplicate merging. "
-        "It is deterministic so the comparison is reproducible and costs nothing.",
+        "* The **single-prompt baseline** is a deliberately weaker rule pass over the same text: every pattern in "
+        "one sweep, no per-reviewer job, no cited rule, no evidence requirement, no duplicate merging. It is "
+        "deterministic and free. It is **not** an LLM and must not be quoted as one — it exists to show what "
+        "structure (six lenses, citations, merging) contributes over a flat keyword sweep.",
         "* The pipeline numbers come from the real code path (`services.pipeline.analyse_text`), including the "
         "deterministic checks and the span-overlap merge step.",
+        "* **Shared vocabulary, disclosed:** the samples and the rule pattern lists were written together, so a "
+        "reviewer that matches a pattern will often match a sample that was designed around it. That circularity is "
+        "why `seed/heldout_samples.py` exists: 20 adversarial samples, written after the rules and never used for "
+        "tuning, are scored separately in `eval/heldout.json`. Read the two together.",
         "",
         "## Missed detections (worst 8 per reviewer)",
         "",

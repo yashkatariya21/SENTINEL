@@ -15,6 +15,9 @@ httpx==0.28.1
 psycopg[binary]==3.2.3
 # object storage
 boto3==1.35.76
+# server-side PDF export (review record)
+reportlab==4.2.5
+
 # OCR for image uploads (set OCR_ENABLED=1; also needs the tesseract binary)
 # pytesseract==0.3.13
 

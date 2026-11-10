@@ -71,14 +71,14 @@ export function LearningPrompt({ data, departments, onClose, onDone }: Props) {
           <div className="mt-4 rounded-lg border border-ink/10 bg-paper p-3 text-xs text-ink-soft">
             <p className="font-medium text-ink">Regression suite</p>
             {regression.error ? (
-              <p className="mt-1 text-danger-700">Could not complete: {regression.error}</p>
+              <p className="mt-1 text-critical">Could not complete: {regression.error}</p>
             ) : (
               <p className="mt-1">
                 Re-ran {regression.samples ?? "the"} labelled samples.{" "}
                 {regression.passed === false ? (
-                  <span className="font-medium text-danger-700">Regressions detected — review before relying on this rule.</span>
+                  <span className="font-medium text-critical">Regressions detected — review before relying on this rule.</span>
                 ) : (
-                  <span className="font-medium text-ok-600">No regressions across the six reviewers.</span>
+                  <span className="font-medium text-confirmed">No regressions across the six reviewers.</span>
                 )}
               </p>
             )}
@@ -109,7 +109,7 @@ export function LearningPrompt({ data, departments, onClose, onDone }: Props) {
       <p className="mb-4 rounded-lg border border-ink/10 bg-paper px-3 py-2 text-xs text-ink-soft">
         You overrode the AI on: <span className="font-medium text-ink">{data.findingIssue}</span>
         {data.requiresApprover && (
-          <span className="mt-1 block text-amber-700">
+          <span className="mt-1 block text-possible">
             This is a {data.category} finding: an Approver must confirm any rule change.
           </span>
         )}

@@ -11,7 +11,7 @@ import logging
 import re
 import time
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -99,6 +99,12 @@ def band(confidence: float) -> str:
 
 
 # --------------------------------------------------------------------------- #
+def _deterministic_metrics() -> dict:
+    """Deterministic checks make no model call, so tokens and cost are zero by fact."""
+    return {"latency_ms": 0.0, "prompt_tokens": 0, "completion_tokens": 0, "cost_usd": 0.0,
+            "provider": "local", "model": "deterministic", "deterministic": True}
+
+
 def deterministic_candidates(prep: dict, rules: list[dict]) -> list[dict]:
     """Turn deterministic check output into reviewer-shaped candidates."""
     rule_by_key = {r["key"]: r for r in rules}
@@ -119,7 +125,7 @@ def deterministic_candidates(prep: dict, rules: list[dict]) -> list[dict]:
             # department is simply not in scope here, and the finding's `why` (brand-kit
             # term list / approved fact) then carries the explanation on its own
             "evidence_strength": 1.0, "rule_key": rule["key"] if rule else None,
-            "evidence": None, "run_index": 0,
+            "evidence": None, "run_index": 0, "metrics": _deterministic_metrics(),
         })
     return out
 
@@ -128,11 +134,20 @@ def reviewer_candidates(adapter, ctx: ReviewContext, repeat_runs: int) -> list[d
     """Six reviewers in parallel, repeated `repeat_runs` times for agreement scoring."""
 
     def call(reviewer: ReviewerName, run_index: int) -> list[dict]:
+        # Measure what actually happened: wall-clock per reviewer call, and the token
+        # counters the hosted adapter keeps. The deterministic engine reports zero
+        # tokens because it makes no model call — that is a fact, not a zero-fill.
+        before_tokens = (getattr(adapter, "prompt_tokens", 0), getattr(adapter, "completion_tokens", 0))
+        started = time.perf_counter()
         try:
             out = adapter.review(reviewer, ctx, temperature=run_index)
         except Exception as exc:  # one reviewer must never kill a run
             log.warning("reviewer %s failed on run %s: %s", reviewer, run_index, type(exc).__name__)
             return []
+        latency_ms = round((time.perf_counter() - started) * 1000, 1)
+        after_tokens = (getattr(adapter, "prompt_tokens", 0), getattr(adapter, "completion_tokens", 0))
+        prompt_tokens = max(0, after_tokens[0] - before_tokens[0])
+        completion_tokens = max(0, after_tokens[1] - before_tokens[1])
         rows = []
         for f in out.findings:
             evidence = None
@@ -157,6 +172,14 @@ def reviewer_candidates(adapter, ctx: ReviewContext, repeat_runs: int) -> list[d
                 "direct_contradiction": bool(f.direct_contradiction),
                 "evidence_strength": float(f.evidence_strength),
                 "rule_key": f.rule_key, "evidence": evidence, "run_index": run_index,
+                "metrics": {
+                    "latency_ms": latency_ms,
+                    "prompt_tokens": prompt_tokens,
+                    "completion_tokens": completion_tokens,
+                    "cost_usd": _cost_usd(getattr(adapter, "model_name", ""), prompt_tokens, completion_tokens),
+                    "provider": getattr(adapter, "provider_name", "local"),
+                    "model": getattr(adapter, "model_name", "sentinel-local-1"),
+                },
             })
         return rows
 
@@ -166,6 +189,45 @@ def reviewer_candidates(adapter, ctx: ReviewContext, repeat_runs: int) -> list[d
         for batch in pool.map(lambda job: call(*job), jobs):
             rows.extend(batch)
     return rows
+
+
+# Published list prices (USD per 1M tokens) used only to *estimate* cost from the real
+# token counts a provider reports. Unknown models get None, never a guess.
+_PRICES = {
+    "gpt-4o-mini": (0.15, 0.60),
+    "gpt-4o": (2.50, 10.00),
+    "gpt-4.1-mini": (0.40, 1.60),
+    "claude-3-5-haiku-latest": (0.80, 4.00),
+    "claude-sonnet-4": (3.00, 15.00),
+}
+
+
+def _cost_usd(model: str, prompt_tokens: int, completion_tokens: int) -> float | None:
+    price = _PRICES.get(model)
+    if price is None:
+        return None
+    return round(prompt_tokens / 1_000_000 * price[0] + completion_tokens / 1_000_000 * price[1], 8)
+
+
+def run_metrics(merged: list[dict], *, wall_ms: float, provider: str, model: str) -> dict:
+    """Aggregate the per-finding measurements of one run."""
+    latencies = [f["metrics"]["latency_ms"] for f in merged if f.get("metrics")]
+    prompt_tokens = sum(f["metrics"]["prompt_tokens"] for f in merged if f.get("metrics"))
+    completion_tokens = sum(f["metrics"]["completion_tokens"] for f in merged if f.get("metrics"))
+    costs = [f["metrics"]["cost_usd"] for f in merged if f.get("metrics")]
+    known_costs = [c for c in costs if c is not None]
+    return {
+        "wall_ms": round(wall_ms, 1),
+        "provider": provider,
+        "model": model,
+        "slowest_reviewer_ms": max(latencies) if latencies else None,
+        "mean_reviewer_ms": round(sum(latencies) / len(latencies), 1) if latencies else None,
+        "prompt_tokens": prompt_tokens,
+        "completion_tokens": completion_tokens,
+        "cost_usd_estimate": round(sum(known_costs), 8) if known_costs else None,
+        "note": ("no tokens: the deterministic engine makes no model call"
+                 if prompt_tokens == 0 and completion_tokens == 0 else None),
+    }
 
 
 def analyse_text(db: Session, *, org_id: str, text: str, blocks: list[dict], content_type: str,
@@ -298,8 +360,15 @@ def merge_findings(text: str, candidates: list[dict], repeat_runs: int) -> list[
         if not _suggestion_is_span_local(text, span_start, span_end, suggestion):
             suggestion = None
 
+        cluster_metrics = [c["metrics"] for c in cluster if c.get("metrics")]
+        if cluster_metrics:
+            metrics = max(cluster_metrics, key=lambda m: m.get("latency_ms") or 0)
+        else:
+            metrics = {}
+
         merged.append({
             "reviewer": rep["reviewer"], "category": rep["category"], "severity": severity,
+            "metrics": metrics,
             "label": "confirmed" if confirmed else "possible",
             "confidence": confidence, "confidence_band": band(confidence),
             "human_review_required": confidence < 0.55 or SEV_RANK[severity] >= 3,
@@ -385,6 +454,7 @@ def execute_run(run_id: str) -> None:
                     prompt_version=settings.prompt_version, agreement=m["agreement"],
                     evidence_strength=m["evidence_strength"],
                     deterministic_backing=m["deterministic_backing"], dedupe_key=m["dedupe_key"],
+                    metrics=m.get("metrics") or {},
                 ))
 
             injection = injection_scan(version.body_text)
@@ -411,6 +481,10 @@ def execute_run(run_id: str) -> None:
                 "reviewers": list(REVIEWERS),
                 "provider_note": "AI provider and model are recorded on every finding.",
             }
+            run.metrics = run_metrics(
+                merged, wall_ms=(time.time() - started) * 1000,
+                provider=adapter.provider_name, model=adapter.model_name,
+            )
             run.status = "complete"
             run.finished_at = datetime.now(timezone.utc)
             db.flush()
@@ -449,6 +523,44 @@ def _block_for(blocks: list[dict], offset: int) -> str | None:
         if b.get("start", 0) <= offset < b.get("end", 0):
             return b.get("id")
     return None
+
+
+# A run that has sat in queued/running for longer than this is treated as abandoned:
+# the process that owned it is gone (deploy, crash, OOM kill) and it will never finish.
+STALE_RUN_MINUTES = 15
+
+
+def recover_stale_runs(db: Session, *, org_id: str | None = None) -> dict:
+    """Fail runs whose worker died, so the UI never polls a ghost for ever.
+
+    Called at startup (every org) and before starting a new run on an item. The runs are
+    marked `failed` with a reason instead of being silently requeued: requeueing would
+    re-spend money on a hosted provider without a human asking. `POST
+    /v1/content/{id}/analyze` is the explicit re-run path the UI already offers.
+    """
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=STALE_RUN_MINUTES)
+    query = select(AnalysisRun).where(AnalysisRun.status.in_(("queued", "running")))
+    if org_id:
+        query = query.where(AnalysisRun.org_id == org_id)
+    stale = []
+    for run in db.execute(query).scalars().all():
+        reference = run.started_at or run.created_at
+        if reference is None:
+            continue
+        if reference.tzinfo is None:
+            reference = reference.replace(tzinfo=timezone.utc)
+        if reference > cutoff:
+            continue
+        run.status = "failed"
+        run.error = (f"Abandoned: the worker stopped responding after "
+                     f"{round((datetime.now(timezone.utc) - reference).total_seconds() / 60)} minutes. "
+                     f"Re-run the review to try again.")
+        run.finished_at = datetime.now(timezone.utc)
+        stale.append(run.id)
+    if stale:
+        db.flush()
+        log.warning("recovered %s stale analysis runs", len(stale))
+    return {"recovered": stale}
 
 
 def start_run(db: Session, *, org_id: str, item: ContentItem, version: ContentVersion) -> AnalysisRun:

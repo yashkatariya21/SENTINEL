@@ -64,7 +64,7 @@ objects**, so existence never leaks), `409` (wrong state), `413`/`415` (upload),
 
 | Method | Path | Role | Notes |
 |---|---|---|---|
-| GET | `/analysis-runs/{id}` | scoped | status, provider/model/embedding/prompt version, `rule_versions[]`, `stats`, `findings[]` |
+| GET | `/analysis-runs/{id}` | scoped | status, provider/model/embedding/prompt version, `rule_versions[]`, `stats`, `metrics` (measured wall time, tokens, cost estimate), `findings[]` |
 | GET | `/findings?content_item_id=&severity=` | scoped | flat list |
 | POST | `/findings/{id}/decision` | manager+ | `{action: accept\|edit\|dismiss\|escalate, reason?, edited_suggestion?}`. Reason **required** for dismiss/escalate (422). Returns `learning_prompt` when a manager overrides |
 
@@ -108,9 +108,26 @@ objects**, so existence never leaks), `409` (wrong state), `413`/`415` (upload),
 | GET | `/organisation` | any | name, departments, users |
 | DELETE | `/organisation` | admin | right to erasure: deletes all rows scoped to the org |
 
+## Evaluation
+
+Both endpoints require `analytics:read` (manager and above). They serve only what is on disk; a missing
+report is returned as `null`, never as a placeholder.
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/evaluation` | `regression` (rule engine, 53 samples), `heldout` (20 adversarial samples, strict + relaxed), `llm` (null unless `eval/run_llm_eval.py` has been run with a key), `provenance` strings, `generated` timestamps |
+| POST | `/evaluation/run` | re-runs the **rule-engine** benchmark synchronously and rewrites `eval/report.{md,json}` + `eval/heldout.json`. It never calls a hosted model — that is an operator action (`python -m eval.run_llm_eval`), because it spends money |
+
+## Export
+
+| Method | Path | Role | Notes |
+|---|---|---|---|
+| GET | `/content/{id}/report.pdf?run_id=` | scoped | server-side PDF of the review record (reportlab): letterhead, submitted content, every finding with rule quote, citation, confidence and decision, "what this review did not do", and the disclaimer on every page. `409` if the item has no completed run; `404` for another organisation |
+
 ## System
 
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/health` | status, database backend, AI provider info |
+| — | rate limits | `429` + `Retry-After` on login (10/min/IP), upload (20/min/IP) and demo load (3/min/IP) |
 | GET | `/v1/meta` | product metadata: roles, the six reviewers, content types, guarantees list, provider |
