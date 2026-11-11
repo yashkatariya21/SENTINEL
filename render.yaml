@@ -5,7 +5,7 @@ services:
     name: sentinel-api
     runtime: docker
     dockerfilePath: ./backend/Dockerfile
-    rootDir: ./backend
+    dockerContext: .
     plan: starter
     healthCheckPath: /health
     autoDeploy: true
