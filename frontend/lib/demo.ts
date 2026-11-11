@@ -88,13 +88,19 @@ export function useDemoLoader() {
       setBusy(true);
       setError(null);
       try {
+        // Synchronous by default. A background load runs in a worker thread inside the API
+        // process; on a serverless host (Vercel) that instance is frozen as soon as the
+        // response is sent, so the job would never finish and the panel would spin forever.
+        // Blocking is honest here: the offline engine finishes the whole workspace in a few
+        // seconds, and the response already carries the final state.
         const started = await api.post<DemoStatus & { started: boolean }>(
-          `/demo/load?background=${opts.background === false ? "false" : "true"}`,
+          `/demo/load?background=${opts.background === true ? "true" : "false"}`,
         );
         setStatus(started);
         await signInAsDemoManager();
+        if (started.state === "done") return started;
 
-        // poll until the workspace is ready, then resolve
+        // Slow or backgrounded load: fall back to polling until the workspace is ready.
         return await new Promise<DemoStatus>((resolve, reject) => {
           let attempts = 0;
           stopPolling();

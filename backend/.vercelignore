@@ -1,0 +1,13 @@
+# Nothing here is needed to serve the API, and every megabyte slows the cold start.
+tests/
+eval/
+seed/__pycache__/
+__pycache__/
+**/__pycache__/
+*.pyc
+.pytest_cache/
+sentinel.db
+sentinel.db-shm
+sentinel.db-wal
+storage/
+*.md

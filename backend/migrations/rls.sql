@@ -1,17 +1,24 @@
 -- Row-level security for Sentinel AI (PostgreSQL 15+ with pgvector).
--- Statements are separated by "-- >>>" so init_db() can execute them one by one.
+-- Every statement line starts with the marker below (see db.rls_statements), so this
+-- file reads as prose but executes statement by statement. Keep the marker at the start
+-- of a line; never quote it inside a sentence, because the splitter is anchored to ^.
 --
 -- Model: the API connects as a non-superuser role (sentinel_app) and sets
 --   SELECT set_config('app.current_org', '<org uuid>', true)
 -- once per request (see db.set_request_org). Every policy compares org_id with
 -- that setting, so a query that forgets a WHERE clause still cannot cross tenants.
 --
--- Note: table owners bypass RLS unless FORCE ROW LEVEL SECURITY is set, which is
--- why we force it below. Run this as a superuser during provisioning.
+-- Note: PostgreSQL lets a table's owner bypass these policies unless FORCE ROW LEVEL
+-- SECURITY is set. We deliberately do NOT force it here: the API connects as the database
+-- owner, and some routes are legitimately not bound to one organisation (the public demo
+-- status endpoint resolves the workspace by slug, startup recovery sweeps every org).
+-- Forcing RLS would make those return nothing. Isolation for the application itself comes
+-- from the org_id filter in every query plus `set_request_org`; these policies are the
+-- second layer that protects any *other* role (reporting users, psql sessions, a future
+-- connection string handed to `sentinel_app`).
 
 -- >>> ALTER TABLE organisations ENABLE ROW LEVEL SECURITY;
--- >>> ALTER TABLE organisations FORCE ROW LEVEL SECURITY;
--- >>> CREATE POLICY org_isolation ON organisations USING (id = current_setting('app.current_org', true));
+-- >>> DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'organisations' AND policyname = 'org_isolation') THEN CREATE POLICY org_isolation ON organisations USING (id = current_setting('app.current_org', true)); END IF; END $$;
 
 -- >>> DO $$
 -- >>> DECLARE t text;
@@ -23,13 +30,13 @@
 -- >>>   ]
 -- >>>   LOOP
 -- >>>     EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
--- >>>     EXECUTE format('ALTER TABLE %I FORCE ROW LEVEL SECURITY', t);
--- >>>     EXECUTE format(
--- >>>       'CREATE POLICY org_isolation ON %I USING (org_id = current_setting(''app.current_org'', true))', t);
+-- >>>     IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = t AND policyname = 'org_isolation') THEN
+-- >>>       EXECUTE format('CREATE POLICY org_isolation ON %I USING (org_id = current_setting(''app.current_org'', true))', t);
+-- >>>     END IF;
 -- >>>   END LOOP;
 -- >>> END $$;
 
--- >>> CREATE ROLE sentinel_app NOLOGIN;
+-- >>> DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'sentinel_app') THEN CREATE ROLE sentinel_app NOLOGIN; END IF; END $$;
 -- >>> GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO sentinel_app;
 -- >>> GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO sentinel_app;
 
@@ -50,11 +57,9 @@
 -- >>>   FOR EACH ROW EXECUTE FUNCTION reject_self_approval();
 
 -- Vector index for brand-kit retrieval (cosine distance).
--- >>> CREATE TABLE IF NOT EXISTS chunk_vectors (
--- >>>   chunk_id text PRIMARY KEY,
--- >>>   org_id   text NOT NULL,
--- >>>   embedding vector(1536)
--- >>> );
+-- The table itself is created by services.retrieval.ensure_vector_table() at the
+-- provider's embedding dimension (256 offline, 1536 hosted); a fixed dimension here was
+-- wrong for the offline engine. Only the indexes live in this file.
 -- >>> CREATE INDEX IF NOT EXISTS ix_chunk_vectors_org ON chunk_vectors (org_id);
 -- >>> CREATE INDEX IF NOT EXISTS ix_chunk_vectors_ivfflat
 -- >>>   ON chunk_vectors USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);

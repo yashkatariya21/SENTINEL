@@ -15,8 +15,10 @@ optional and a random one is printed once if you leave it empty). `docker-compos
 ## The 60-second path: one-click demo
 
 1. Open `/login`. In the card headed **“See it with real data”**, press **Load demo data**.
-2. A full-width progress panel appears: *Preparing Northwind… 17/53 reviewed… 212 findings*. It polls
-   `/v1/demo/status` once a second and shows real counts, not a fake animation.
+2. The request is synchronous (`/v1/demo/load?background=false`) and takes a few seconds: the loader
+   creates the workspace, reviews every sample and tells the story before answering. (A background worker
+   thread cannot be used on a serverless host — the instance is frozen as soon as the response is sent — so
+   the frontend waits instead of pretending to stream progress.)
 3. When it finishes you are signed in as **Karan Mehta — Manager** (server-minted token, no password typed)
    and land on the report with the most findings. A
    four-step tour runs: highlights → trace a citation → override “Cheap” and answer the learning prompt →

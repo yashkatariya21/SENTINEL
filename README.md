@@ -65,6 +65,7 @@ approval, learning, analytics.
 | “Load demo data” spins, then *“The demo could not be prepared.”* | `DEMO_MODE=0` in the backend's `.env` (or a production-style env) | set `DEMO_MODE=1` and restart the API; `/v1/demo/*` 404s when it is off |
 | The workspace fills up, then you are bounced back to `/login` | backend unreachable through the Next proxy | the proxy target is fixed **at build time**: set `API_URL=http://127.0.0.1:8000` before `next build` / `next start`. `next build` now prints a warning when it is missing |
 | `/content`, `/kit` look empty after a load | a stale `sentinel.db` from an older schema | delete `backend/sentinel.db*` and restart (or `POST /v1/demo/load` again) |
+| `ModuleNotFoundError: psycopg2` on a hosted deployment | `DATABASE_URL` starts `postgresql://`, so SQLAlchemy wants psycopg2 | use `postgresql+psycopg://` (psycopg 3 is what is installed) |
 | `next build` dies with *“An error occurred in `next/font`”* | it used to fetch fonts from Google at build time | fixed: fonts are committed in `frontend/app/fonts/` and loaded with `next/font/local`, so builds work with no egress |
 
 **No paid service is required.** The default `LLM_PROVIDER=local` runs a deterministic, offline
@@ -358,12 +359,21 @@ migration.
 
 **Local production-like stack**: `docker compose up --build` (Postgres+pgvector, API, web).
 
+**Both halves on Vercel?** → [`docs/DEPLOY-VERCEL.md`](docs/DEPLOY-VERCEL.md). Short version: the
+backend needs `backend/vercel.json` + `api/index.py` (both included), a **PostgreSQL with pgvector**
+(`DATABASE_URL` must start `postgresql+psycopg://` — SQLite cannot persist on a serverless
+filesystem), `STORAGE_DIR=/tmp/...`, and the frontend needs `API_URL` set **at build time**
+(the `/v1` rewrite is compiled in — redeploy after changing it). Reference env files:
+`backend/.env.vercel.example`, `frontend/.env.vercel.example`.
+
 ---
 
 ## 11. Repository map
 
 ```
 backend/
+  api/index.py       Vercel serverless entry point (bootstrap + ASGI app)
+  vercel.json        build/route config for @vercel/python
   app/
     main.py            FastAPI app, /v1 routers, /health, /v1/meta
     config.py          every env var in one place

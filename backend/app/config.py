@@ -112,10 +112,13 @@ class Settings(BaseSettings):
             problems.append("DATABASE_URL points at SQLite; production requires PostgreSQL with pgvector.")
         if "*" in self.cors_origins:
             problems.append("CORS_ORIGINS=* allows any origin. List the real origins.")
-        if not self.seed_password:
+        # Only relevant when seeding is on — and the rule above already requires it to be off.
+        # The previous version demanded a SEED_PASSWORD in production even with seeding
+        # disabled, which forced an operator to publish a demo credential to satisfy a check.
+        if self.seed_on_startup and not self.seed_password:
             problems.append(
-                "SEED_PASSWORD is empty. Demo credentials must not be hard-coded; set SEED_PASSWORD "
-                "or do not seed at all in production."
+                "SEED_PASSWORD is empty while seeding is enabled. Seeded demo users must not share "
+                "a hard-coded password; either set SEED_PASSWORD or set SEED_ON_STARTUP=0."
             )
         return problems
 

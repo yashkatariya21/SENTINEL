@@ -17,7 +17,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import select
 
 from app.config import settings
-from app.db import init_db, session_scope
+from app.db import bound_org, init_db, session_scope
 from app.llm.factory import get_adapter
 from app.models import (
     AnalysisRun, Approval, Asset, BrandKit, Chunk, Comment, ContentItem, ContentVersion, Decision,
@@ -512,6 +512,13 @@ def load_demo(on_progress=None, on_phase=None, *, concurrency: int = 4) -> dict:
     creates no duplicates.
     """
     org_id = ensure_workspace()
+    # runs in a worker thread with no request, so tell Postgres which org this session owns
+    with bound_org(org_id):
+        return _load_demo_inside(org_id, on_progress=on_progress, on_phase=on_phase,
+                                 concurrency=concurrency)
+
+
+def _load_demo_inside(org_id: str, *, on_progress=None, on_phase=None, concurrency: int = 4) -> dict:
     have = existing_titles(org_id)
     specs = demo_specs()
 

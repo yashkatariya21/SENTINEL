@@ -129,13 +129,60 @@ def ingest_document(db: Session, *, org_id: str, document: Document, text: str,
     return rows
 
 
+def _vector_dim() -> int:
+    """Dimension of the vectors the active provider produces (256 offline, 1536 hosted)."""
+    return int(getattr(get_adapter(), "embedding_dim", 1536) or 1536)
+
+
+def ensure_vector_table(db: Session, dim: int | None = None) -> None:
+    """Create/repair the pgvector mirror at the provider's dimension.
+
+    The column used to be declared `vector(1536)` unconditionally, but the offline engine
+    (the default, zero-cost path) emits 256-dimension vectors — so on PostgreSQL every
+    insert failed with "expected 1536 dimensions, not 256" and retrieval returned nothing.
+    When the dimension does not match, the mirror is rebuilt from `chunks.embedding` (the
+    durable copy), so nothing needs re-analysing.
+    """
+    if not settings.is_postgres:
+        return
+    dim = dim or _vector_dim()
+    existing = db.execute(sql(
+        "SELECT atttypmod FROM pg_attribute "
+        "WHERE attrelid = to_regclass('chunk_vectors') AND attname = 'embedding'"
+    )).scalar()
+    if existing == dim:
+        return
+    if existing is not None:
+        db.execute(sql("DROP TABLE chunk_vectors"))
+    db.execute(sql(
+        f"CREATE TABLE IF NOT EXISTS chunk_vectors "
+        f"(chunk_id text PRIMARY KEY, org_id text NOT NULL, embedding vector({dim}))"
+    ))
+    db.execute(sql("CREATE INDEX IF NOT EXISTS ix_chunk_vectors_org ON chunk_vectors (org_id)"))
+    db.execute(sql(
+        "CREATE INDEX IF NOT EXISTS ix_chunk_vectors_ivfflat "
+        "ON chunk_vectors USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100)"
+    ))
+    # re-populate from the durable JSON copy of every embedding already in the database
+    for chunk in db.execute(select(Chunk).where(Chunk.embedding.isnot(None))).scalars():
+        if not chunk.embedding or len(chunk.embedding) != dim:
+            continue
+        vec = "[" + ",".join(str(round(v, 6)) for v in chunk.embedding) + "]"
+        db.execute(
+            sql("INSERT INTO chunk_vectors (chunk_id, org_id, embedding) VALUES (CAST(:c AS text), CAST(:o AS text), CAST(:v AS vector)) "
+                "ON CONFLICT (chunk_id) DO UPDATE SET embedding = CAST(:v AS vector)"),
+            {"c": chunk.id, "o": chunk.org_id, "v": vec},
+        )
+
+
 def _mirror_vectors(db: Session, rows: list[Chunk]) -> None:
-    db.execute(sql("CREATE TABLE IF NOT EXISTS chunk_vectors (chunk_id text PRIMARY KEY, org_id text, embedding vector(1536))"))
+    dim = _vector_dim()
+    ensure_vector_table(db, dim)
     for row in rows:
         vec = "[" + ",".join(str(round(v, 6)) for v in row.embedding) + "]"
         db.execute(
-            sql("INSERT INTO chunk_vectors (chunk_id, org_id, embedding) VALUES (:c, :o, :v::vector) "
-                "ON CONFLICT (chunk_id) DO UPDATE SET embedding = :v::vector"),
+            sql("INSERT INTO chunk_vectors (chunk_id, org_id, embedding) VALUES (CAST(:c AS text), CAST(:o AS text), CAST(:v AS vector)) "
+                "ON CONFLICT (chunk_id) DO UPDATE SET embedding = CAST(:v AS vector)"),
             {"c": row.id, "o": row.org_id, "v": vec},
         )
 
@@ -150,12 +197,12 @@ def retrieve(db: Session, *, org_id: str, brand_kit_id: str, query: str,
         rows = db.execute(sql(
             """
             SELECT c.id, c.text, c.page, c.heading, c.brand_kit_id, d.filename,
-                   1 - (v.embedding <=> :q::vector) AS score
+                   1 - (v.embedding <=> CAST(:q AS vector)) AS score
             FROM chunk_vectors v
             JOIN chunks c ON c.id = v.chunk_id
             JOIN documents d ON d.id = c.document_id
             WHERE v.org_id = :org AND c.brand_kit_id = :kit AND c.org_id = :org
-            ORDER BY v.embedding <=> :q::vector
+            ORDER BY v.embedding <=> CAST(:q AS vector)
             LIMIT :lim
             """
         ), {"q": "[" + ",".join(str(round(x, 6)) for x in qvec) + "]", "org": org_id,

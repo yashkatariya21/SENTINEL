@@ -34,7 +34,7 @@ def test_production_accepts_a_correctly_configured_environment():
     ({"demo_mode": True}, "DEMO_MODE"),
     ({"database_url": "sqlite:///./sentinel.db"}, "SQLite"),
     ({"cors_origins": "*"}, "CORS_ORIGINS"),
-    ({"seed_password": ""}, "SEED_PASSWORD"),
+    ({"seed_on_startup": True, "seed_password": ""}, "SEED_PASSWORD"),
 ])
 def test_production_refuses_unsafe_defaults(overrides, needle):
     problems = _settings(**overrides).production_problems()
@@ -264,3 +264,67 @@ def test_pdf_export_is_refused_cross_organisation(client, auth):
     item = items[0]
     # another tenant must not be able to tell whether the item exists
     assert client.get(f"/v1/content/{item['id']}/report.pdf", headers=other).status_code == 404
+
+
+# --------------------------------------------------------------------------- Postgres boot
+# These guard the three bugs that made a PostgreSQL deployment impossible to boot.
+def _rls_sql() -> str:
+    import pathlib
+    return (pathlib.Path(__file__).resolve().parents[1] / "migrations" / "rls.sql").read_text()
+
+
+def test_rls_migration_splits_into_whole_statements():
+    """`DO $$ … $$;` must survive the splitter, dollar quotes and all.
+
+    The file prefixes every SQL line with a marker. Splitting on that marker (or on ";")
+    cut PL/pgSQL bodies in half, PostgreSQL rejected every fragment and `init_db()` raised,
+    so the API could never start against PostgreSQL.
+    """
+    from app.db import rls_statements
+
+    statements = rls_statements(_rls_sql())
+    assert len(statements) >= 10, statements
+
+    for statement in statements:
+        assert not statement.lstrip().startswith("--"), f"prose leaked into a statement: {statement[:60]}"
+        assert statement.count("$$") % 2 == 0, f"unbalanced dollar quote: {statement[:80]}"
+
+    joined = " ".join(statements)
+    assert "FOREACH t IN ARRAY" in joined, "the table loop must stay in one statement"
+    assert "reject_self_approval" in joined
+
+
+def test_rls_prose_in_the_header_does_not_become_sql():
+    from app.db import rls_statements
+
+    text = (
+        "-- Statements are separated by the marker, per db.rls_statements.\n"
+        "-- >>> SELECT 1;\n"
+        "-- a plain comment, not a statement\n"
+        "-- >>> SELECT 2;\n"
+    )
+    assert rls_statements(text) == ["SELECT 1", "SELECT 2"]
+
+
+def test_vector_table_matches_the_provider_dimension(monkeypatch):
+    """The pgvector mirror must be created at the dimension the provider emits.
+
+    It was hard-coded to `vector(1536)` while the offline engine emits 256, so on
+    PostgreSQL every insert failed with "expected 1536 dimensions, not 256".
+    """
+    from app.services import retrieval
+
+    class TinyAdapter:
+        embedding_dim = 256
+
+    monkeypatch.setattr(retrieval, "get_adapter", lambda: TinyAdapter())
+    assert retrieval._vector_dim() == 256
+
+
+def test_postgres_casts_are_bindable():
+    """`:v::vector` is not SQLAlchemy-bindable; `CAST(:v AS vector)` is."""
+    import pathlib
+
+    source = (pathlib.Path(__file__).resolve().parents[1] / "app/services/retrieval.py").read_text()
+    assert ":v::vector" not in source, "use CAST(:v AS vector) — SQLAlchemy leaves ':v::vector' unbound"
+    assert ":q::vector" not in source, "use CAST(:q AS vector)"

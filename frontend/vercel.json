@@ -3,9 +3,6 @@
   "framework": "nextjs",
   "buildCommand": "npm run build",
   "installCommand": "npm ci",
-  "rewrites": [
-    { "source": "/v1/:path*", "destination": "https://YOUR-API.onrender.com/v1/:path*" }
-  ],
   "headers": [
     {
       "source": "/(.*)",

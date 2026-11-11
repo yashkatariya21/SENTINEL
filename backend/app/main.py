@@ -21,8 +21,13 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 log = logging.getLogger("sentinel")
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
+def bootstrap() -> None:
+    """Everything the API needs before it can answer a request.
+
+    Called from the ASGI lifespan *and* from `api/index.py` (the Vercel/serverless entry
+    point), because a serverless runtime may create the app without running lifespan
+    startup — in which case the database would never be created.
+    """
     # Refuse to serve real traffic with development defaults. Lists every problem at once.
     settings.assert_production_safe()
     init_db()
@@ -38,6 +43,11 @@ async def lifespan(app: FastAPI):
             seed_if_empty()
         except Exception as exc:  # demo data must never block the API
             log.warning("seed skipped: %s: %s", type(exc).__name__, exc)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    bootstrap()
     yield
 
 
@@ -70,8 +80,17 @@ async def unhandled(request: Request, exc: Exception):  # pragma: no cover - saf
 
 @app.get("/health")
 def health():
+    """Liveness plus the facts a deployment needs to be judged honestly.
+
+    `rls` is reported because a managed database role may not be allowed to install the
+    row-level-security policies; saying "applied: false" is better than implying it worked.
+    """
+    from .db import RLS_STATUS
+
     return {"status": "ok", "app": settings.app_name, "env": settings.env,
             "database": "postgres+pgvector" if settings.is_postgres else "sqlite",
+            "demo_mode": settings.demo_mode,
+            "rls": dict(RLS_STATUS) if settings.is_postgres else {"applied": None, "note": "RLS is PostgreSQL-only"},
             "ai": provider_info()}
 
 

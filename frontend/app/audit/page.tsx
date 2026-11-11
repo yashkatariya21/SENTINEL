@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { Card, EmptyState, SectionHeading, Skeleton, Tag } from "../components/ui";
 
 interface Entry {
@@ -9,6 +10,8 @@ interface Entry {
 }
 
 export default function AuditPage() {
+  const { me, loading: authLoading } = useAuth();
+  const allowed = me?.permissions?.can_read_audit ?? false;
   const [entries, setEntries] = useState<Entry[] | null>(null);
   const [chain, setChain] = useState<any>(null);
   const [filter, setFilter] = useState("");
@@ -16,15 +19,19 @@ export default function AuditPage() {
   const [forbidden, setForbidden] = useState(false);
 
   useEffect(() => {
+    // Roles that cannot read the audit trail should not even ask: a predictable 403 in
+    // every network log looks like a fault. The permission is already in /auth/me.
+    if (authLoading) return;
+    if (!allowed) { setForbidden(true); return; }
     api.get<{ entries: Entry[]; chain: any }>("/audit?limit=200")
       .then((d) => { setEntries(d.entries); setChain(d.chain); })
       .catch((e) => {
-        // Opening /audit by URL is not an error the reader caused. Say who can read it
-        // instead of printing a bare "403 Forbidden" on a blank page.
+        // Opened directly by URL and the server disagrees with the client: explain, don't
+        // print a bare "403 Forbidden" on a blank page.
         if (e instanceof ApiError && e.status === 403) setForbidden(true);
         else setError(e.message);
       });
-  }, []);
+  }, [authLoading, allowed]);
 
   const visible = (entries || []).filter((e) =>
     !filter || `${e.action} ${e.actor} ${e.entity} ${JSON.stringify(e.detail)}`.toLowerCase().includes(filter.toLowerCase()));
