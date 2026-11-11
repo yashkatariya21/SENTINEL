@@ -27,9 +27,21 @@ class Base(DeclarativeBase):
     pass
 
 
+def _normalise_pg_url(url: str) -> str:
+    """Ensure the URL uses the psycopg3 dialect (postgresql+psycopg://).
+
+    Render and many platforms supply a plain `postgresql://` or `postgres://` URL.
+    SQLAlchemy routes those to psycopg2 by default; we only ship psycopg3.
+    """
+    for prefix in ("postgresql+psycopg2://", "postgresql+psycopg://", "postgresql://", "postgres://"):
+        if url.startswith(prefix):
+            return "postgresql+psycopg://" + url[len(prefix):]
+    return url
+
+
 def _make_engine():
     if settings.is_postgres:
-        eng = create_engine(settings.database_url, pool_pre_ping=True, future=True)
+        eng = create_engine(_normalise_pg_url(settings.database_url), pool_pre_ping=True, future=True)
     else:
         eng = create_engine(
             settings.database_url,

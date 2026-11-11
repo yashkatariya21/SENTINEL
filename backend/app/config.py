@@ -131,7 +131,9 @@ class Settings(BaseSettings):
 
     @property
     def is_postgres(self) -> bool:
-        return self.database_url.startswith("postgres")
+        return self.database_url.startswith("postgres://") or \
+               self.database_url.startswith("postgresql://") or \
+               self.database_url.startswith("postgresql+psycopg")
 
     @property
     def allowed_mimes(self) -> set[str]:
