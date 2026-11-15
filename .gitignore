@@ -19,7 +19,10 @@ backend/sentinel.db
 backend/sentinel.db-wal
 backend/sentinel.db-shm
 backend/storage/
-backend/eval/report.json
+# eval/report.json is deliberately tracked: it is the recorded run the README cites, and
+# `python -m eval.doc_facts` compares the documents against it (offline engine, so the file
+# is reproducible). report_llm.json is not tracked — it depends on whichever model ran.
+backend/eval/report_llm.json
 
 # --- node / next ----------------------------------------------------------
 node_modules/

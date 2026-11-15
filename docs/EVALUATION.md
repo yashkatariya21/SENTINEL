@@ -5,7 +5,7 @@ interchangeably.
 
 | What | Command | Needs a key? | Question it answers |
 |---|---|---|---|
-| Behaviour tests | `cd backend && pytest -q` (66 cases) | no | Do the deterministic rules, permissions and tenancy boundaries hold? |
+| Behaviour tests | `cd backend && pytest -q` (that is 197 tests) | no | Do the deterministic rules, permissions and tenancy boundaries hold? |
 | **Pipeline regression benchmark (rule-based engine)** | `python -m eval.run_eval` | no | Did a rule or code change break the engine's behaviour on the tuning set? |
 | **Held-out adversarial set** | `python -m eval.run_eval` (same run) | no | Does the engine generalise to copy it was not tuned on? |
 | **LLM evaluation** | `python -m eval.run_llm_eval` | **yes** | How well do three prompt configurations perform, at what latency and cost? |
@@ -84,15 +84,38 @@ Measured on the same run as the table above:
 
 | Scoring | Precision | Recall | F1 |
 |---|---|---|---|
-| strict — correct reviewer *and* span overlap | **0.29** | **0.26** | **0.27** |
-| relaxed — any reviewer covering the labelled span | 0.52 | 0.48 | 0.50 |
+| strict — correct reviewer *and* span overlap | **0.38** | **0.52** | **0.44** |
+| relaxed — any reviewer covering the labelled span | 0.47 | 0.65 | 0.55 |
 
-Mean sample-level false-positive rate across the six reviewers: **0.06**.
+Mean sample-level false-positive rate across the six reviewers: **0.07**.
 
 **Read that plainly:** the rule engine reproduces its tuning set almost perfectly and generalises at
 roughly half that. The strict number is also harsh by design — flagging the right span with the wrong
-lens scores zero, which the relaxed row (0.50 F1) shows explicitly. Six of the twenty samples were
-clean; the engine stayed quiet on five of them.
+lens scores zero, which the relaxed row (0.55 F1) shows explicitly. Six of the twenty samples were
+clean; the engine stayed quiet on most of them.
+
+### Does a higher confidence band mean a more accurate finding?
+
+This is measured rather than assumed, on the labelled set:
+
+| Band | Findings | Matched | Precision |
+|---|---|---|---|
+| low | 12 | 11 | 0.92 |
+| medium | 24 | 24 | 1.00 |
+| high | 14 | 14 | 1.00 |
+
+Precision never falls as the band rises, so the band is a defensible sort order — but medium
+and high are **tied**, which means the difference between them is **not established** at this
+sample size. On the held-out set the ordering does not hold at all (high is worse than low).
+The app prints that caveat next to the number; a confidence score presented as a calibrated
+probability would be a claim this project cannot support.
+
+### These numbers are checked against the runs
+
+`python -m eval.doc_facts` rebuilds every figure on this page from `eval/report.json`,
+`eval/heldout.json` and pytest's own collection, then verifies the exact lines exist in
+`README.md`, `QUICKSTART.md` and this file. It runs in CI. A stale number is a failing
+build, not a review comment.
 
 Every miss is listed on `/evaluation` and in `backend/eval/report.md`. Closing this gap is exactly what
 the hosted-LLM configuration is for, and that is measured separately below — with real calls, or not
