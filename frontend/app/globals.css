@@ -72,7 +72,9 @@
   }
   body {
     @apply font-sans text-ink;
-    background-color: var(--surface);
+    /* the desk paints the page; body only shows at the rubber-band edges, so it
+       carries the same paper rather than a second, different grey */
+    background-color: var(--paper);
     font-feature-settings: "kern" 1, "cv05" 1;
   }
   /* headings inherit their colour: many of them sit on ink stock (the sign-in
