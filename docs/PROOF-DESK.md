@@ -59,6 +59,62 @@ pointers never get the lamp.
 - the fixed white sample sheet on `/login` was inheriting night-shift tokens
   (`2.19:1`); `Stamp` grew a `tone="stock"` for sheets that never invert.
 
+## 1a.1 The day shift — a cream desk
+
+The day shift is no longer white. It is six warm neutrals with peach and
+baby-pink light: **pearl** cards, **cream** raised halves, **bone** desk, **sand**
+drawer, on a warm rule instead of a cool one, with one whisper of ruby in the
+top-right corner. Nothing is tinted — the warmth arrives as light, the same way
+the night shift works.
+
+| token | value | role |
+|---|---|---|
+| `--paper` | `#fffdf9` | pearl — the sheet a card is printed on |
+| `--paper-2` | `#fbf6ee` | cream — the card's raised half |
+| `--canvas` | `#f6f1e8` | bone — the desk |
+| `--rail` | `#f1e9da` | sand — the side panel |
+| `--rail-edge` | `#e2d7c3` | the one warm rule the panel is separated by |
+| `--hairline` | `#e2dac9` | every other rule |
+| `--ink-3` | `#515763` | hints and meta, deepened for the warm ground |
+| `--mark-text` | `#b32519` | red that carries small words |
+| `--pass` | `#146046` | resolved / approved |
+| `--warn` | `#7c4c0a` | possible / waiting |
+
+Glow, day shift: peach `rgba(240,191,151,.44)` at 80 % 92 %, baby pink
+`rgba(239,192,203,.36)` at 6 % 96 %, a whisper of ruby `rgba(190,67,48,.08)` at
+94 % 2 %, and a pearl highlight `rgba(255,255,255,.72)` at 16 % 0 % — at about a
+third of that on the app screens.
+
+**Measured on the warmest field pixel** the day-shift lights can produce,
+`rgb(242,218,196)` (the ember corner at 1920), with the 1–2 px grid rules
+median-filtered out of the capture: ink **13.8**, ink-2 **5.90**, ink-3 **4.99**,
+mark-text **4.61**, pass **4.52**, warn **5.03**. On the flat stocks: bone
+5.4–16.5, pearl 6.0–18.3, cream 5.7–17.3, sand 5.1–15.4. Four light tokens had to
+move to clear 4.5 on that pixel and they are listed above rather than quietly
+kept — the same rule as the night shift.
+
+## 1a.2 The side panel
+
+The rail is a drawer beside the desk, not another sheet on it: its own ground
+(`--rail`), one warm rule at its edge, its own hover colour (`--rail-hover`, a
+pearl that lifts off the sand, and a bluer ink at night), and at night a faint
+emerald wash picked up from the bottom-left light so it belongs to the room.
+The selected row keeps the system's rule — solid ink under paper in daylight,
+the highlighter at night. Measured on the panel itself: ink-3 5.57 (day) /
+8.44 (night), mark-text 5.15 / 9.08 — every row label clears AA on its own
+ground, not just on a card.
+
+## 1a.3 The mark
+
+The logo inside the shield was a **padlock**, which says "locked" and nothing
+else — the product's promise is a gate a *person* opens. The mark is now the
+shield with a **gate** in it: an arch standing on its threshold rule, with the
+seam between its two leaves as a hairline. Same shield, so it still matches the
+3D seal, the engraving in `SealStage`, and the favicon silhouette; three strokes
+so it survives 20 px in the header; single-colour `currentColor`, so one path
+serves paper, ink and night stock. The engraved crest inside the hero seal and
+the raised detail on the 3D shield were re-cut to the same gate.
+
 ## 1b. The night shift — a dark room with three lights in it
 
 The day shift is a desk. The night shift is the same desk in a dark room, lit from

@@ -87,7 +87,10 @@ export function SealStage() {
               d="M0,-66 L50,-50 L50,-8 C50,26 28,48 0,60 C-28,48 -50,26 -50,-8 L-50,-50 Z"
               strokeWidth="2.2"
             />
-            <path d="M0,-38 v58 M-20,-22 h40 M-20,-4 h40 M-20,14 h40" strokeWidth="1.6" strokeOpacity="0.7" />
+            {/* the gate, engraved: an arch over its threshold rule, with the seam */}
+            <path d="M-21,26 v-24 a21,21 0 0 1 42,0 v24" strokeWidth="1.9" strokeOpacity="0.85" />
+            <path d="M-30,26 h60" strokeWidth="2.1" strokeOpacity="0.9" />
+            <path d="M0,-6 v32" strokeWidth="1.1" strokeOpacity="0.45" />
             <path d="M-96,0 h18 M78,0 h18" strokeWidth="1" strokeOpacity="0.4" />
           </g>
 

@@ -75,13 +75,20 @@ function Shield({ reduced }: { reduced: boolean }) {
         />
       </mesh>
 
-      {/* the rule inside the shield, as three thin raised bars */}
-      {[-0.24, 0, 0.24].map((y, i) => (
-        <mesh key={y} position={[0, y + 0.06, 0.11]}>
-          <boxGeometry args={[i === 0 ? 0.42 : 0.3, 0.035, 0.02]} />
-          <meshStandardMaterial color={HIGHLIGHT} metalness={0.1} roughness={0.55} emissive={HIGHLIGHT} emissiveIntensity={0.22} />
-        </mesh>
-      ))}
+      {/* the gate inside the shield, raised in the highlighter ink: a half torus
+          standing on a thin rule, with the seam between its two leaves */}
+      <mesh position={[0, 0.1, 0.1]}>
+        <torusGeometry args={[0.3, 0.028, 8, 40, Math.PI]} />
+        <meshStandardMaterial color={HIGHLIGHT} metalness={0.1} roughness={0.55} emissive={HIGHLIGHT} emissiveIntensity={0.22} />
+      </mesh>
+      <mesh position={[0, 0.1, 0.1]}>
+        <boxGeometry args={[0.68, 0.035, 0.02]} />
+        <meshStandardMaterial color={HIGHLIGHT} metalness={0.1} roughness={0.55} emissive={HIGHLIGHT} emissiveIntensity={0.22} />
+      </mesh>
+      <mesh position={[0, 0.1 + 0.15, 0.105]}>
+        <boxGeometry args={[0.022, 0.3, 0.018]} />
+        <meshStandardMaterial color={HIGHLIGHT} metalness={0.1} roughness={0.6} emissive={HIGHLIGHT} emissiveIntensity={0.16} />
+      </mesh>
 
       {/* the red pen rule that orbits the seal */}
       <mesh ref={ring} rotation={[Math.PI / 2.35, 0, 0]}>

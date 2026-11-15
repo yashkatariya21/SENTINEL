@@ -134,9 +134,9 @@ export function Shell({ children }: { children: React.ReactNode }) {
         aria-label="Sections"
         className={`${
           open ? "flex" : "hidden"
-        } fixed inset-y-0 left-0 z-50 w-[236px] flex-col border-r-[1.5px] border-ink bg-ivory lg:flex`}
+        } rail fixed inset-y-0 left-0 z-50 w-[236px] flex-col lg:flex`}
       >
-        <div className="flex items-center gap-2.5 border-b border-hairline px-3 py-3">
+        <div className="rail-brand flex items-center gap-2.5 px-3 py-3">
           <Link
             href="/welcome"
             aria-label="Sentinel — about the desk"
@@ -193,7 +193,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
         </div>
 
         {/* the footer states the promise of the desk in words, not a glyph */}
-        <div className="border-t border-hairline px-3 py-3">
+        <div className="rail-foot px-3 py-3">
           <p className="font-mono text-[9px] uppercase leading-[1.7] tracking-[0.12em] text-ink-3">
             Humans decide
             <br />

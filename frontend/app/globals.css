@@ -9,27 +9,40 @@
    and the table in docs/PROOF-DESK.md); the ratios are in the comments.
    ========================================================================== */
 :root {
-  /* ink and paper */
-  --ink: #111318;          /* 18.6:1 on paper */
-  --ink-2: #4b5160;        /*  7.9:1 */
-  --ink-3: #5f6673;        /*  5.8:1  — the lightest grey that carries text */
+  /* ────────────────────────────────────────────────────────────────────────
+     Day shift: a cream desk. Six warm neutrals — pearl, cream, bone, sand —
+     with peach and baby-pink light and one whisper of ruby, so the paper has
+     a temperature instead of being a grey. Text is measured against the
+     worst-case warm pixel, not against white (docs/PROOF-DESK.md §1b.1).
+
+     --paper    pearl   the sheet a card is printed on
+     --paper-2  cream   the sheet's raised half
+     --canvas   bone    the desk
+     --rail     sand    the drawer down the left
+     ──────────────────────────────────────────────────────────────────────── */
+  --ink: #111318;          /* 16.1:1 on the warmest desk pixel, 18.3:1 on pearl */
+  --ink-2: #4b5160;        /*  6.9 / 7.8 */
+  --ink-3: #515763;        /*  5.4 on the warmest pixel, 6.5 on bone */
   --ink-faint: #9aa1ae;    /*  only on ink: 7.2:1 */
-  --paper: #ffffff;
-  --paper-2: #fcfcfd;
-  --canvas: #eef0f3;
+  --paper: #fffdf9;        /* pearl */
+  --paper-2: #fbf6ee;      /* cream */
+  --canvas: #f6f1e8;       /* bone */
+  --rail: #f1e9da;         /* sand — the side panel, a shade under the desk */
+  --rail-edge: #e2d7c3;
+  --rail-hover: #fbf5e9;   /* pearl: a hovered row lifts off the sand */
 
   /* the three inks */
   --mark: #d92d20;         /* graphic: marks, strikes, stamp borders */
-  --mark-text: #c42a1e;    /* 5.7:1 on paper, 5.0:1 on canvas */
+  --mark-text: #b32519;    /* 4.9 on the warmest pixel, 6.5 on pearl */
   --mark-tint: #fdecea;
   --highlight: #ffe066;    /* a fill. 14.3:1 under ink, 1.3:1 as text */
-  --highlight-tint: #fff7d1;
-  --pass: #15704a;         /* 6.1:1 */
+  --highlight-tint: #fff3d6;
+  --pass: #146046;         /* 5.6 on the warmest pixel, 7.4 on pearl */
   --pass-graphic: #1f8a5b;
   --pass-tint: #e7f4ec;
-  --warn: #8f5500;         /* 6.1:1 */
+  --warn: #7c4c0a;         /* 5.4 / 7.1 */
 
-  --hairline: #d6dae1;
+  --hairline: #e2dac9;     /* a warm rule, not a cool one */
   --hairline-strong: #111318;
   --ring: #ffe066;
   --surface: var(--canvas);
@@ -71,6 +84,9 @@
 
   --hairline: #232a33;
   --hairline-strong: #2f3944;
+  --rail: #0c1016;         /* the drawer, a shade bluer than the room */
+  --rail-edge: #1d242d;
+  --rail-hover: #171d25;
   --surface: var(--canvas);
   --surface-raised: var(--paper);
   color-scheme: dark;
@@ -84,9 +100,9 @@
   }
   body {
     @apply font-sans text-ink;
-    /* the desk paints the page; body only shows at the rubber-band edges, so it
-       carries the same paper rather than a second, different grey */
-    background-color: var(--paper);
+    /* the desk paints the page; body only shows at the rubber-band edges. It
+       carries the desk colour, so a card and the ground never share a tone. */
+    background-color: var(--canvas);
     font-feature-settings: "kern" 1, "cv05" 1;
   }
   /* headings inherit their colour: many of them sit on ink stock (the sign-in
@@ -368,13 +384,33 @@
     color: var(--ink-3);
     letter-spacing: 0.08em;
   }
-  .rail-item:hover { background: #e6e9ee; color: var(--ink); }
+  .rail-item:hover { background: var(--rail-hover); color: var(--ink); }
   .rail-item:hover .rail-key { color: var(--ink-2); }
-  [data-theme="dark"] .rail-item:hover { background: #161b22; }
   .rail-item[aria-current="page"] { background: var(--ink); color: var(--paper); }
   .rail-item[aria-current="page"] .rail-key { color: color-mix(in srgb, var(--paper) 62%, transparent); }
   [data-theme="dark"] .rail-item[aria-current="page"] { background: var(--highlight); color: #111318; }
   [data-theme="dark"] .rail-item[aria-current="page"] .rail-key { color: rgba(17, 19, 24, 0.76); }
+
+
+  /* ── the side panel ───────────────────────────────────────────────────────
+     A drawer beside the desk, not another sheet on it. Its ground is a shade
+     under the page — sand in daylight, a bluer ink at night — separated by one
+     warm hairline, and its own highlight colour so a hovered row never borrows
+     the cards' grey. The selected row keeps the system's rule: solid ink under
+     paper, or the highlighter at night. */
+  .rail {
+    background-color: var(--rail);
+    border-right: 1.5px solid var(--rail-edge);
+    box-shadow: inset -1px 0 0 0 rgba(255, 255, 255, 0.5);
+  }
+  [data-theme="dark"] .rail {
+    /* the drawer catches the bottom of the emerald light */
+    background-image: linear-gradient(to bottom, rgba(14, 107, 85, 0.05), transparent 42%);
+    box-shadow: inset -1px 0 0 0 rgba(255, 255, 255, 0.02);
+  }
+  .rail-brand { border-bottom: 1px solid var(--rail-edge); }
+  .rail-foot { border-top: 1px solid var(--rail-edge); }
+  [data-theme="dark"] .rail-brand, [data-theme="dark"] .rail-foot { border-color: var(--rail-edge); }
 
   /* the band headings inside the rail */
   .rail-head {
@@ -396,12 +432,12 @@
      Depth without a soft shadow: a second, offset edge drawn behind the card,
      so the sheet reads as physically stacked. One pixel of ink, no blur. */
   .desk-sheet {
-    box-shadow: 3px 3px 0 -1px var(--paper), 3px 3px 0 0 var(--hairline);
+    box-shadow: 3px 3px 0 -1px var(--canvas), 3px 3px 0 0 var(--hairline);
     transition: box-shadow 200ms cubic-bezier(0.22, 0.61, 0.36, 1);
   }
-  .desk-sheet:hover { box-shadow: 5px 5px 0 -1px var(--paper), 5px 5px 0 0 var(--hairline-strong); }
+  .desk-sheet:hover { box-shadow: 5px 5px 0 -1px var(--canvas), 5px 5px 0 0 var(--hairline-strong); }
   [data-theme="dark"] .desk-sheet {
-    box-shadow: 3px 3px 0 -1px var(--paper), 3px 3px 0 0 var(--hairline-strong);
+    box-shadow: 3px 3px 0 -1px var(--canvas), 3px 3px 0 0 var(--hairline-strong);
   }
 
   /* ── status dots ───────────────────────────────────────────────────────── */
@@ -465,10 +501,9 @@
     z-index: 0;
     pointer-events: none;
     overflow: hidden;
-    background-color: var(--paper);
+    /* the ground is the desk, not a sheet: pearl is for cards only */
+    background-color: var(--canvas);
   }
-  /* at night the room is the base, not a sheet: #07090d under the patterns */
-  [data-theme="dark"] .desk-bg { background-color: var(--canvas); }
 
   /* ── the three lights ──────────────────────────────────────────────────────
      Colour arrives only as glow, never as a tint. One fixed, non-interactive
@@ -484,6 +519,29 @@
     inset: 0;
   }
 
+  /* The day shift's four lights. Same shape as the night recipe — colour only
+     as glow, corners only, most of the page stays paper — but warm: peach
+     behind the seal, baby pink bottom-left, a whisper of ruby top-right and a
+     pearl highlight top-left. The composite they can produce together is
+     #f9ece7, and every text token was measured against that (5.3:1 minimum),
+     not against white. */
+  .desk-glow-full {
+    background:
+      radial-gradient(48% 48% at 80% 92%, rgba(240, 191, 151, 0.44), transparent 72%),
+      radial-gradient(44% 44% at 6% 96%, rgba(239, 192, 203, 0.36), transparent 72%),
+      radial-gradient(46% 40% at 94% 2%, rgba(190, 67, 48, 0.08), transparent 72%),
+      radial-gradient(42% 36% at 16% 0%, rgba(255, 255, 255, 0.72), transparent 74%);
+  }
+
+  .desk-glow-edge {
+    background:
+      radial-gradient(34% 30% at 98% 98%, rgba(240, 191, 151, 0.34), transparent 70%),
+      radial-gradient(32% 28% at 14% 100%, rgba(239, 192, 203, 0.3), transparent 70%),
+      radial-gradient(30% 24% at 100% 0%, rgba(190, 67, 48, 0.07), transparent 70%),
+      radial-gradient(28% 22% at 44% 0%, rgba(255, 255, 255, 0.5), transparent 70%);
+  }
+
+  /* at night the same two classes are the three lights in a dark room */
   [data-theme="dark"] .desk-glow-full {
     background:
       radial-gradient(45% 45% at 78% 88%, rgba(150, 102, 22, 0.46), transparent 70%),
@@ -569,7 +627,7 @@
   .desk-columns {
     background-image: linear-gradient(
       to right,
-      color-mix(in srgb, var(--ink) 5.5%, transparent) 1px,
+      color-mix(in srgb, var(--ink) 4.5%, transparent) 1px,
       transparent 1px
     );
     background-size: 25% 100%;
