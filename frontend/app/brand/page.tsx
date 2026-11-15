@@ -177,7 +177,7 @@ export default function BrandPage() {
       <div className="mt-5 flex flex-wrap gap-3">
         <Link href="/brand/characters"><Button variant="primary">Meet the committee</Button></Link>
         <Link href="/settings"><Button>Characters &amp; appearance</Button></Link>
-        <Link href="/welcome"><Button variant="ghost">The public brief</Button></Link>
+        <Link href="/"><Button variant="ghost">The public brief</Button></Link>
       </div>
     </div>
   );

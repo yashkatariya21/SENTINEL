@@ -6,6 +6,41 @@ documents' figures stop agreeing with those runs.
 
 ---
 
+## A front door, and a way to walk through every room
+
+### Fixed — the link opened on the dashboard, not the brief
+
+Opening the project link in a browser that still held an old session dropped straight
+into the proof desk; with no session it bounced through the dashboard first and could
+land on the sign-in form rather than the brief.
+
+| Cause | Fix |
+|---|---|
+| `/` **was** the desk overview, and the "you are signed out" redirect was client-side, so whatever the browser knew about the session decided the first thing anyone saw | the brief is now the route `/`, prerendered for everyone; the desk moved to `/desk`; `/welcome` permanently redirects to `/` so old links keep working |
+| `lib/api.ts` hard-redirected to `/login` on any 401, including from a public page | a 401 on a public page only drops the dead token and leaves the reader where they are; desk routes still go to the sign-in |
+| the public/private route list was written out three times and could drift | one list in `lib/routes.ts` (`isPublicRoute`, `DESK_HOME`), used by the auth gate, the API client and the shell. It treats `/` as exact and everything else as a prefix — a naive prefix test for `/` matches every path and disables the gate |
+
+Signing in now lands on `/desk`, or on the room that was clicked (see below).
+
+### Added — the walkthrough
+
+One box listing **every room in the desk**, in the order worth walking: Overview, Brand
+Kit, Rules, Guideline changes, New submission, Content queue, Learning, Analytics,
+Evaluation, Audit log, Settings. It appears in two places and is the same list, built
+from `NAV` in `lib/tour.ts` so it cannot drift away from the sidebar:
+
+- **On the brief** (a new section 06, also linked from the hero): eleven one-line
+  descriptions, each with an *Open* button. With no session the click remembers the room
+  and goes to the sign-in, and you land **in the room you clicked**, not on the overview.
+- **On the overview, signed in**: the same eleven rooms with a tick on the ones this
+  browser has actually opened (`localStorage`, written by the shell on every desk page),
+  a *Next: <room> →* button for the first one you have not seen, and a *Dismiss* that is
+  remembered (with a *Show the walkthrough* link to bring it back). The counts are read
+  from what was opened, so nothing is claimed that did not happen.
+
+Verified in a headless browser at 1440 and 390 px: 11 rooms listed in both places,
+`overflowX 0` at both widths, zero console errors; journey `/` → brief → walkthrough
+click → `/login` → `/kit`; `/desk` shows "4 of 11 opened" after opening four rooms.
 ## Guideline changes: three ways the comparison broke its own promise
 
 The page makes three claims. Each of them was false on a real re-issued guideline,
