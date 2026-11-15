@@ -15,7 +15,8 @@ from fastapi.responses import JSONResponse
 from .config import settings
 from .db import init_db
 from .llm.factory import provider_info
-from .routers import analytics, auth, brand_kit, content, demo, evaluation, overrides
+from .routers import (analytics, auth, brand_kit, content, demo, evaluation, guidelines,
+                      overrides)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 log = logging.getLogger("sentinel")
@@ -94,7 +95,7 @@ def health():
             "ai": provider_info()}
 
 
-for module in (auth, brand_kit, content, overrides, analytics, demo, evaluation):
+for module in (auth, brand_kit, guidelines, content, overrides, analytics, demo, evaluation):
     app.include_router(module.router, prefix=settings.api_prefix)
 
 

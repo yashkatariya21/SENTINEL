@@ -25,6 +25,66 @@ def summary(window_days: int = 90, principal: Principal = Depends(current_user),
     return analytics_service.summary(db, org_id=principal.org_id, window_days=window_days)
 
 
+# --------------------------------------------------------------------------- #
+# regression baseline (C4)
+# --------------------------------------------------------------------------- #
+@router.get("/regression/baseline")
+def regression_baseline(principal: Principal = Depends(current_user),
+                        db: Session = Depends(get_db)):
+    """Which run later runs are compared against, and whether it is pinned."""
+    principal.require("analytics:read")
+    from ..models import RegressionRun
+    from ..services.regression import pinned_baseline
+
+    run = pinned_baseline(db, org_id=principal.org_id)
+    if run is None:
+        return {"baseline": None,
+                "note": "No regression run yet, so there is nothing to compare against."}
+    return {
+        "baseline": {
+            "id": run.id, "pinned": bool(run.pinned), "passed": bool(run.passed),
+            "trigger": run.trigger, "created_at": run.created_at.isoformat() if run.created_at else None,
+            "overall": (run.metrics or {}).get("candidate", {}).get("overall"),
+        },
+        "note": ("Pinned baseline: every future run is measured against this one."
+                 if run.pinned else
+                 "Not pinned: this is the most recent run. Pin it to stop comparing against a "
+                 "moving target."),
+    }
+
+
+@router.post("/regression/pin")
+def pin_regression_baseline(body: dict | None = None,
+                            principal: Principal = Depends(current_user),
+                            db: Session = Depends(get_db)):
+    """Pin a run (default: the newest) as the baseline for future comparisons."""
+    principal.require("analytics:read")
+    if principal.role not in ("admin", "brand_manager", "manager"):
+        raise HTTPException(status.HTTP_403_FORBIDDEN,
+                            "Only a manager or admin can pin a regression baseline.")
+    from ..audit import record
+    from ..models import RegressionRun
+    from ..services.regression import pin_baseline
+
+    run_id = (body or {}).get("run_id")
+    if run_id:
+        run = db.get(RegressionRun, run_id)
+        if run is None or run.org_id != principal.org_id:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "That regression run does not exist.")
+    else:
+        run = db.execute(select(RegressionRun).where(RegressionRun.org_id == principal.org_id)
+                         .order_by(RegressionRun.created_at.desc()).limit(1)).scalars().first()
+        if run is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND,
+                                "Run a regression first: there is no run to pin.")
+    pin_baseline(db, run)
+    record(db, org_id=principal.org_id, action="regression.pinned", actor_id=principal.user_id,
+           actor_role=principal.role, entity="regression_run", entity_id=run.id,
+           detail={"trigger": run.trigger})
+    db.commit()
+    return {"pinned": run.id, "created_at": run.created_at.isoformat() if run.created_at else None}
+
+
 @router.get("/audit")
 def audit(limit: int = 100, action: str | None = None,
           principal: Principal = Depends(current_user), db: Session = Depends(get_db)):

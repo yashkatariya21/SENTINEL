@@ -37,9 +37,16 @@ jobs:
           cache: pip
           cache-dependency-path: backend/requirements.txt
 
+      # tesseract is installed so the OCR tests exercise the real binary instead of
+      # skipping; the suite also covers the "tesseract missing" branch explicitly, so a
+      # bare python install stays a supported configuration.
       - name: Install
         working-directory: backend
-        run: pip install -r requirements.txt
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-eng
+          pip install -r requirements.txt
+          tesseract --version | head -1
 
       # The suite runs against real PostgreSQL + pgvector, so the `_mirror_vectors`
       # path and the RLS policies are exercised rather than skipped on SQLite.

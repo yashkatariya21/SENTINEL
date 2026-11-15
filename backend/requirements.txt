@@ -18,8 +18,9 @@ boto3==1.35.76
 # server-side PDF export (review record)
 reportlab==4.2.5
 
-# OCR for image uploads (set OCR_ENABLED=1; also needs the tesseract binary)
-# pytesseract==0.3.13
+# OCR for image uploads and scanned PDF pages. Needs the tesseract binary on the host
+# (apt: tesseract-ocr, see backend/Dockerfile); set OCR_ENABLED=1 to switch it on.
+pytesseract==0.3.13
 
 # tests -------------------------------------------------------------------
 pytest==8.3.4

@@ -85,6 +85,9 @@ class RuleOut(BaseModel):
     source_page: Optional[int] = None
     source_section: Optional[str] = None
     created_at: Optional[datetime] = None
+    # C3: the rule's guideline section has changed and a human has not answered yet.
+    # The rule is still active and still enforced.
+    needs_review: bool = False
 
 
 class RuleVersionOut(RuleOut):
@@ -134,6 +137,10 @@ class DocumentOut(BaseModel):
     status: str
     created_at: datetime
     chunks: int = 0
+    # version lineage and the guideline diff produced by this upload (C0/C1)
+    replaces_document_id: Optional[str] = None
+    change_id: Optional[str] = None
+    review_tasks: int = 0
 
 
 class ConfirmIn(BaseModel):
@@ -160,6 +167,8 @@ class ContentIn(BaseModel):
     text: Optional[str] = None
     image_width: Optional[int] = None
     image_height: Optional[int] = None
+    # True = never send this text to a hosted model (see ContentItem.confidential)
+    confidential: bool = False
 
 
 class BlockOut(BaseModel):
@@ -197,6 +206,7 @@ class ContentOut(BaseModel):
     created_at: datetime
     submitted_at: Optional[datetime] = None
     active_run_id: Optional[str] = None
+    confidential: bool = False
     version: Optional[ContentVersionOut] = None
 
 
@@ -276,6 +286,8 @@ class FindingOut(BaseModel):
     evidence_strength: float
     # measured cost of producing this finding (latency, tokens, estimated cost)
     metrics: dict = {}
+    # B3: the pixels this finding is about — {page, bbox_norm, detected_text, detected_value}
+    visual_evidence: Optional[dict] = None
     decision_status: str
 
 

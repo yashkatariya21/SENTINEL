@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { api, Rule } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -21,10 +22,16 @@ export default function RulesPage() {
   const [rules, setRules] = useState<Rule[] | null>(null);
   const [open, setOpen] = useState<string | null>(null);
   const [versions, setVersions] = useState<Record<string, Rule[]>>({});
+  /** Rules a newer guideline version has put in question. Zero is the normal state. */
+  const [needsReview, setNeedsReview] = useState<number | null>(null);
 
   const load = useCallback(async () => {
-    const data = await api.get<Rule[]>("/rules");
+    const [data, count] = await Promise.all([
+      api.get<Rule[]>("/rules"),
+      api.get<{ needs_review: number }>("/rule-review-tasks/count").catch(() => null),
+    ]);
     setRules(data);
+    setNeedsReview(count ? count.needs_review : null);
   }, []);
 
   useEffect(() => { load().catch((e) => push(e.message, "error")); }, [load, push]);
@@ -67,6 +74,24 @@ export default function RulesPage() {
         subtitle="A rule is never overwritten. Editing or reverting appends a version with an author, a date, a scope and a reason."
       />
 
+      {/* A guideline change never edits a rule on its own. It opens a question instead. */}
+      {needsReview !== null && needsReview > 0 && (
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3 border-l-[2.5px] border-[color:var(--warn)] bg-[color:var(--paper-2)] py-2.5 pl-3 pr-2">
+          <p className="text-sm text-[color:var(--ink)]">
+            <span className="font-semibold">{needsReview}</span>{" "}
+            {needsReview === 1 ? "rule sits on a section that" : "rules sit on sections that"} changed
+            in a newer guideline version. Nothing has been altered — each one waits for a person to
+            keep, edit or retire it.
+          </p>
+          <Link
+            href="/rules/changes"
+            className="rounded-[4px] border border-[color:var(--hairline-strong)] px-2.5 py-1 font-mono text-2xs uppercase tracking-[0.12em] text-[color:var(--ink)] transition-colors hover:border-[color:var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]"
+          >
+            Review changes
+          </Link>
+        </div>
+      )}
+
       {!rules && <Skeleton className="h-48 w-full" />}
       {rules && rules.length === 0 && <EmptyState title="No rules yet" body="Confirm rules from the Brand Kit first." />}
 
@@ -94,6 +119,9 @@ export default function RulesPage() {
               <p className="mt-3 border-t border-[color:var(--hairline)] pt-2 text-[10px] leading-relaxed text-[color:var(--ink-3)]">
                 Reverting never deletes: it appends a new version carrying the old text.
               </p>
+              <p className="mt-2 font-mono text-[10px] uppercase tracking-[0.1em] text-[color:var(--ink-3)]">
+                {needsReview === null ? "review queue unavailable" : `${needsReview} awaiting review`}
+              </p>
             </div>
           </nav>
 
@@ -117,6 +145,7 @@ export default function RulesPage() {
                           <div className="flex flex-wrap items-center gap-2">
                             <Tag tone="navy">{rule.key}</Tag>
                             <span className="text-sm font-semibold text-[color:var(--ink)]">{rule.title}</span>
+                            {rule.needs_review && <Tag tone="amber">needs review</Tag>}
                             {rule.requires_approver && <Tag tone="amber">Approver required</Tag>}
                             {!rule.active && <Tag>inactive</Tag>}
                           </div>

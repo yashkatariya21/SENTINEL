@@ -406,6 +406,7 @@ export default function ProofDeskPage({ params }: { params: { id: string } }) {
                         onFocusNote={goToMark}
                         onDecision={onDecision}
                         busy={busy}
+                        contentItemId={id}
                       />
                     ))
                   )}

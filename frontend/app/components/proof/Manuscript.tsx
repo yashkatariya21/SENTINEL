@@ -13,6 +13,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Finding } from "@/lib/api";
 import { Icon } from "../Icon";
+import { VisualEvidencePanel } from "../VisualEvidence";
 
 export type DecisionAction = "accept" | "edit" | "dismiss" | "escalate";
 
@@ -137,6 +138,7 @@ export function MarginNote({
   onFocusNote,
   onDecision,
   busy,
+  contentItemId,
 }: {
   finding: Finding;
   number: number;
@@ -144,6 +146,8 @@ export function MarginNote({
   onFocusNote: (id: string) => void;
   onDecision: (f: Finding, action: DecisionAction, payload: { reason?: string; edited_suggestion?: string }) => void;
   busy: boolean;
+  /** needed to fetch the stored original an image finding points at (B4) */
+  contentItemId?: string;
 }) {
   const [mode, setMode] = useState<"idle" | "edit" | "dismiss">("idle");
   const [draft, setDraft] = useState(finding.suggestion ?? "");
@@ -225,6 +229,15 @@ export function MarginNote({
         Source: {source}
         {finding.human_review_required && " · needs a human"}
       </p>
+
+      {/* the pixels this note is about, with the measurement that produced it */}
+      {finding.visual_evidence && (
+        <VisualEvidencePanel
+          evidence={finding.visual_evidence}
+          contentItemId={contentItemId}
+          label={finding.label}
+        />
+      )}
 
       {finding.suggestion && (
         <p className="mt-1.5 rounded border border-[color:var(--hairline)] bg-[color:var(--paper-2)] px-1.5 py-1 text-[11px] text-[color:var(--ink-2)]">

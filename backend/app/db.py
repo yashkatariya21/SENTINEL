@@ -111,6 +111,14 @@ def set_request_org(db: Session, org_id: str | None) -> None:
 ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("findings", "metrics", "JSON"),
     ("analysis_runs", "metrics", "JSON"),
+    # A2: content marked confidential is reviewed on the offline engine only.
+    ("content_items", "confidential", "BOOLEAN"),
+    # B3: the pixels a visual finding is about (page, normalised box, OCR text, value).
+    ("findings", "visual_evidence", "JSON"),
+    # B5: perceptual hash of a logo asset, for "possible" logo similarity only.
+    ("assets", "phash", "TEXT"),
+    # C4: the run later runs are compared against, until an operator pins another.
+    ("regression_runs", "pinned", "BOOLEAN"),
 )
 
 

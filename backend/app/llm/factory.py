@@ -24,8 +24,9 @@ def get_adapter() -> LLMAdapter:
         base = settings.llm_base_url
         if provider == "anthropic" and "anthropic" not in base:
             base = "https://api.anthropic.com/v1"
-        return HostedLLM(provider if provider != "openai_compatible" else "openai",
-                         settings.llm_model, settings.llm_api_key, base)
+        # The provider name is reported verbatim (`openai_compatible`, `anthropic`, …)
+        # so /health, the run metrics and a finding all say what actually answered.
+        return HostedLLM(provider, settings.llm_model, settings.llm_api_key, base)
     import logging
     logging.getLogger("sentinel.llm").error("Unknown LLM_PROVIDER=%s; using local engine.", provider)
     return LocalEngine()
@@ -37,6 +38,10 @@ def provider_info() -> dict:
         "provider": a.provider_name,
         "model": a.model_name,
         "embedding_model": a.embedding_model,
+        "embedding_mode": "offline" if settings.embedding_is_offline else "provider",
+        "embedding_dim": getattr(a, "embedding_dim", settings.embedding_dim),
+        "repeat_runs": settings.llm_repeat_runs,
+        "max_calls": settings.max_calls,
         "prompt_version": settings.prompt_version,
         "note": "AI calls are made server-side only. Submitted content is treated as data, never instructions.",
     }

@@ -23,6 +23,21 @@ from typing import Iterable
 from ..schemas import ReviewerName, ReviewerOutput
 
 
+class ProviderLimitReached(RuntimeError):
+    """The call budget is spent, or the provider kept answering 429.
+
+    Raised instead of retrying for ever. `pipeline.reviewer_candidates` catches it
+    and finishes the review on the offline engine, recording that fallback in
+    `analysis_runs.metrics` — a review that silently degrades would be worse than one
+    that says so.
+    """
+
+    def __init__(self, reason: str, *, retry_after: float | None = None):
+        super().__init__(reason)
+        self.reason = reason
+        self.retry_after = retry_after
+
+
 @dataclass
 class ReviewContext:
     text: str

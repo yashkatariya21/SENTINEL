@@ -22,6 +22,19 @@ Labelled samples: **53** (fictional Northwind Analytics content with seeded mist
 * The pipeline numbers come from the real code path (`services.pipeline.analyse_text`), including the deterministic checks and the span-overlap merge step.
 * **Shared vocabulary, disclosed:** the samples and the rule pattern lists were written together, so a reviewer that matches a pattern will often match a sample that was designed around it. That circularity is why `seed/heldout_samples.py` exists: 20 adversarial samples, written after the rules and never used for tuning, are scored separately in `eval/heldout.json`. Read the two together.
 
+
+### Precision by confidence band
+
+The confidence score is only useful if a higher band is more often right. This is the measurement of that claim.
+
+| Band | Findings | Matched a label | Precision |
+|---|---|---|---|
+| low | 12 | 11 | 0.92 |
+| medium | 24 | 24 | 1.00 |
+| high | 14 | 14 | 1.00 |
+
+**Monotonic:** yes. Precision never falls as the band rises, but medium and high are tied, so the difference between them is not established at this sample size. The band is a defensible sort order; it is not a calibrated probability.
+
 ## Missed detections (worst 8 per reviewer)
 
 **fact_checker**
@@ -37,15 +50,14 @@ Labelled samples: **53** (fictional Northwind Analytics content with seeded mist
 
 | Scoring | Precision | Recall | F1 |
 |---|---|---|---|
-| strict (correct reviewer *and* span overlap) | 0.29 | 0.26 | 0.27 |
-| relaxed (any reviewer covering the span) | 0.52 | 0.48 | 0.50 |
+| strict (correct reviewer *and* span overlap) | 0.38 | 0.52 | 0.44 |
+| relaxed (any reviewer covering the span) | 0.47 | 0.65 | 0.55 |
 
-Mean sample-level false-positive rate across the six reviewers on samples that carry no seeded mistake: 0.06.
+Mean sample-level false-positive rate across the six reviewers on samples that carry no seeded mistake: 0.07.
 
 ### What it missed
 
 **brand_voice**
-- `H07` banned_word: “costs less than a coffee run”
 - `H11` tone_mismatch: “a bit of a no-brainer, innit”
 - `H11` tone_mismatch: “plug your data in and chill”
 - `H18` banned_word: “Cheap”
@@ -66,11 +78,6 @@ Mean sample-level false-positive rate across the six reviewers on samples that c
 - `H13` alt_text: “The chart has no axis labels and no alternative text”
 
 **legal**
-- `H08` guarantee: “promise every forecast will land within two percent of actuals”
-- `H09` superlative: “Nothing on the market comes close”
-- `H16` guarantee: “guaranteed to be the cheapest available”
 - `H17` superlative: “best​ in the world​”
-- `H19` superlative: “la meilleure du marché”
-- `H20` superlative: “The world's best, cheapest, fastest forecasting tool”
 
 Read this honestly: the rule engine is a regression-checked heuristic, not a language model. It reproduces the tuning set almost perfectly and generalises at roughly half that on unfamiliar paraphrases. The LLM configuration is what closes that gap — see `eval/report_llm.md` (requires an API key; no numbers are written without one).

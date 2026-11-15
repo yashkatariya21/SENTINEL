@@ -2,22 +2,17 @@
   "candidate": {
     "per_reviewer": {
       "brand_voice": {
-        "tp": 0,
-        "fp": 0,
-        "fn": 4,
-        "predicted": 0,
+        "tp": 1,
+        "fp": 1,
+        "fn": 3,
+        "predicted": 2,
         "labelled": 4,
-        "precision": 1.0,
-        "recall": 0.0,
-        "f1": 0.0,
-        "false_positive_rate": 0.0,
+        "precision": 0.5,
+        "recall": 0.25,
+        "f1": 0.333,
+        "false_positive_rate": 0.059,
         "clean_samples": 17,
         "missed": [
-          {
-            "sample": "H07",
-            "type": "banned_word",
-            "span": "costs less than a coffee run"
-          },
           {
             "sample": "H11",
             "type": "tone_mismatch",
@@ -127,59 +122,34 @@
         ]
       },
       "legal": {
-        "tp": 4,
-        "fp": 2,
-        "fn": 6,
-        "predicted": 6,
+        "tp": 9,
+        "fp": 6,
+        "fn": 1,
+        "predicted": 15,
         "labelled": 10,
-        "precision": 0.667,
-        "recall": 0.4,
-        "f1": 0.5,
+        "precision": 0.6,
+        "recall": 0.9,
+        "f1": 0.72,
         "false_positive_rate": 0.0,
         "clean_samples": 12,
         "missed": [
           {
-            "sample": "H08",
-            "type": "guarantee",
-            "span": "promise every forecast will land within two percent of actuals"
-          },
-          {
-            "sample": "H09",
-            "type": "superlative",
-            "span": "Nothing on the market comes close"
-          },
-          {
-            "sample": "H16",
-            "type": "guarantee",
-            "span": "guaranteed to be the cheapest available"
-          },
-          {
             "sample": "H17",
             "type": "superlative",
             "span": "best\u200b in the world\u200b"
-          },
-          {
-            "sample": "H19",
-            "type": "superlative",
-            "span": "la meilleure du march\u00e9"
-          },
-          {
-            "sample": "H20",
-            "type": "superlative",
-            "span": "The world's best, cheapest, fastest forecasting tool"
           }
         ]
       }
     },
     "overall": {
       "samples": 20,
-      "micro_precision": 0.286,
-      "micro_recall": 0.261,
-      "micro_f1": 0.273,
-      "macro_precision": 0.345,
-      "macro_recall": 0.15,
-      "mean_false_positive_rate": 0.058,
-      "predicted": 21,
+      "micro_precision": 0.375,
+      "micro_recall": 0.522,
+      "micro_f1": 0.436,
+      "macro_precision": 0.25,
+      "macro_recall": 0.275,
+      "mean_false_positive_rate": 0.068,
+      "predicted": 32,
       "labelled": 23
     }
   },
@@ -198,7 +168,18 @@
         {
           "reviewer": "fact_checker",
           "start": 0,
-          "end": 42
+          "end": 42,
+          "confidence": 0.279,
+          "confidence_band": "low",
+          "label": "possible"
+        },
+        {
+          "reviewer": "brand_voice",
+          "start": 51,
+          "end": 63,
+          "confidence": 0.325,
+          "confidence_band": "low",
+          "label": "possible"
         }
       ]
     },
@@ -216,7 +197,10 @@
         {
           "reviewer": "fact_checker",
           "start": 43,
-          "end": 181
+          "end": 181,
+          "confidence": 0.272,
+          "confidence_band": "low",
+          "label": "possible"
         }
       ]
     },
@@ -243,7 +227,16 @@
           "end": 45
         }
       ],
-      "predictions": []
+      "predictions": [
+        {
+          "reviewer": "brand_voice",
+          "start": 17,
+          "end": 32,
+          "confidence": 0.325,
+          "confidence_band": "low",
+          "label": "possible"
+        }
+      ]
     },
     {
       "id": "H08",
@@ -262,7 +255,16 @@
           "end": 65
         }
       ],
-      "predictions": []
+      "predictions": [
+        {
+          "reviewer": "legal",
+          "start": 3,
+          "end": 75,
+          "confidence": 0.73,
+          "confidence_band": "medium",
+          "label": "confirmed"
+        }
+      ]
     },
     {
       "id": "H09",
@@ -275,7 +277,16 @@
           "end": 33
         }
       ],
-      "predictions": []
+      "predictions": [
+        {
+          "reviewer": "legal",
+          "start": 0,
+          "end": 33,
+          "confidence": 0.73,
+          "confidence_band": "medium",
+          "label": "confirmed"
+        }
+      ]
     },
     {
       "id": "H10",
@@ -330,12 +341,18 @@
         {
           "reviewer": "accessibility",
           "start": 56,
-          "end": 60
+          "end": 60,
+          "confidence": 0.965,
+          "confidence_band": "high",
+          "label": "confirmed"
         },
         {
           "reviewer": "visual",
           "start": 20,
-          "end": 27
+          "end": 27,
+          "confidence": 0.965,
+          "confidence_band": "high",
+          "label": "confirmed"
         }
       ]
     },
@@ -367,17 +384,26 @@
         {
           "reviewer": "accessibility",
           "start": 21,
-          "end": 31
+          "end": 31,
+          "confidence": 0.73,
+          "confidence_band": "medium",
+          "label": "confirmed"
         },
         {
           "reviewer": "accessibility",
           "start": 50,
-          "end": 60
+          "end": 60,
+          "confidence": 0.73,
+          "confidence_band": "medium",
+          "label": "confirmed"
         },
         {
           "reviewer": "accessibility",
           "start": 81,
-          "end": 91
+          "end": 91,
+          "confidence": 0.73,
+          "confidence_band": "medium",
+          "label": "confirmed"
         }
       ]
     },
@@ -402,12 +428,18 @@
         {
           "reviewer": "legal",
           "start": 0,
-          "end": 17
+          "end": 17,
+          "confidence": 0.748,
+          "confidence_band": "medium",
+          "label": "confirmed"
         },
         {
           "reviewer": "fact_checker",
           "start": 0,
-          "end": 94
+          "end": 94,
+          "confidence": 0.272,
+          "confidence_band": "low",
+          "label": "possible"
         }
       ]
     },
@@ -425,13 +457,27 @@
       "predictions": [
         {
           "reviewer": "legal",
+          "start": 108,
+          "end": 120,
+          "confidence": 0.73,
+          "confidence_band": "medium",
+          "label": "confirmed"
+        },
+        {
+          "reviewer": "legal",
           "start": 91,
-          "end": 101
+          "end": 101,
+          "confidence": 0.748,
+          "confidence_band": "medium",
+          "label": "confirmed"
         },
         {
           "reviewer": "fact_checker",
           "start": 74,
-          "end": 131
+          "end": 131,
+          "confidence": 0.272,
+          "confidence_band": "low",
+          "label": "possible"
         }
       ]
     },
@@ -455,13 +501,27 @@
       "predictions": [
         {
           "reviewer": "legal",
+          "start": 12,
+          "end": 20,
+          "confidence": 0.73,
+          "confidence_band": "medium",
+          "label": "confirmed"
+        },
+        {
+          "reviewer": "legal",
           "start": 40,
-          "end": 50
+          "end": 50,
+          "confidence": 0.748,
+          "confidence_band": "medium",
+          "label": "confirmed"
         },
         {
           "reviewer": "fact_checker",
           "start": 0,
-          "end": 60
+          "end": 60,
+          "confidence": 0.272,
+          "confidence_band": "low",
+          "label": "possible"
         }
       ]
     },
@@ -486,17 +546,26 @@
         {
           "reviewer": "legal",
           "start": 7,
-          "end": 17
+          "end": 17,
+          "confidence": 0.748,
+          "confidence_band": "medium",
+          "label": "confirmed"
         },
         {
           "reviewer": "fact_checker",
           "start": 7,
-          "end": 18
+          "end": 18,
+          "confidence": 0.272,
+          "confidence_band": "low",
+          "label": "possible"
         },
         {
           "reviewer": "terminology",
           "start": 0,
-          "end": 5
+          "end": 5,
+          "confidence": 1.0,
+          "confidence_band": "high",
+          "label": "confirmed"
         }
       ]
     },
@@ -511,7 +580,16 @@
           "end": 47
         }
       ],
-      "predictions": []
+      "predictions": [
+        {
+          "reviewer": "legal",
+          "start": 25,
+          "end": 47,
+          "confidence": 0.73,
+          "confidence_band": "medium",
+          "label": "confirmed"
+        }
+      ]
     },
     {
       "id": "H20",
@@ -546,27 +624,74 @@
         {
           "reviewer": "legal",
           "start": 54,
-          "end": 72
+          "end": 72,
+          "confidence": 0.748,
+          "confidence_band": "medium",
+          "label": "confirmed"
+        },
+        {
+          "reviewer": "legal",
+          "start": 0,
+          "end": 16,
+          "confidence": 0.73,
+          "confidence_band": "medium",
+          "label": "confirmed"
+        },
+        {
+          "reviewer": "legal",
+          "start": 18,
+          "end": 26,
+          "confidence": 0.73,
+          "confidence_band": "medium",
+          "label": "confirmed"
+        },
+        {
+          "reviewer": "legal",
+          "start": 28,
+          "end": 35,
+          "confidence": 0.73,
+          "confidence_band": "medium",
+          "label": "confirmed"
         },
         {
           "reviewer": "fact_checker",
           "start": 0,
-          "end": 53
+          "end": 53,
+          "confidence": 0.272,
+          "confidence_band": "low",
+          "label": "possible"
         },
         {
           "reviewer": "fact_checker",
           "start": 54,
-          "end": 85
+          "end": 85,
+          "confidence": 0.423,
+          "confidence_band": "low",
+          "label": "possible"
         },
         {
           "reviewer": "legal",
           "start": 86,
-          "end": 97
+          "end": 97,
+          "confidence": 0.66,
+          "confidence_band": "medium",
+          "label": "possible"
+        },
+        {
+          "reviewer": "legal",
+          "start": 98,
+          "end": 113,
+          "confidence": 0.73,
+          "confidence_band": "medium",
+          "label": "possible"
         },
         {
           "reviewer": "accessibility",
           "start": 115,
-          "end": 125
+          "end": 125,
+          "confidence": 0.73,
+          "confidence_band": "medium",
+          "label": "confirmed"
         }
       ]
     }
@@ -759,17 +884,17 @@
     "rows": [
       {
         "reviewer": "brand_voice",
-        "precision": 1.0,
+        "precision": 0.5,
         "baseline_precision": 1.0,
-        "recall": 0.0,
+        "recall": 0.25,
         "baseline_recall": 0.0,
-        "f1": 0.0,
+        "f1": 0.333,
         "baseline_f1": 0.0,
-        "false_positive_rate": 0.0,
+        "false_positive_rate": 0.059,
         "baseline_false_positive_rate": 0.0,
-        "delta_f1": 0.0,
-        "delta_precision": 0.0,
-        "delta_recall": 0.0
+        "delta_f1": 0.333,
+        "delta_precision": -0.5,
+        "delta_recall": 0.25
       },
       {
         "reviewer": "terminology",
@@ -829,29 +954,29 @@
       },
       {
         "reviewer": "legal",
-        "precision": 0.667,
+        "precision": 0.6,
         "baseline_precision": 0.571,
-        "recall": 0.4,
+        "recall": 0.9,
         "baseline_recall": 0.4,
-        "f1": 0.5,
+        "f1": 0.72,
         "baseline_f1": 0.471,
         "false_positive_rate": 0.0,
         "baseline_false_positive_rate": 0.0,
-        "delta_f1": 0.029,
-        "delta_precision": 0.096,
-        "delta_recall": 0.0
+        "delta_f1": 0.249,
+        "delta_precision": 0.029,
+        "delta_recall": 0.5
       }
     ],
     "regressions": [],
     "candidate_overall": {
       "samples": 20,
-      "micro_precision": 0.286,
-      "micro_recall": 0.261,
-      "micro_f1": 0.273,
-      "macro_precision": 0.345,
-      "macro_recall": 0.15,
-      "mean_false_positive_rate": 0.058,
-      "predicted": 21,
+      "micro_precision": 0.375,
+      "micro_recall": 0.522,
+      "micro_f1": 0.436,
+      "macro_precision": 0.25,
+      "macro_recall": 0.275,
+      "mean_false_positive_rate": 0.068,
+      "predicted": 32,
       "labelled": 23
     },
     "baseline_overall": {
@@ -866,15 +991,36 @@
       "labelled": 23
     }
   },
+  "confidence_bands": {
+    "low": {
+      "predicted": 10,
+      "matched": 1,
+      "precision": 0.1
+    },
+    "medium": {
+      "predicted": 19,
+      "matched": 11,
+      "precision": 0.579
+    },
+    "high": {
+      "predicted": 3,
+      "matched": 0,
+      "precision": 0.0
+    },
+    "monotonic": false,
+    "strictly_rising": false,
+    "comparable": false,
+    "note": "Too few findings in at least one band to compare bands. The band is a sort order here, not a measured probability."
+  },
   "samples": 20,
   "relaxed": {
-    "precision": 0.524,
-    "recall": 0.478,
-    "f1": 0.5,
-    "tp": 11,
-    "fp": 10,
-    "fn": 12,
-    "predicted": 21,
+    "precision": 0.469,
+    "recall": 0.652,
+    "f1": 0.545,
+    "tp": 15,
+    "fp": 17,
+    "fn": 8,
+    "predicted": 32,
     "labelled": 23
   },
   "note": "12 of the 20 samples deliberately reuse the shipped pattern vocabulary; 8 avoid it (H02, H03, H07, H08, H09, H13, H17, H19). A miss is therefore most informative on the second group \u2014 that is where the rule engine has no shortcut.",

@@ -18,8 +18,10 @@ from sqlalchemy.orm import Session
 
 from ..config import settings
 from ..db import session_scope
-from ..llm.base import ReviewContext
+from ..llm.base import ProviderLimitReached, ReviewContext
 from ..llm.factory import get_adapter
+from ..llm.local_engine import LocalEngine
+from ..llm.pricing import UNPRICED, cost_usd
 from ..models import (
     AnalysisRun, BrandKit, ContentItem, ContentVersion, Fact, Finding, RuleVersion,
 )
@@ -102,7 +104,15 @@ def band(confidence: float) -> str:
 def _deterministic_metrics() -> dict:
     """Deterministic checks make no model call, so tokens and cost are zero by fact."""
     return {"latency_ms": 0.0, "prompt_tokens": 0, "completion_tokens": 0, "cost_usd": 0.0,
-            "provider": "local", "model": "deterministic", "deterministic": True}
+            "cost_basis": "deterministic", "provider": "local", "model": "deterministic",
+            "deterministic": True}
+
+
+def _block_object(blocks: list[dict], offset: int) -> dict | None:
+    for block in blocks or []:
+        if block.get("start", 0) <= offset < block.get("end", 0):
+            return block
+    return None
 
 
 def deterministic_candidates(prep: dict, rules: list[dict]) -> list[dict]:
@@ -126,87 +136,136 @@ def deterministic_candidates(prep: dict, rules: list[dict]) -> list[dict]:
             # term list / approved fact) then carries the explanation on its own
             "evidence_strength": 1.0, "rule_key": rule["key"] if rule else None,
             "evidence": None, "run_index": 0, "metrics": _deterministic_metrics(),
+            "visual_evidence": d.get("visual_evidence"),
+            # B5: a perceptual-hash coincidence is never promoted to "confirmed"
+            "possible_only": bool(d.get("possible_only")),
         })
     return out
 
 
-def reviewer_candidates(adapter, ctx: ReviewContext, repeat_runs: int) -> list[dict]:
-    """Six reviewers in parallel, repeated `repeat_runs` times for agreement scoring."""
+def candidate_rows(out, ctx: ReviewContext, *, run_index: int, engine, latency_ms: float,
+                   prompt_tokens: int, completion_tokens: int) -> list[dict]:
+    """Turn one reviewer's ReviewerOutput into merge-ready candidate rows.
 
-    def call(reviewer: ReviewerName, run_index: int) -> list[dict]:
-        # Measure what actually happened: wall-clock per reviewer call, and the token
-        # counters the hosted adapter keeps. The deterministic engine reports zero
-        # tokens because it makes no model call — that is a fact, not a zero-fill.
-        before_tokens = (getattr(adapter, "prompt_tokens", 0), getattr(adapter, "completion_tokens", 0))
-        started = time.perf_counter()
-        try:
-            out = adapter.review(reviewer, ctx, temperature=run_index)
-        except Exception as exc:  # one reviewer must never kill a run
-            log.warning("reviewer %s failed on run %s: %s", reviewer, run_index, type(exc).__name__)
-            return []
-        latency_ms = round((time.perf_counter() - started) * 1000, 1)
-        after_tokens = (getattr(adapter, "prompt_tokens", 0), getattr(adapter, "completion_tokens", 0))
-        prompt_tokens = max(0, after_tokens[0] - before_tokens[0])
-        completion_tokens = max(0, after_tokens[1] - before_tokens[1])
-        rows = []
-        for f in out.findings:
-            evidence = None
-            if f.evidence_ref is not None:
-                ref = f.evidence_ref
-                match = next((e for e in ctx.evidence if e.get("chunk_id") == ref.chunk_id), None)
-                if match is None and ref.document:
-                    match = next((e for e in ctx.evidence if e.get("document") == ref.document), None)
-                if match is not None:  # unverified citations are dropped, never rendered
-                    evidence = {
-                        "document": match.get("document"), "page": match.get("page"),
-                        "section": match.get("section"), "chunk_id": match.get("chunk_id"),
-                        "snippet": best_snippet(match.get("text") or "", f.span_text),
-                        "score": match.get("score"),
-                    }
-            rows.append({
-                "reviewer": f.reviewer, "category": f.category or f.reviewer,
-                "severity": f.severity, "span_start": f.span_start, "span_end": f.span_end,
-                "span_text": f.span_text, "issue": f.issue, "why": f.why,
-                "impact": f.impact, "suggestion": f.suggestion,
-                "deterministic": bool(f.deterministic),
-                "direct_contradiction": bool(f.direct_contradiction),
-                "evidence_strength": float(f.evidence_strength),
-                "rule_key": f.rule_key, "evidence": evidence, "run_index": run_index,
-                "metrics": {
-                    "latency_ms": latency_ms,
-                    "prompt_tokens": prompt_tokens,
-                    "completion_tokens": completion_tokens,
-                    "cost_usd": _cost_usd(getattr(adapter, "model_name", ""), prompt_tokens, completion_tokens),
-                    "provider": getattr(adapter, "provider_name", "local"),
-                    "model": getattr(adapter, "model_name", "sentinel-local-1"),
-                },
-            })
-        return rows
-
-    jobs = [(reviewer, i) for i in range(repeat_runs) for reviewer in REVIEWERS]
+    Shared by the live pipeline and by the evaluation harness, so the thing that is
+    measured in `eval/run_llm_eval.py` (`full_context`) is the thing that ships —
+    same citation check, same metrics shape, same merge input.
+    """
+    model = getattr(engine, "model_name", "sentinel-local-1")
+    cost, basis = cost_usd(model, prompt_tokens, completion_tokens)
     rows: list[dict] = []
-    with ThreadPoolExecutor(max_workers=6) as pool:
-        for batch in pool.map(lambda job: call(*job), jobs):
-            rows.extend(batch)
+    for f in out.findings:
+        evidence = None
+        if f.evidence_ref is not None:
+            ref = f.evidence_ref
+            match = next((e for e in ctx.evidence if e.get("chunk_id") == ref.chunk_id), None)
+            if match is None and ref.document:
+                match = next((e for e in ctx.evidence if e.get("document") == ref.document), None)
+            if match is not None:  # unverified citations are dropped, never rendered
+                evidence = {
+                    "document": match.get("document"), "page": match.get("page"),
+                    "section": match.get("section"), "chunk_id": match.get("chunk_id"),
+                    "snippet": best_snippet(match.get("text") or "", f.span_text),
+                    "score": match.get("score"),
+                }
+        rows.append({
+            "reviewer": f.reviewer, "category": f.category or f.reviewer,
+            "severity": f.severity, "span_start": f.span_start, "span_end": f.span_end,
+            "span_text": f.span_text, "issue": f.issue, "why": f.why,
+            "impact": f.impact, "suggestion": f.suggestion,
+            "deterministic": bool(f.deterministic),
+            "direct_contradiction": bool(f.direct_contradiction),
+            "evidence_strength": float(f.evidence_strength),
+            "rule_key": f.rule_key, "evidence": evidence, "run_index": run_index,
+            "metrics": {
+                "latency_ms": latency_ms,
+                "prompt_tokens": prompt_tokens,
+                "completion_tokens": completion_tokens,
+                "cost_usd": cost,
+                "cost_basis": basis,
+                "provider": getattr(engine, "provider_name", "local"),
+                "model": model,
+            },
+        })
     return rows
 
 
-# Published list prices (USD per 1M tokens) used only to *estimate* cost from the real
-# token counts a provider reports. Unknown models get None, never a guess.
-_PRICES = {
-    "gpt-4o-mini": (0.15, 0.60),
-    "gpt-4o": (2.50, 10.00),
-    "gpt-4.1-mini": (0.40, 1.60),
-    "claude-3-5-haiku-latest": (0.80, 4.00),
-    "claude-sonnet-4": (3.00, 15.00),
-}
+def reviewer_candidates(adapter, ctx: ReviewContext, repeat_runs: int) -> tuple[list[dict], dict]:
+    """Six reviewers in parallel, repeated `repeat_runs` times for agreement scoring.
 
+    Returns `(rows, info)`. Two kinds of partial failure are recorded rather than
+    hidden:
 
-def _cost_usd(model: str, prompt_tokens: int, completion_tokens: int) -> float | None:
-    price = _PRICES.get(model)
-    if price is None:
-        return None
-    return round(prompt_tokens / 1_000_000 * price[0] + completion_tokens / 1_000_000 * price[1], 8)
+    * a reviewer that raised is skipped (the other five still report);
+    * if the **provider budget** runs out (`ProviderLimitReached` — MAX_CALLS spent or
+      a 429 that outlived the backoff), every reviewer still owed an answer is
+      finished on the offline engine. `info["fallback"]` then carries the reason, the
+      model that refused, and which reviewers were re-run, and it is written into
+      `analysis_runs.metrics` so a degraded run can never masquerade as a hosted one.
+    """
+
+    def call(engine, reviewer: ReviewerName, run_index: int) -> tuple[list[dict], tuple[str, str] | None]:
+        # Measure what actually happened: wall-clock per reviewer call, and the token
+        # counters the hosted adapter keeps. The deterministic engine reports zero
+        # tokens because it makes no model call — that is a fact, not a zero-fill.
+        before_tokens = (getattr(engine, "prompt_tokens", 0), getattr(engine, "completion_tokens", 0))
+        started = time.perf_counter()
+        try:
+            out = engine.review(reviewer, ctx, temperature=run_index)
+        except ProviderLimitReached as exc:
+            log.warning("reviewer %s hit the provider budget: %s", reviewer, exc.reason)
+            return [], ("limit", exc.reason)
+        except Exception as exc:  # one reviewer must never kill a run
+            log.warning("reviewer %s failed on run %s: %s", reviewer, run_index, type(exc).__name__)
+            return [], ("error", type(exc).__name__)
+        latency_ms = round((time.perf_counter() - started) * 1000, 1)
+        after_tokens = (getattr(engine, "prompt_tokens", 0), getattr(engine, "completion_tokens", 0))
+        prompt_tokens = max(0, after_tokens[0] - before_tokens[0])
+        completion_tokens = max(0, after_tokens[1] - before_tokens[1])
+        rows = candidate_rows(out, ctx, run_index=run_index, engine=engine,
+                              latency_ms=latency_ms, prompt_tokens=prompt_tokens,
+                              completion_tokens=completion_tokens)
+        return rows, None
+
+    jobs = [(reviewer, i) for i in range(repeat_runs) for reviewer in REVIEWERS]
+    rows: list[dict] = []
+    limited: list[tuple[ReviewerName, int]] = []
+    failures: dict[str, int] = {}
+    limit_reason: str | None = None
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        for (reviewer, run_index), (batch, failure) in zip(
+                jobs, pool.map(lambda job: call(adapter, *job), jobs)):
+            rows.extend(batch)
+            if failure and failure[0] == "limit":
+                limited.append((reviewer, run_index))
+                limit_reason = failure[1]
+            elif failure:
+                failures[failure[1]] = failures.get(failure[1], 0) + 1
+
+    info: dict = {"fallback": False, "budget_limited": bool(limited),
+                  "failures": failures,
+                  "requested": {"provider": getattr(adapter, "provider_name", "local"),
+                                "model": getattr(adapter, "model_name", "sentinel-local-1")}}
+    if limited:
+        offline = LocalEngine()
+        recovered: list[dict] = []
+        for reviewer, run_index in limited:
+            batch, _failure = call(offline, reviewer, run_index)
+            recovered.extend(batch)
+        rows.extend(recovered)
+        info.update({
+            "fallback": True,
+            "reason": "provider_limit_reached",
+            "detail": limit_reason,
+            "fell_back_to": {"provider": offline.provider_name, "model": offline.model_name},
+            "reviewers_rerun": sorted({r for r, _ in limited}),
+            "findings_recovered": len(recovered),
+            "note": ("The hosted model hit its call budget or kept answering HTTP 429, so the "
+                     "reviewers it still owed were finished on the offline engine. Findings from "
+                     "the two engines name their own provider."),
+        })
+        log.warning("provider budget reached; recovered %s findings on the local engine", len(recovered))
+    return rows, info
 
 
 def run_metrics(merged: list[dict], *, wall_ms: float, provider: str, model: str) -> dict:
@@ -214,8 +273,12 @@ def run_metrics(merged: list[dict], *, wall_ms: float, provider: str, model: str
     latencies = [f["metrics"]["latency_ms"] for f in merged if f.get("metrics")]
     prompt_tokens = sum(f["metrics"]["prompt_tokens"] for f in merged if f.get("metrics"))
     completion_tokens = sum(f["metrics"]["completion_tokens"] for f in merged if f.get("metrics"))
-    costs = [f["metrics"]["cost_usd"] for f in merged if f.get("metrics")]
+    costs = [f["metrics"].get("cost_usd") for f in merged if f.get("metrics")]
     known_costs = [c for c in costs if c is not None]
+    bases = sorted({f["metrics"].get("cost_basis") for f in merged if f.get("metrics")} - {None})
+    fallback_models = sorted({f["metrics"].get("model") for f in merged
+                              if f.get("metrics") and f["metrics"].get("provider") == "local"
+                              and f["metrics"].get("model") not in (None, "deterministic")})
     return {
         "wall_ms": round(wall_ms, 1),
         "provider": provider,
@@ -224,7 +287,10 @@ def run_metrics(merged: list[dict], *, wall_ms: float, provider: str, model: str
         "mean_reviewer_ms": round(sum(latencies) / len(latencies), 1) if latencies else None,
         "prompt_tokens": prompt_tokens,
         "completion_tokens": completion_tokens,
-        "cost_usd_estimate": round(sum(known_costs), 8) if known_costs else None,
+        # 0.00 for a free/unpriced model, never null: the basis says which kind of zero.
+        "cost_usd_estimate": round(sum(known_costs), 8) if known_costs else 0.0,
+        "cost_basis": bases[0] if len(bases) == 1 else (bases or [UNPRICED]),
+        "fallback_models": fallback_models,
         "note": ("no tokens: the deterministic engine makes no model call"
                  if prompt_tokens == 0 and completion_tokens == 0 else None),
     }
@@ -242,7 +308,8 @@ def analyse_text(db: Session, *, org_id: str, text: str, blocks: list[dict], con
         content_type=content_type, department=department,
     )
     candidates = deterministic_candidates(prep, prep["rules"])
-    candidates += reviewer_candidates(adapter, ctx, repeat_runs)
+    reviewer_rows, reviewer_info = reviewer_candidates(adapter, ctx, repeat_runs)
+    candidates += reviewer_rows
     # `honour_exceptions=False` is used by the labelled-set evaluation, which measures how
     # well the reviewers read brand rules; manager-approved exceptions are an
     # organisation's later policy decisions and must not flatter or distort that score.
@@ -251,7 +318,8 @@ def analyse_text(db: Session, *, org_id: str, text: str, blocks: list[dict], con
         candidates, exempted = apply_exceptions(ctx, candidates)
     merged = merge_findings(text, candidates, repeat_runs)
     prep["exempted"] = exempted
-    return merged, prep, {"kit": kit, "adapter": adapter, "repeat_runs": repeat_runs, "candidates": len(candidates)}
+    return merged, prep, {"kit": kit, "adapter": adapter, "repeat_runs": repeat_runs,
+                          "candidates": len(candidates), "reviewer_info": reviewer_info}
 
 
 def apply_exceptions(ctx, candidates: list[dict]) -> tuple[list[dict], list[dict]]:
@@ -291,6 +359,20 @@ def build_context(db: Session, *, org_id: str, kit: BrandKit, text: str, blocks:
     det = deterministic.dedupe_terms(
         deterministic.check_terms(text, bundle["terms"])
     )
+    # B2/B3: checks that need a measurement to exist at all. They fire only for blocks
+    # an upload actually sampled (`meta.analysis`), so metadata-only images — and every
+    # text sample — are untouched by them.
+    det = det + deterministic.image_checks(
+        blocks, palette=bundle["palette"], allowed_ratios=bundle["aspect_ratios"],
+        content_type=content_type, logos=bundle.get("logos"),
+    )
+    for finding in det:
+        if finding.get("visual_evidence") is None:
+            # One helper for both paths, so a word read out of a picture is captioned the
+            # same way here and at persist time (including the rule's own remedy).
+            located = _span_visual_evidence(blocks, finding)
+            if located:
+                finding["visual_evidence"] = located
     # manager-approved exceptions that apply to *this* content (scope already filtered)
     exceptions = []
     for r in rules:
@@ -352,7 +434,10 @@ def merge_findings(text: str, candidates: list[dict], repeat_runs: int) -> list[
         det_backing = 1.0 if det_hits else 0.0
         confidence = compute_confidence(agreement=agreement, evidence_strength=evidence_strength,
                                         deterministic_backing=det_backing)
-        confirmed = bool(det_hits) or any(c.get("direct_contradiction") for c in cluster)
+        # A "possible" label is a promise: a hash match or another soft signal must never
+        # be lifted to confirmed just because a deterministic check produced it (B5).
+        confirmed = (not any(c.get("possible_only") for c in cluster)) and (
+            bool(det_hits) or any(c.get("direct_contradiction") for c in cluster))
         severity = max((c["severity"] for c in cluster), key=lambda s: SEV_RANK[s])
 
         span_start, span_end = rep["span_start"], rep["span_end"]
@@ -360,6 +445,8 @@ def merge_findings(text: str, candidates: list[dict], repeat_runs: int) -> list[
         if not _suggestion_is_span_local(text, span_start, span_end, suggestion):
             suggestion = None
 
+        visual_evidence = next((c.get("visual_evidence") for c in cluster
+                                if c.get("visual_evidence")), None)
         cluster_metrics = [c["metrics"] for c in cluster if c.get("metrics")]
         if cluster_metrics:
             metrics = max(cluster_metrics, key=lambda m: m.get("latency_ms") or 0)
@@ -369,6 +456,7 @@ def merge_findings(text: str, candidates: list[dict], repeat_runs: int) -> list[
         merged.append({
             "reviewer": rep["reviewer"], "category": rep["category"], "severity": severity,
             "metrics": metrics,
+            "visual_evidence": visual_evidence,
             "label": "confirmed" if confirmed else "possible",
             "confidence": confidence, "confidence_band": band(confidence),
             "human_review_required": confidence < 0.55 or SEV_RANK[severity] >= 3,
@@ -406,6 +494,22 @@ def execute_run(run_id: str) -> None:
             kit = active_brand_kit(db, org_id)
             adapter = get_adapter()
             repeat_runs = max(1, settings.llm_repeat_runs)
+            # CONFIDENTIAL: a document marked confidential never leaves the building.
+            # The offline engine produces the same strict JSON contract, so the review
+            # still happens — it just happens without a third-party call.
+            confidential_skip: dict | None = None
+            if bool(getattr(item, "confidential", False)) and not isinstance(adapter, LocalEngine):
+                confidential_skip = {
+                    "external_calls_skipped": True,
+                    "reason": "confidential",
+                    "would_have_used": {"provider": adapter.provider_name,
+                                        "model": adapter.model_name},
+                    "used": {"provider": "local", "model": LocalEngine.model_name},
+                    "note": ("This content is marked confidential, so no text was sent to a "
+                             "hosted model. The review ran on the offline engine."),
+                }
+                log.info("content %s is confidential; using the offline engine", item.id)
+                adapter = LocalEngine()
 
             ctx, bundle, prep = build_context(
                 db, org_id=org_id, kit=kit, text=version.body_text, blocks=version.blocks or [],
@@ -426,7 +530,8 @@ def execute_run(run_id: str) -> None:
 
             # --- deterministic first, then six reviewers in parallel -------
             candidates = deterministic_candidates(prep, prep["rules"])
-            candidates += reviewer_candidates(adapter, ctx, repeat_runs)
+            reviewer_rows, reviewer_info = reviewer_candidates(adapter, ctx, repeat_runs)
+            candidates += reviewer_rows
             # manager-approved exceptions apply here too, not only in the eval path
             candidates, exempted = apply_exceptions(ctx, candidates)
             prep["exempted"] = exempted
@@ -455,6 +560,8 @@ def execute_run(run_id: str) -> None:
                     evidence_strength=m["evidence_strength"],
                     deterministic_backing=m["deterministic_backing"], dedupe_key=m["dedupe_key"],
                     metrics=m.get("metrics") or {},
+                    visual_evidence=m.get("visual_evidence") or _span_visual_evidence(
+                        version.blocks or [], m),
                 ))
 
             injection = injection_scan(version.body_text)
@@ -480,11 +587,24 @@ def execute_run(run_id: str) -> None:
                 "exceptions_applied": len(prep.get("exempted") or []),
                 "reviewers": list(REVIEWERS),
                 "provider_note": "AI provider and model are recorded on every finding.",
+                "engine_fallback": reviewer_info.get("fallback", False),
+                "external_calls_skipped": bool(confidential_skip),
             }
-            run.metrics = run_metrics(
+            metrics = run_metrics(
                 merged, wall_ms=(time.time() - started) * 1000,
                 provider=adapter.provider_name, model=adapter.model_name,
             )
+            # A degraded run says so in its own metrics: which reviewers fell back, why,
+            # and whether the content was kept offline on purpose.
+            metrics["reviewers"] = {
+                "failures": reviewer_info.get("failures") or {},
+                "budget_limited": reviewer_info.get("budget_limited", False),
+            }
+            if reviewer_info.get("fallback"):
+                metrics["engine_fallback"] = reviewer_info
+            if confidential_skip:
+                metrics["external_calls_skipped"] = confidential_skip
+            run.metrics = metrics
             run.status = "complete"
             run.finished_at = datetime.now(timezone.utc)
             db.flush()
@@ -516,6 +636,38 @@ def best_snippet(chunk_text: str, span_text: str, *, width: int = 220) -> str:
         return chunk_text[:width]
     start = max(0, best_at - 40)
     return ("…" if start else "") + chunk_text[start:start + width].strip() + "…"
+
+
+def _span_visual_evidence(blocks: list[dict], candidate: dict) -> dict | None:
+    """Give a finding the pixels it is about, where that can be established (B3).
+
+    Two cases: a text finding whose words were OCR'd out of a picture (the span is
+    located in the word boxes), and a visual finding that points at an image block
+    (the whole block is the evidence, with the size that was measured).
+    """
+    block = _block_object(blocks, candidate.get("span_start", 0))
+    if block is None:
+        return None
+    located = deterministic.visual_evidence_for_span(block, candidate.get("span_text", ""))
+    if located:
+        # A word in a picture is held to the same rule as a word in the text, so the
+        # rule's own remedy travels with the box: measured = what was read,
+        # expected = what the reviewer should write instead (when the rule says).
+        if candidate.get("suggestion"):
+            located["detected_value"]["expected"] = candidate["suggestion"]
+        return located
+    meta = block.get("meta") or {}
+    if block.get("kind") != "image" or not meta.get("width"):
+        return None
+    measured = f"{meta.get('width')}×{meta.get('height')}px" if meta.get("height") else None
+    return {
+        "page": int(block.get("page") or 1),
+        "bbox_norm": meta.get("bbox") or [0.0, 0.0, 1.0, 1.0],
+        "detected_text": (meta.get("ocr_text") or "")[:280],
+        "detected_value": {"kind": "pixels", "measured": measured, "expected": None},
+        "source": meta.get("source") or "upload",
+        "ocr_confidence": meta.get("ocr_confidence"),
+    }
 
 
 def _block_for(blocks: list[dict], offset: int) -> str | None:

@@ -140,7 +140,24 @@ export interface Finding {
   agreement: number;
   evidence_strength: number;
   metrics?: FindingMetrics;
+  /** B3: the pixels a visual finding is about; null when nothing was measured. */
+  visual_evidence?: VisualEvidence | null;
   decision_status: "open" | "accepted" | "edited" | "dismissed" | "escalated";
+}
+
+/** What `services/image_analysis.py` measured, attached to a finding at review time. */
+export interface VisualEvidence {
+  page: number;
+  /** [x0, y0, x1, y1] in 0..1, so a highlight can be drawn at any width. */
+  bbox_norm: [number, number, number, number];
+  detected_text: string;
+  detected_value: {
+    kind: "colour" | "contrast" | "aspect_ratio" | "pixels" | "logo_similarity" | "text" | string;
+    measured: string | number | null;
+    expected: string | number | null;
+  };
+  source?: string;
+  ocr_confidence?: number | null;
 }
 
 export interface AnalysisRun {
@@ -201,6 +218,60 @@ export interface Rule {
   source_section: string | null;
   created_at: string | null;
   is_current?: boolean;
+  /** an open review task: a newer guideline version touched the section this rule came from */
+  needs_review?: boolean;
+}
+
+/** One section of a guideline diff, as `services/guideline_diff.py` reports it. */
+export interface ChangeSection {
+  title: string;
+  previous_title?: string | null;
+  status: "added" | "removed" | "changed" | "unchanged";
+  similarity: number;
+  body?: string | null;
+  previous_body?: string | null;
+  similar_to?: string | null;
+  /** plain-language notes from the differ, e.g. "title renamed, body similar" */
+  notes?: string[];
+}
+
+/** A rule whose source section changed or vanished. It stays active until a person decides. */
+export interface RuleReviewTask {
+  id: string;
+  guideline_change_id: string;
+  rule_id: string;
+  rule_key: string;
+  category: string;
+  rule_title: string | null;
+  rule_body: string | null;
+  requires_approver: boolean;
+  rule_active: boolean;
+  section_title: string;
+  change_status: string;
+  similarity: number | null;
+  status: "needs_review" | "kept" | "edited" | "retired";
+  previous_body: string | null;
+  current_body: string | null;
+  notes: string[];
+  reason: string | null;
+  decided_by_name: string | null;
+  decided_at: string | null;
+  created_at: string | null;
+}
+
+export interface GuidelineChange {
+  id: string;
+  filename: string;
+  current_version: number;
+  previous_version: number;
+  summary: { added?: number; removed?: number; changed?: number; unchanged?: number };
+  sections: ChangeSection[];
+  status: "open" | "reviewed";
+  created_at: string | null;
+  current_document_id: string;
+  has_original: boolean;
+  tasks: RuleReviewTask[];
+  open_tasks: number;
 }
 
 export const REVIEWERS: Record<string, { label: string; job: string }> = {

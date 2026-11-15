@@ -152,6 +152,99 @@ def relaxed(samples: list[dict]) -> dict:
             "labelled": tp + fn}
 
 
+BANDS = ("low", "medium", "high")
+
+
+def band_of(prediction: dict) -> str:
+    band = prediction.get("confidence_band")
+    if band in BANDS:
+        return band
+    confidence = prediction.get("confidence")
+    if confidence is None:
+        return "unknown"
+    return "low" if confidence < 0.5 else ("medium" if confidence < 0.75 else "high")
+
+
+def confidence_bands(samples: list[dict], reviewers: tuple[str, ...] = REVIEWERS) -> dict:
+    """Precision of the findings in each confidence band.
+
+    The product's whole premise is that a `high` finding deserves more trust than a
+    `low` one. That is a claim about calibration, so it gets measured rather than
+    asserted: every prediction is binned by the band the pipeline gave it, and the
+    share that matched a human label is reported per band.
+
+    `monotonic` is True only when precision rises with the band and every band has at
+    least `min_n` predictions. If it is False, the documentation says so in words —
+    "high is more accurate" is then not supported by the data, and the UI must not
+    imply it.
+    """
+    buckets: dict[str, dict[str, int]] = {b: {"predicted": 0, "matched": 0} for b in BANDS}
+    for sample in samples:
+        used: set[int] = set()
+        labels_by_reviewer = {
+            r: [l for l in sample["labels"] if l["reviewer"] == r] for r in reviewers
+        }
+        for reviewer in reviewers:
+            labels = labels_by_reviewer[reviewer]
+            preds = [(i, p) for i, p in enumerate(sample["predictions"]) if p["reviewer"] == reviewer]
+            matched_ids: set[int] = set()
+            for label in sorted(labels, key=lambda l: l["end"] - l["start"], reverse=True):
+                best_i, best_score = None, 0.0
+                for i, pred in preds:
+                    if i in used:
+                        continue
+                    score = _overlap((label["start"], label["end"]), (pred["start"], pred["end"]))
+                    if score > best_score:
+                        best_i, best_score = i, score
+                if best_i is not None and best_score >= 0.3:
+                    used.add(best_i)
+                    matched_ids.add(best_i)
+            for i, pred in preds:
+                band = band_of(pred)
+                if band not in buckets:
+                    continue
+                buckets[band]["predicted"] += 1
+                if i in matched_ids:
+                    buckets[band]["matched"] += 1
+
+    out: dict[str, dict] = {}
+    for band, counts in buckets.items():
+        predicted = counts["predicted"]
+        out[band] = {
+            "predicted": predicted,
+            "matched": counts["matched"],
+            "precision": round(counts["matched"] / predicted, 3) if predicted else None,
+        }
+    present = [b for b in BANDS if out[b]["precision"] is not None]
+    enough = all(out[b]["predicted"] >= 5 for b in BANDS)
+    values = [out[b]["precision"] for b in present] if len(present) == 3 else []
+    non_decreasing = bool(values) and values[0] <= values[1] <= values[2]
+    strictly_rising = bool(values) and values[0] < values[1] < values[2]
+    out["monotonic"] = bool(non_decreasing and enough)
+    out["strictly_rising"] = bool(strictly_rising and enough)
+    out["comparable"] = enough
+    if not enough:
+        out["note"] = ("Too few findings in at least one band to compare bands. The band is a "
+                       "sort order here, not a measured probability.")
+    elif strictly_rising:
+        out["note"] = "Precision rises strictly with the band, so the confidence score is informative."
+    elif non_decreasing:
+        tied = [b for b in BANDS if out[b]["predicted"] and values.count(out[b]["precision"]) > 1]
+        out["note"] = (
+            "Precision never falls as the band rises, but "
+            + (" and ".join(tied) if tied else "two bands")
+            + " are tied, so the difference between them is not established at this sample size. "
+              "The band is a defensible sort order; it is not a calibrated probability."
+        )
+    else:
+        out["note"] = (
+            "Precision does not rise with the band on this data, so a \"high\" label is not "
+            "evidence of a more accurate finding. Treat the band as a sort order, not as a "
+            "probability."
+        )
+    return out
+
+
 def compare(candidate: dict, baseline: dict) -> dict:
     """Per-reviewer delta vs. the single-prompt baseline, plus regression verdict."""
     rows = []
