@@ -5,111 +5,129 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        /* --- Phase 2 royal palette ------------------------------------- */
-        royal: { DEFAULT: "#1B2A6B", light: "#2A3D8F", deep: "#121D4D" },
-        imperial: { DEFAULT: "#3D2468", light: "#513185", deep: "#2A1849" },
-        gold: { DEFAULT: "#C9A227", soft: "#E8D48B", deep: "#6F5A0E", tint: "#F3E4AE" },
-        ivory: { DEFAULT: "#FBF7EE", deep: "#F3ECDC" },
-        parchment: { DEFAULT: "#F3ECDC", deep: "#EADFC6" },
-        night: {
-          DEFAULT: "#050816",  /* night-0 · the page */
-          soft: "#0A1028",     /* night-1 · panels */
-          card: "#111834",     /* night-2 · raised */
+        /* ============================================================
+           PROOF DESK — ink and paper, with a proofreader's three inks.
+           Every pair below is measured; the ratios in the comments are
+           from lib/contrast.ts against the surface named.
+           ============================================================ */
+        ink: {
+          DEFAULT: "#111318", // 18.6:1 on paper — body and headings
+          soft: "#4B5160",    //  7.9:1 on paper — secondary
+          mute: "#5F6673",    //  5.8:1 on paper — hints, meta
+          faint: "#9AA1AE",   //  only on ink (7.2:1). Never on paper.
         },
-        /* the only new accent: live / actively-scanning states. Never decorative. */
-        live: { DEFAULT: "#0F6B5C", night: "#5FD3C2", tint: "#E2F1ED" },
-        /* semantic — always paired with an icon and a text label in the UI */
-        confirmed: { DEFAULT: "#1F6F4A", tint: "#E4F1EA", dark: "#8FD3B0" },
-        possible: { DEFAULT: "#8F5500", tint: "#FBF0D6", dark: "#E7B45B" },
-        critical: { DEFAULT: "#9B1C31", tint: "#FBEAEC", dark: "#F0A0AC" },
-        info: { DEFAULT: "#1B2A6B", tint: "#E7EAF7", dark: "#A8B6E8" },
+        paper: "#EEF0F3",           // the desk: page background
+        ivory: { DEFAULT: "#FFFFFF", deep: "#FCFCFD" }, // sheets
+        parchment: { DEFAULT: "#EEF0F3", deep: "#E6E9EE" },
 
-        /* --- retained names, re-pointed at the royal palette so every
-               pre-existing page inherits the new identity ---------------- */
-        ink: { DEFAULT: "#1A1A2E", soft: "#3A3A52", mute: "#5C5C72" },
+        /* the dark surface (top bar, rail, gate strip) and, historically, the
+           colour of headings — both now resolve to ink. */
         navy: {
-          DEFAULT: "#0B1437",
-          50: "#F6EFE0", 100: "#E8DFC9", 300: "#B9A97F",
-          500: "#1B2A6B", 700: "#132055", 800: "#0E1840", 900: "#0B1437",
+          DEFAULT: "#111318",
+          900: "#111318", 800: "#171A20", 700: "#1D2128", 500: "#2A2F38",
+          300: "#9AA1AE", 100: "#E6E9EE", 50: "#F4F5F7",
         },
-        paper: "#FBF7EE",
-        amber: { 100: "#FBF0D6", 300: "#E8D48B", 500: "#B26A00", 700: "#7E4C00" },
-        danger: { 50: "#FBEAEC", 500: "#9B1C31", 700: "#7A1626" },
-        ok: { 50: "#E4F1EA", 600: "#1F6F4A" },
+
+        /* signal red: marks, holds, strikethrough. `DEFAULT` is graphic
+           (borders, stamp fill); `text` is the AA-passing ink for small words. */
+        mark: { DEFAULT: "#D92D20", text: "#C42A1E", deep: "#A81F14", tint: "#FDECEA" },
+
+        /* highlighter: a fill, never a text colour on paper. 14.3:1 under ink. */
+        highlight: { DEFAULT: "#FFE066", tint: "#FFF7D1", deep: "#E8C84A" },
+
+        /* legacy aliases: the old gold vocabulary now means highlighter, so
+           existing classes keep working and mean the right thing. */
+        gold: { DEFAULT: "#FFE066", soft: "#FFF0A8", deep: "#4B5160", tint: "#FFF7D1" },
+
+        /* semantic states — always shipped with a word or a glyph */
+        confirmed: { DEFAULT: "#15704A", tint: "#E7F4EC", dark: "#7BE0A8" },
+        possible: { DEFAULT: "#8F5500", tint: "#FBF0D6", dark: "#F0C070" },
+        critical: { DEFAULT: "#C42A1E", tint: "#FDECEA", dark: "#FF8A7A" },
+        info: { DEFAULT: "#2A2F38", tint: "#EEF0F3", dark: "#C3CAD6" },
+        live: { DEFAULT: "#C42A1E", night: "#FFE066", tint: "#FDECEA" },
+
+        /* proof black: the night shift, re-cut for this identity */
+        night: { DEFAULT: "#0E1014", soft: "#16191F", card: "#1D2128" },
+
+        /* retained aliases used by older pages */
+        amber: { 100: "#FFF7D1", 300: "#FFE066", 500: "#8F5500", 700: "#6E4000" },
+        danger: { 50: "#FDECEA", 500: "#C42A1E", 700: "#A81F14" },
+        ok: { 50: "#E7F4EC", 600: "#15704A" },
       },
       fontFamily: {
-        display: ["var(--font-playfair)", "Georgia", "serif"],
-        crest: ["var(--font-cormorant)", "Georgia", "serif"],
+        /* the interface is set in Inter; the serif is reserved for the draft */
         sans: ["var(--font-inter)", "ui-sans-serif", "system-ui", "-apple-system", "Segoe UI", "sans-serif"],
-        mono: ["var(--font-jetbrains)", "ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
+        display: ["var(--font-inter)", "ui-sans-serif", "system-ui", "sans-serif"],
+        crest: ["var(--font-inter)", "ui-sans-serif", "system-ui", "sans-serif"],
+        mono: ["var(--font-plex-mono)", "ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
+        doc: ["var(--font-source-serif)", "Georgia", "Times New Roman", "serif"],
       },
       fontSize: {
-        "hero": ["clamp(3.5rem, 9vw, 9rem)", { lineHeight: "0.95", letterSpacing: "-0.03em" }],
-        "section": ["clamp(2rem, 4.5vw, 4rem)", { lineHeight: "1.02", letterSpacing: "-0.025em" }],
-        "2xs": ["0.75rem", { lineHeight: "1.2" }],   /* 12 */
-        xs: ["0.875rem", { lineHeight: "1.45" }],    /* 14 */
-        sm: ["1rem", { lineHeight: "1.6" }],         /* 16 base */
-        base: ["1.125rem", { lineHeight: "1.6" }],   /* 18 */
-        lg: ["1.375rem", { lineHeight: "1.4" }],     /* 22 */
-        xl: ["1.875rem", { lineHeight: "1.25" }],    /* 30 */
-        "2xl": ["2.75rem", { lineHeight: "1.1" }],   /* 44 */
+        "hero": ["clamp(2.75rem, 7vw, 6.5rem)", { lineHeight: "0.98", letterSpacing: "-0.035em", fontWeight: "600" }],
+        "section": ["clamp(1.75rem, 3.6vw, 3rem)", { lineHeight: "1.05", letterSpacing: "-0.02em" }],
+        "2xs": ["0.75rem", { lineHeight: "1.25" }],  /* 12 */
+        xs: ["0.8125rem", { lineHeight: "1.45" }],  /* 13 */
+        sm: ["0.9375rem", { lineHeight: "1.55" }],  /* 15 */
+        base: ["1.0625rem", { lineHeight: "1.6" }], /* 17 */
+        lg: ["1.25rem", { lineHeight: "1.4" }],
+        xl: ["1.625rem", { lineHeight: "1.25" }],
+        "2xl": ["2.25rem", { lineHeight: "1.1" }],
+      },
+      borderRadius: {
+        DEFAULT: "10px",
+        sm: "7px",
+        md: "10px",
+        lg: "12px",
+        xl: "14px",
       },
       boxShadow: {
-        card: "0 1px 2px rgba(11,20,55,0.06), 0 2px 10px rgba(11,20,55,0.05)",
-        herald: "0 18px 40px -18px rgba(11,20,55,0.45)",
-        seal: "0 6px 18px -6px rgba(143,116,24,0.55)",
-      },
-      backgroundImage: {
-        "gradient-gold": "linear-gradient(180deg, #E2C558 0%, #C9A227 55%, #A9861C 100%)",
-        "gradient-royal": "linear-gradient(160deg, #0B1437 0%, #1B2A6B 55%, #3D2468 100%)",
-        "gradient-parchment": "linear-gradient(180deg, #FBF7EE 0%, #F3ECDC 100%)",
+        /* printed, not floating: a hairline plus a single 1px offset */
+        card: "0 1px 0 0 rgba(17,19,24,0.04)",
+        herald: "3px 3px 0 0 rgba(17,19,24,0.9)",
+        seal: "0 2px 0 0 rgba(17,19,24,0.25)",
       },
       transitionTimingFunction: {
         royal: "cubic-bezier(0.22, 0.61, 0.36, 1)",
         settle: "cubic-bezier(0.16, 1, 0.3, 1)",
-        snap: "cubic-bezier(0.7, 0, 0.2, 1)",
+        snap: "cubic-bezier(0.4, 0, 0.2, 1)",
       },
       transitionDuration: {
-        200: "180ms",
+        200: "200ms",
         micro: "140ms",
         ui: "240ms",
         reveal: "700ms",
-        scene: "1100ms",
+        scene: "1200ms",
       },
       keyframes: {
-        rise: {
-          "0%": { opacity: "0", transform: "translateY(8px)" },
-          "100%": { opacity: "1", transform: "translateY(0)" },
+        "stamp-drop": {
+          "0%": { opacity: "0", transform: "scale(1.45) rotate(-9deg)" },
+          "62%": { opacity: "1", transform: "scale(0.98) rotate(-5deg)" },
+          "100%": { opacity: "1", transform: "scale(1) rotate(-5deg)" },
         },
-        shimmer: {
-          "0%": { backgroundPosition: "-200% 0" },
-          "100%": { backgroundPosition: "200% 0" },
+        "mark-pop": {
+          "0%": { opacity: "0", transform: "scale(0.4)" },
+          "70%": { transform: "scale(1.12)" },
+          "100%": { opacity: "1", transform: "scale(1)" },
         },
-        blink: {
-          "0%, 92%, 100%": { transform: "scaleY(1)" },
-          "96%": { transform: "scaleY(0.1)" },
-        },
-        "gold-shimmer": {
+        "ink-shimmer": {
           "0%": { transform: "translateX(-100%)" },
           "100%": { transform: "translateX(100%)" },
-        },
-        "seal-press": {
-          "0%": { transform: "translateZ(0) scale(1.6)", opacity: "0" },
-          "55%": { transform: "translateZ(0) scale(0.94)", opacity: "1" },
-          "75%": { transform: "translateZ(0) scale(1.03)", opacity: "1" },
-          "100%": { transform: "translateZ(0) scale(1)", opacity: "1" },
         },
         "rule-draw": {
           "0%": { transform: "scaleX(0)" },
           "100%": { transform: "scaleX(1)" },
         },
+        blink: { "0%,49%": { opacity: "1" }, "50%,100%": { opacity: "0" } },
       },
       animation: {
-        rise: "rise 220ms cubic-bezier(0.22,0.61,0.36,1) both",
-        shimmer: "shimmer 2.4s linear infinite",
-        blink: "blink 5s ease-in-out infinite",
-        "seal-press": "seal-press 520ms cubic-bezier(0.7,0,0.2,1) both",
-        "rule-draw": "rule-draw 700ms cubic-bezier(0.16,1,0.3,1) both",
+        "stamp-drop": "stamp-drop 620ms cubic-bezier(0.16, 1, 0.3, 1) both",
+        "mark-pop": "mark-pop 420ms cubic-bezier(0.16, 1, 0.3, 1) both",
+        "ink-shimmer": "ink-shimmer 1.5s cubic-bezier(0.22, 0.61, 0.36, 1) infinite",
+        "rule-draw": "rule-draw 520ms cubic-bezier(0.16, 1, 0.3, 1) both",
+        blink: "blink 1s steps(1) infinite",
+        // legacy names, re-pointed
+        "gold-shimmer": "ink-shimmer 1.5s cubic-bezier(0.22, 0.61, 0.36, 1) infinite",
+        "seal-press": "stamp-drop 620ms cubic-bezier(0.16, 1, 0.3, 1) both",
       },
     },
   },

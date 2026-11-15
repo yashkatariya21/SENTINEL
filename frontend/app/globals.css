@@ -3,47 +3,64 @@
 @tailwind utilities;
 
 /* ==========================================================================
-   Sentinel AI — royal theme tokens
-   Every pairing below is checked for WCAG AA (>= 4.5:1) on body text.
+   Sentinel AI — the Proof desk
+   Ink on paper, a proofreader's three inks, and a gate that stays shut until a
+   person decides. Every text/surface pair below was measured (see lib/contrast
+   and the table in docs/PROOF-DESK.md); the ratios are in the comments.
    ========================================================================== */
 :root {
-  --royal-navy: #0b1437;
-  --royal-blue: #1b2a6b;
-  --imperial: #3d2468;
-  --gold: #c9a227;
-  --gold-soft: #e8d48b;
-  --gold-deep: #6f5a0e;      /* text-grade gold: 6.25:1 on ivory, AA at 10px */
-  --ivory: #fbf7ee;
-  --parchment: #f3ecdc;
-  --ink: #1a1a2e;
-  --ink-soft: #3a3a52;
-  --ink-mute: #5c5c72;
-  --surface: #fbf7ee;
-  --surface-raised: #ffffff;
-  --hairline: rgba(11, 20, 55, 0.16);
-  --gold-hairline: rgba(201, 162, 39, 0.2);
-  --live: #0f6b5c;               /* "something is being processed right now" — used sparingly */
-  --ring: #c9a227;
-  --ring-offset: #0b1437;
+  /* ink and paper */
+  --ink: #111318;          /* 18.6:1 on paper */
+  --ink-2: #4b5160;        /*  7.9:1 */
+  --ink-3: #5f6673;        /*  5.8:1  — the lightest grey that carries text */
+  --ink-faint: #9aa1ae;    /*  only on ink: 7.2:1 */
+  --paper: #ffffff;
+  --paper-2: #fcfcfd;
+  --canvas: #eef0f3;
+
+  /* the three inks */
+  --mark: #d92d20;         /* graphic: marks, strikes, stamp borders */
+  --mark-text: #c42a1e;    /* 5.7:1 on paper, 5.0:1 on canvas */
+  --mark-tint: #fdecea;
+  --highlight: #ffe066;    /* a fill. 14.3:1 under ink, 1.3:1 as text */
+  --highlight-tint: #fff7d1;
+  --pass: #15704a;         /* 6.1:1 */
+  --pass-graphic: #1f8a5b;
+  --pass-tint: #e7f4ec;
+  --warn: #8f5500;         /* 6.1:1 */
+
+  --hairline: #d6dae1;
+  --hairline-strong: #111318;
+  --ring: #ffe066;
+  --surface: var(--canvas);
+  --surface-raised: var(--paper);
   color-scheme: light;
 }
 
-/* Night shift: three depth layers instead of one flat navy, so panels read as
-   stacked paper rather than a single sheet. Gold hairlines sit at 18-22% alpha. */
+/* Night shift: proof black. Same three inks, flipped onto ink stock. */
 [data-theme="dark"] {
-  --night-0: #050816;   /* the page */
-  --night-1: #0a1028;   /* panels */
-  --night-2: #111834;   /* raised */
-  --ivory: #f2ecdd;
-  --parchment: #0a1028;
-  --ink: #f2ecdd;
-  --ink-soft: #d8d2c2;
-  --ink-mute: #b3ae9f;
-  --surface: var(--night-0);
-  --surface-raised: var(--night-2);
-  --hairline: rgba(232, 212, 139, 0.18);
-  --gold-hairline: rgba(232, 212, 139, 0.22);
-  --live: #5fd3c2;
+  --ink: #f2f4f7;
+  --ink-2: #b9c0cb;
+  --ink-3: #8a93a1;
+  --ink-faint: #6c7683;
+  --paper: #16191f;
+  --paper-2: #1d2128;
+  --canvas: #0e1014;
+
+  --mark: #ff8a7a;
+  --mark-text: #ff8a7a;
+  --mark-tint: #2a1512;
+  --highlight: #ffe066;
+  --highlight-tint: #2b2614;
+  --pass: #7be0a8;
+  --pass-graphic: #7be0a8;
+  --pass-tint: #12241b;
+  --warn: #f0c070;
+
+  --hairline: #2a2f38;
+  --hairline-strong: #3a4149;
+  --surface: var(--canvas);
+  --surface-raised: var(--paper);
   color-scheme: dark;
 }
 
@@ -54,31 +71,31 @@
     scroll-behavior: smooth;
   }
   body {
-    @apply bg-paper font-sans text-ink;
+    @apply font-sans text-ink;
     background-color: var(--surface);
-    font-feature-settings: "kern" 1;
+    font-feature-settings: "kern" 1, "cv05" 1;
   }
+  /* headings inherit their colour: many of them sit on ink stock (the sign-in
+     panel, the guardrails card) where a forced ink colour would vanish. */
   h1, h2, h3, h4 {
-    @apply font-display text-navy;
-    letter-spacing: -0.01em;
+    @apply font-sans;
+    color: inherit;
+    letter-spacing: -0.015em;
+    font-weight: 600;
   }
-  [data-theme="dark"] h1,
-  [data-theme="dark"] h2,
-  [data-theme="dark"] h3,
-  [data-theme="dark"] h4 {
-    color: var(--ink);
-  }
-  /* numbers line up in tables and metrics */
-  table, .tabular {
-    font-variant-numeric: tabular-nums;
-  }
-  /* 2px gold ring with a navy offset — visible on both light and dark surfaces */
+
+  table, .tabular { font-variant-numeric: tabular-nums; }
+  .mono { font-family: var(--font-plex-mono), ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+
+  /* focus: a highlighter swipe with an ink outline, visible on every surface */
   :focus-visible {
-    outline: 2px solid var(--ring);
+    outline: 2px solid var(--ink);
     outline-offset: 2px;
-    border-radius: 2px;
+    box-shadow: 0 0 0 6px var(--ring);
+    border-radius: 3px;
   }
-  /* Respect users who ask for less motion */
+  [data-theme="dark"] :focus-visible { outline-color: var(--highlight); box-shadow: 0 0 0 6px rgba(255,224,102,0.25); }
+
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
       animation-duration: 0.001ms !important;
@@ -87,384 +104,378 @@
       scroll-behavior: auto !important;
     }
   }
-  ::selection {
-    background: var(--gold-soft);
-    color: var(--royal-navy);
-  }
+  ::selection { background: var(--highlight); color: var(--ink); }
 }
 
 @layer components {
-  /* --- ceremonial furniture ------------------------------------------- */
-  .rule-double {
-    position: relative;
-    padding-bottom: 0.6rem;
-  }
-  .rule-double::after {
-    content: "";
-    position: absolute;
-    left: 0;
-    bottom: 0;
-    width: 100%;
-    height: 5px;
-    border-top: 1px solid var(--gold);
-    border-bottom: 1px solid rgba(201, 162, 39, 0.45);
-  }
-  .hairline {
-    border: 1px solid var(--hairline);
-  }
-  .corner-ornament {
-    position: relative;
-  }
-  .corner-ornament::before,
-  .corner-ornament::after {
-    content: "";
-    position: absolute;
-    width: 12px;
-    height: 12px;
-    border-color: var(--gold);
-    border-style: solid;
-    pointer-events: none;
-  }
-  .corner-ornament::before {
-    top: 6px;
-    left: 6px;
-    border-width: 1px 0 0 1px;
-  }
-  .corner-ornament::after {
-    bottom: 6px;
-    right: 6px;
-    border-width: 0 1px 1px 0;
-  }
-  .lattice {
-    background-image: linear-gradient(135deg, rgba(232, 212, 139, 0.09) 25%, transparent 25%),
-      linear-gradient(225deg, rgba(232, 212, 139, 0.09) 25%, transparent 25%),
-      linear-gradient(45deg, rgba(232, 212, 139, 0.09) 25%, transparent 25%),
-      linear-gradient(315deg, rgba(232, 212, 139, 0.09) 25%, transparent 25%);
-    background-size: 22px 22px;
-    background-position: 0 0, 11px 0, 11px -11px, 0 11px;
-  }
-}
-
-@layer components {
-  /* ── editorial eyebrows: mono, uppercase, numbered ──────────────────── */
+  /* ── labels ─────────────────────────────────────────────────────────── */
   .eyebrow {
-    @apply font-mono text-2xs uppercase text-gold-deep;
-    letter-spacing: 0.24em;
-    line-height: 1.4;
-  }
-  [data-theme="dark"] .eyebrow { color: var(--gold-soft); }
-
-  .eyebrow-num {
-    @apply font-mono text-2xs tabular-nums text-gold-deep/70;
+    @apply font-mono text-2xs uppercase;
     letter-spacing: 0.18em;
+    color: var(--ink-3);
   }
-  [data-theme="dark"] .eyebrow-num { color: rgba(232, 212, 139, 0.6); }
+  .eyebrow-num { color: var(--ink-3); }
+  .eyebrow-ink { @apply font-mono text-2xs uppercase; letter-spacing: 0.18em; color: var(--ink); }
 
-  /* ── display type: the brief's measured scale ───────────────────────── */
+  /* ── headlines ──────────────────────────────────────────────────────── */
   .display-hero {
-    @apply font-display font-bold;
-    font-size: clamp(3.5rem, 9vw, 9rem);
-    line-height: 0.95;
-    letter-spacing: -0.03em;
+    @apply font-sans font-semibold;
+    font-size: clamp(2.75rem, 7vw, 6.5rem);
+    line-height: 0.98;
+    letter-spacing: -0.035em;
   }
   .display-section {
-    @apply font-display font-semibold;
-    font-size: clamp(2rem, 4.5vw, 4rem);
-    line-height: 1.02;
-    letter-spacing: -0.025em;
+    @apply font-sans font-semibold;
+    font-size: clamp(1.75rem, 3.6vw, 3rem);
+    line-height: 1.05;
+    letter-spacing: -0.02em;
   }
-  /* one emphasis word per headline, never a whole sentence */
-  .em-italic { @apply font-display italic; color: var(--gold-deep); }
-  [data-theme="dark"] .em-italic { color: var(--gold-soft); }
-
-  /* body measure: 62ch, 1.6 — the readable column, used on every long text */
-  .prose-measure { max-width: 62ch; line-height: 1.6; }
-
-  /* ── button: gold fill wipes in from the left, label rolls up ───────── */
-  .btn-wipe {
+  /* the emphasis word: a highlighter swipe and a red pen rule, never a serif
+     italic — the serif is reserved for the draft on the desk. */
+  .em-italic {
     position: relative;
-    overflow: hidden;
-    isolation: isolate;
+    display: inline-block;
+    color: var(--ink);
+    padding: 0 0.08em;
+    background-image: linear-gradient(180deg, transparent 58%, var(--highlight) 58%, var(--highlight) 94%, transparent 94%);
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
   }
+  .em-italic::after {
+    content: "";
+    position: absolute;
+    left: 0.06em;
+    right: 0.06em;
+    bottom: 0.02em;
+    height: 2px;
+    background: var(--mark);
+    transform-origin: left;
+    animation: rule-draw 620ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  [data-theme="dark"] .em-italic { color: var(--highlight); background-image: none; }
+  [data-theme="dark"] .em-italic::after { background: var(--mark); }
+
+  .prose-measure { max-width: 62ch; }
+
+  /* ── buttons ────────────────────────────────────────────────────────── */
+  .btn-wipe { position: relative; overflow: hidden; isolation: isolate; }
   .btn-wipe::before {
     content: "";
     position: absolute;
     inset: 0;
     z-index: -1;
-    background: var(--gold, #c9a227);
+    background: var(--ink);
     transform: scaleX(0);
-    transform-origin: left center;
-    transition: transform 140ms cubic-bezier(0.22, 0.61, 0.36, 1);
+    transform-origin: left;
+    transition: transform 240ms cubic-bezier(0.22, 0.61, 0.36, 1);
   }
-  .btn-wipe:hover::before,
+  .btn-wipe:hover::before { transform: scaleX(1); }
   .btn-wipe:focus-visible::before { transform: scaleX(1); }
 
-  .roll {
-    display: inline-block;
-    overflow: hidden;
-    vertical-align: bottom;
-  }
-  .roll > span {
-    display: inline-block;
-    transition: transform 140ms cubic-bezier(0.22, 0.61, 0.36, 1);
-  }
-  .roll:hover > span,
-  a:hover > .roll > span { transform: translateY(-100%); }
+  .roll { display: inline-block; overflow: hidden; vertical-align: bottom; }
+  .roll > span { display: inline-block; transition: transform 140ms cubic-bezier(0.22, 0.61, 0.36, 1); }
+  .roll:hover > span, a:hover > .roll > span { transform: translateY(-100%); }
 
-  /* ── animated underline for body links ──────────────────────────────── */
   .link-under {
     background-image: linear-gradient(currentColor, currentColor);
-    background-size: 0% 1px;
+    background-size: 0% 1.5px;
     background-position: 0 100%;
     background-repeat: no-repeat;
     transition: background-size 240ms cubic-bezier(0.16, 1, 0.3, 1);
   }
-  .link-under:hover,
-  .link-under:focus-visible { background-size: 100% 1px; }
+  .link-under:hover, .link-under:focus-visible { background-size: 100% 1.5px; }
 
-  /* ── gold hairline structure instead of shadows ─────────────────────── */
-  .hairline-gold { border: 1px solid var(--gold-hairline); }
+  /* ── structure: 1.5px ink rules instead of shadows ──────────────────── */
+  .panel { background: var(--paper); border: 1.5px solid var(--ink); border-radius: 10px; }
+  [data-theme="dark"] .panel { border-color: var(--hairline-strong); }
+  .panel-quiet { background: var(--paper); border: 1.5px solid var(--hairline); border-radius: 10px; }
+  .hairline-gold { border: 1.5px solid var(--hairline); }
+  .rule-ink { border-top: 1.5px solid var(--ink); }
+  .rule-dashed-red { border-left: 1.5px dashed var(--mark); }
 
-  /* ── skeleton: a gold shimmer line sweeps once ──────────────────────── */
-  .skeleton-gold {
-    position: relative;
-    overflow: hidden;
-    background: rgba(201, 162, 39, 0.1);
-  }
+  /* ── skeleton ───────────────────────────────────────────────────────── */
+  .skeleton-gold { position: relative; overflow: hidden; background: #e6e9ee; }
   .skeleton-gold::after {
     content: "";
     position: absolute;
     inset: 0;
-    background: linear-gradient(90deg, transparent, rgba(201, 162, 39, 0.28), transparent);
-    animation: gold-shimmer 1.6s cubic-bezier(0.22, 0.61, 0.36, 1) infinite;
+    background: linear-gradient(90deg, transparent, rgba(17, 19, 24, 0.07), transparent);
+    animation: ink-shimmer 1.5s cubic-bezier(0.22, 0.61, 0.36, 1) infinite;
   }
-  [data-theme="dark"] .skeleton-gold { background: rgba(232, 212, 139, 0.08); }
+  [data-theme="dark"] .skeleton-gold { background: #1d2128; }
+  [data-theme="dark"] .skeleton-gold::after {
+    background: linear-gradient(90deg, transparent, rgba(255, 224, 102, 0.08), transparent);
+  }
 
-  /* ── the report scan pass: one thin gold line down the document ─────── */
+  /* ── the report scan pass ───────────────────────────────────────────── */
   .scan-line {
     position: absolute;
     left: 0;
     right: 0;
     height: 2px;
-    background: linear-gradient(90deg, transparent, var(--gold), transparent);
+    background: linear-gradient(90deg, transparent, var(--mark), transparent);
     opacity: 0;
     pointer-events: none;
   }
 
-  /* ── night-shift surfaces ───────────────────────────────────────────── */
+  /* ── the draft: serif only here, because this is the document under review */
+  .draft-body {
+    font-family: var(--font-source-serif), Georgia, serif;
+    font-size: 1.125rem;
+    line-height: 1.75;
+    letter-spacing: 0.002em;
+    color: var(--ink);
+  }
+
+  /* ── a marked span: highlighter fill + red pen strike ───────────────── */
+  .hl {
+    @apply cursor-pointer rounded-[2px] px-0.5;
+    background: var(--highlight);
+    box-shadow: inset 0 -2px 0 rgba(217, 45, 32, 0.55);
+    text-decoration: line-through;
+    text-decoration-color: var(--mark);
+    text-decoration-thickness: 2px;
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
+    transition: background 140ms ease, box-shadow 140ms ease;
+  }
+  .hl:hover { box-shadow: inset 0 -2px 0 var(--mark); }
+  /* three weights of mark, so a page of them can still be read:
+     critical/high carry the highlighter plus a red strike (the pen pressed hard),
+     medium carries the highlighter and an amber rule, low a dotted ink underline
+     only. Shape of the mark itself tells you how loud it is. */
+  .hl-critical, .hl-high {
+    background: var(--highlight);
+    text-decoration: line-through;
+    text-decoration-color: var(--mark);
+    text-decoration-thickness: 2px;
+    box-shadow: inset 0 -2px 0 rgba(217, 45, 32, 0.55);
+  }
+  .hl-medium {
+    background: var(--highlight);
+    text-decoration: none;
+    box-shadow: inset 0 -2px 0 var(--warn);
+  }
+  .hl-low {
+    background: transparent;
+    text-decoration: underline dotted var(--ink-3);
+    text-decoration-thickness: 1.5px;
+    text-underline-offset: 3px;
+    box-shadow: none;
+  }
+  [data-theme="dark"] .hl-medium { background: #4a3f12; box-shadow: inset 0 -2px 0 var(--warn); }
+  [data-theme="dark"] .hl-low { background: transparent; color: var(--ink); }
+  .hl-active {
+    outline: 2px solid var(--ink);
+    outline-offset: 1px;
+    animation: mark-pop 420ms cubic-bezier(0.16, 1, 0.3, 1) 1;
+  }
+  [data-theme="dark"] .hl { background: #4a3f12; color: #ffe066; }
+
+  /* a resolved mark: the phrase keeps its place, loses its alarm */
+  .hl-resolved {
+    background: transparent;
+    text-decoration: none;
+    box-shadow: inset 0 -2px 0 var(--pass);
+    color: var(--ink-2);
+  }
+
+  /* the numbered pin that sits on a mark */
+  .mark-pin {
+    @apply inline-grid place-items-center rounded-full font-mono;
+    width: 15px;
+    height: 15px;
+    font-size: 9px;
+    line-height: 1;
+    background: var(--mark);
+    color: #fff;
+    vertical-align: super;
+    margin-left: 1px;
+    transition: transform 140ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .mark-pin:hover { transform: scale(1.25); }
+  .mark-pin-resolved { background: var(--pass-graphic); }
+
+  /* ── tracked change ─────────────────────────────────────────────────── */
+  .tracked-old { text-decoration: line-through; text-decoration-color: var(--mark); color: var(--ink-2); }
+  .tracked-new { background: var(--highlight); border-bottom: 2px solid var(--mark); }
+
+  /* ── the stamp ──────────────────────────────────────────────────────── */
+  .stamp {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 3px solid currentColor;
+    border-radius: 8px;
+    padding: 0.45em 0.7em;
+    font-family: var(--font-plex-mono), ui-monospace, monospace;
+    font-weight: 600;
+    font-size: 0.8125rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    line-height: 1;
+    transform: rotate(-5deg);
+    box-shadow: 0 0 0 1.5px currentColor inset, 0 0 0 4.5px var(--paper), 0 0 0 6px currentColor;
+    opacity: 0.95;
+  }
+  .stamp-lg { font-size: 1rem; padding: 0.6em 0.85em; letter-spacing: 0.2em; }
+  .stamp-drop { animation: stamp-drop 620ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+  /* ── the gate ───────────────────────────────────────────────────────── */
+  .gate-step { @apply font-mono text-2xs uppercase; letter-spacing: 0.14em; }
+  .gate-current {
+    background: var(--highlight);
+    color: #111318;
+    border-radius: 6px;
+    padding: 0.25rem 0.5rem;
+  }
+
+  /* ── icons in the rail ──────────────────────────────────────────────── */
+  .rail-item {
+    @apply relative grid place-items-center transition-colors duration-micro;
+    width: 44px;
+    height: 44px;
+    border-radius: 8px;
+    color: var(--ink-2);
+  }
+  .rail-item:hover { background: #e6e9ee; color: var(--ink); }
+  [data-theme="dark"] .rail-item:hover { background: #1d2128; }
+  .rail-item[aria-current="page"] { background: var(--ink); color: var(--paper); }
+  [data-theme="dark"] .rail-item[aria-current="page"] { background: var(--highlight); color: #111318; }
+
+  .skip-link {
+    @apply absolute left-2 top-2 -translate-y-20 rounded px-3 py-2 text-xs font-semibold;
+    background: var(--ink);
+    color: var(--paper);
+    z-index: 120;
+  }
+  .skip-link:focus { transform: translateY(0); }
+
+  /* ── a sheet of paper on the desk ─────────────────────────────────────
+     Depth without a soft shadow: a second, offset edge drawn behind the card,
+     so the sheet reads as physically stacked. One pixel of ink, no blur. */
+  .desk-sheet {
+    box-shadow: 3px 3px 0 -1px var(--paper), 3px 3px 0 0 var(--hairline);
+    transition: box-shadow 200ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  }
+  .desk-sheet:hover { box-shadow: 5px 5px 0 -1px var(--paper), 5px 5px 0 0 var(--hairline-strong); }
+  [data-theme="dark"] .desk-sheet {
+    box-shadow: 3px 3px 0 -1px var(--paper), 3px 3px 0 0 var(--hairline-strong);
+  }
+
+  /* ── status dots ───────────────────────────────────────────────────────── */
+  .dot-ink { background: var(--ink); }
+  .dot-ink3 { background: var(--ink-3); }
+  .dot-warn { background: var(--warn); }
+  .dot-pass { background: var(--pass); }
+  .dot-mark { background: var(--mark); }
+
+  /* legacy surfaces, kept honest */
   .surface-panel { background: var(--surface-raised); }
-  [data-theme="dark"] .surface-panel { background: var(--night-1); }
-  [data-theme="dark"] .bg-white\/90 { background-color: rgba(17, 24, 52, 0.9) !important; }
+  .bg-gradient-royal { background: var(--ink); }
+  .bg-gradient-parchment { background: var(--paper-2); }
+  .bg-gradient-gold { background: var(--highlight); }
 }
 
 @layer utilities {
-  @keyframes crest-draw {
-    to { stroke-dashoffset: 0; }
+  @keyframes rule-draw { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+  @keyframes mark-pop { 0% { opacity: 0; transform: scale(0.4); } 70% { transform: scale(1.12); } 100% { opacity: 1; transform: scale(1); } }
+  @keyframes stamp-drop {
+    0% { opacity: 0; transform: scale(1.45) rotate(-9deg); }
+    62% { opacity: 1; transform: scale(0.98) rotate(-5deg); }
+    100% { opacity: 1; transform: scale(1) rotate(-5deg); }
   }
+  @keyframes crest-draw { to { stroke-dashoffset: 0; } }
+  @keyframes toast-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes toast-timer { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+  @keyframes slide-in-left { from { opacity: 0; transform: translateX(-6px); } to { opacity: 1; transform: translateX(0); } }
+  @keyframes modal-rise { from { opacity: 0; transform: translateY(10px) scale(0.995); } to { opacity: 1; transform: translateY(0) scale(1); } }
+  @keyframes ink-bleed { from { opacity: 0; filter: blur(1.5px); } to { opacity: 1; filter: blur(0); } }
+  .ink-bleed { animation: ink-bleed 420ms cubic-bezier(0.16, 1, 0.3, 1) both; }
 
-  @keyframes toast-in {
-    from { opacity: 0; transform: translateY(10px) translateX(8px); }
-    to { opacity: 1; transform: translateY(0) translateX(0); }
-  }
-  @keyframes toast-timer {
-    from { transform: scaleX(1); }
-    to { transform: scaleX(0); }
-  }
+  .route-fade { animation: route-rise 280ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+  @keyframes route-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 
-  /* the marquee of phrases the reviewers really flag: two identical halves, one to
-     the left; pauses on hover/focus, and becomes a static wrapped list when the reader
-     has asked for less motion. */
-  @keyframes marquee {
-    from { transform: translateX(0); }
-    to { transform: translateX(-50%); }
-  }
-  .marquee-track {
-    animation: marquee 48s linear infinite;
-    will-change: transform;
-  }
-  .marquee:hover .marquee-track,
-  .marquee:focus-within .marquee-track { animation-play-state: paused; }
+  /* the band of flagged phrases */
+  @keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+  .marquee-track { animation: marquee 52s linear infinite; will-change: transform; }
+  .marquee:hover .marquee-track, .marquee:focus-within .marquee-track { animation-play-state: paused; }
   @media (prefers-reduced-motion: reduce) {
     .marquee-track { animation: none !important; }
     .marquee-half[aria-hidden="true"] { display: none; }
   }
 
-  /* when the 3D seal has painted, the engraved flat seal steps aside without a jump */
+  /* the 3D desk object steps in only after it has painted */
   .seal-stage .seal-flat { transition: opacity 700ms cubic-bezier(0.16, 1, 0.3, 1); }
   .seal-stage:has(canvas) .seal-flat { opacity: 0; }
 
-  /* page transition: only the content column moves */
-  .route-fade {
-    animation: route-rise 280ms cubic-bezier(0.16, 1, 0.3, 1) both;
-  }
-  @keyframes route-rise {
-    from { opacity: 0; transform: translateY(12px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-
-  /* Day/Night shift: the default cross-fade is replaced by our circular clip-path
-     animation in ThemeSwitch (the API is only used when the browser supports it). */
-  ::view-transition-old(root),
-  ::view-transition-new(root) {
-    animation: none;
-    mix-blend-mode: normal;
-  }
+  /* Day/Night: replaced by the circular clip in ThemeSwitch */
+  ::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
   ::view-transition-old(root) { z-index: 1; }
   ::view-transition-new(root) { z-index: 2; }
 
-  /* ==========================================================================
-   Night shift: map the light-surface utilities onto the three night layers.
-   Tailwind emits literal hex values for `.bg-ivory` and friends, so without this
-   the whole app would stay ivory when the reader chooses the night shift. Only
-   surfaces, body text and ink hairlines are remapped — navy panels, gold, and the
-   semantic severity colours already read correctly on both shifts.
-   ========================================================================== */
-@layer utilities {
-  [data-theme="dark"] .bg-paper { background-color: var(--night-0); }
-  [data-theme="dark"] .bg-ivory { background-color: var(--night-1); }
-  [data-theme="dark"] .bg-ivory-deep { background-color: var(--night-2); }
-  [data-theme="dark"] .bg-parchment { background-color: var(--night-2); }
-  [data-theme="dark"] .bg-white { background-color: var(--night-2); }
-
-  [data-theme="dark"] .bg-ivory\/90,
-  [data-theme="dark"] .bg-white\/90 { background-color: rgba(17, 24, 52, 0.90); }
-  [data-theme="dark"] .bg-ivory\/80,
-  [data-theme="dark"] .bg-white\/80 { background-color: rgba(17, 24, 52, 0.82); }
-  [data-theme="dark"] .bg-ivory\/70,
-  [data-theme="dark"] .bg-white\/70 { background-color: rgba(17, 24, 52, 0.72); }
-  [data-theme="dark"] .bg-ivory\/60,
-  [data-theme="dark"] .bg-white\/60 { background-color: rgba(17, 24, 52, 0.62); }
-  [data-theme="dark"] .bg-ivory\/50,
-  [data-theme="dark"] .bg-white\/50 { background-color: rgba(17, 24, 52, 0.52); }
-  [data-theme="dark"] .bg-ivory-deep\/70,
-  [data-theme="dark"] .bg-parchment\/70 { background-color: rgba(10, 16, 40, 0.72); }
-  [data-theme="dark"] .bg-ivory-deep\/60,
-  [data-theme="dark"] .bg-parchment\/60 { background-color: rgba(10, 16, 40, 0.62); }
-  [data-theme="dark"] .bg-parchment\/50 { background-color: rgba(10, 16, 40, 0.55); }
-  [data-theme="dark"] .bg-parchment\/40 { background-color: rgba(10, 16, 40, 0.45); }
-
-  [data-theme="dark"] .bg-ivory-deep\/50,
-  [data-theme="dark"] .bg-white\/50 { background-color: rgba(10, 16, 40, 0.52); }
-  [data-theme="dark"] .bg-ivory-deep\/45,
-  [data-theme="dark"] .bg-ivory\/45,
-  [data-theme="dark"] .bg-white\/45 { background-color: rgba(17, 24, 52, 0.46); }
-  [data-theme="dark"] .bg-ivory-deep\/40,
-  [data-theme="dark"] .bg-ivory\/40,
-  [data-theme="dark"] .bg-white\/40 { background-color: rgba(10, 16, 40, 0.42); }
-  [data-theme="dark"] .bg-ivory-deep\/30,
-  [data-theme="dark"] .bg-parchment\/30 { background-color: rgba(10, 16, 40, 0.34); }
-  [data-theme="dark"] .bg-ivory-deep\/25,
-  [data-theme="dark"] .bg-parchment\/25 { background-color: rgba(10, 16, 40, 0.28); }
-  [data-theme="dark"] .bg-paper\/95 { background-color: rgba(5, 8, 22, 0.95); }
-  [data-theme="dark"] .bg-paper\/92 { background-color: rgba(5, 8, 22, 0.92); }
-
-  /* text: every ink shade moves to its night equivalent */
-  [data-theme="dark"] .text-ink { color: var(--ink); }
-  [data-theme="dark"] .text-ink-soft { color: var(--ink-soft); }
-  [data-theme="dark"] .text-ink-mute { color: var(--ink-mute); }
-  [data-theme="dark"] .text-navy { color: var(--ivory); }
-  [data-theme="dark"] .text-navy-700,
-  [data-theme="dark"] .text-navy-500,
-  [data-theme="dark"] .text-royal,
-  [data-theme="dark"] .text-royal-deep,
-  [data-theme="dark"] .text-imperial { color: var(--gold-soft); }
-  [data-theme="dark"] .text-gold-deep { color: var(--gold-soft); }
-  [data-theme="dark"] .text-gold { color: var(--gold-soft); }
-
-  /* semantic colours: at night the deep ink versions vanish, so text moves to the
-     light variants and the tints become low-alpha washes of the same hue. The glyph
-     or word next to each colour is unchanged — colour is never the only signal. */
-  [data-theme="dark"] .text-critical { color: #F0A0AC; }
-  [data-theme="dark"] .text-possible { color: #E7B45B; }
-  [data-theme="dark"] .text-confirmed { color: #8FD3B0; }
-  [data-theme="dark"] .text-info { color: #A8B6E8; }
-  [data-theme="dark"] .text-live { color: #5FD3C2; }
-  [data-theme="dark"] .bg-critical-tint,
-  [data-theme="dark"] .bg-critical-tint\/60 { background-color: rgba(155, 28, 49, 0.22); }
-  [data-theme="dark"] .bg-possible-tint,
-  [data-theme="dark"] .bg-possible-tint\/60 { background-color: rgba(143, 85, 0, 0.24); }
-  [data-theme="dark"] .bg-confirmed-tint,
-  [data-theme="dark"] .bg-confirmed-tint\/60 { background-color: rgba(31, 111, 74, 0.26); }
-  [data-theme="dark"] .bg-info-tint,
-  [data-theme="dark"] .bg-info-tint\/60 { background-color: rgba(27, 42, 107, 0.38); }
-  [data-theme="dark"] .bg-gold-tint,
-  [data-theme="dark"] .bg-gold-tint\/60,
-  [data-theme="dark"] .bg-gold-tint\/80 { background-color: rgba(232, 212, 139, 0.16); }
-
-  /* hairlines: ink borders become gold hairlines, never invisible */
-  [data-theme="dark"] .border-ink\/10 { border-color: rgba(232, 212, 139, 0.14); }
-  [data-theme="dark"] .border-ink\/15 { border-color: rgba(232, 212, 139, 0.18); }
-  [data-theme="dark"] .border-ink\/20 { border-color: rgba(232, 212, 139, 0.22); }
-  [data-theme="dark"] .border-ink\/25 { border-color: rgba(232, 212, 139, 0.26); }
-  [data-theme="dark"] .border-ink\/30 { border-color: rgba(232, 212, 139, 0.30); }
-  [data-theme="dark"] .divide-ink\/10 > :not([hidden]) ~ :not([hidden]) { border-color: rgba(232, 212, 139, 0.14); }
-  [data-theme="dark"] .divide-gold\/25 > :not([hidden]) ~ :not([hidden]) { border-color: rgba(232, 212, 139, 0.22); }
-}
-
-/* Lenis: the smooth-scroll element must not also smooth-scroll natively */
   html.lenis, html.lenis body { height: auto; }
   .lenis.lenis-smooth { scroll-behavior: auto !important; }
   .lenis.lenis-stopped { overflow: hidden; }
+}
 
-  .skip-link {
-    @apply absolute left-2 top-2 -translate-y-20 rounded bg-navy px-3 py-2 text-xs font-semibold text-ivory;
-    z-index: 60;
-  }
-  .skip-link:focus {
-    transform: translateY(0);
-  }
-  .stagger > * {
-    animation: rise 220ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
-  }
-  .stagger > *:nth-child(1) { animation-delay: 0ms; }
-  .stagger > *:nth-child(2) { animation-delay: 40ms; }
-  .stagger > *:nth-child(3) { animation-delay: 80ms; }
-  .stagger > *:nth-child(4) { animation-delay: 120ms; }
-  .stagger > *:nth-child(5) { animation-delay: 160ms; }
-  .stagger > *:nth-child(6) { animation-delay: 200ms; }
+/* ==========================================================================
+   Night shift: map the light-surface utilities onto proof black. Tailwind
+   emits literal hex for .bg-ivory and friends, so without this the app would
+   stay white when a reader chooses the night shift.
+   ========================================================================== */
+@layer utilities {
+  [data-theme="dark"] .bg-paper { background-color: var(--canvas); }
+  [data-theme="dark"] .bg-ivory { background-color: var(--paper); }
+  [data-theme="dark"] .bg-ivory-deep { background-color: var(--paper-2); }
+  [data-theme="dark"] .bg-parchment { background-color: var(--paper-2); }
+  [data-theme="dark"] .bg-white { background-color: var(--paper); }
 
-  /* --- finding highlights: underline style by severity, never colour only */
-  .hl {
-    @apply rounded-[2px] px-0.5;
-    box-decoration-break: clone;
-    -webkit-box-decoration-break: clone;
-    cursor: pointer;
-    transition: box-shadow 180ms cubic-bezier(0.22, 0.61, 0.36, 1);
-  }
-  .hl-critical { background: #f7dfe2; box-shadow: inset 0 -3px 0 #9b1c31; }
-  .hl-high { background: #f9e3e6; box-shadow: inset 0 -3px 0 #b2273c; }
-  .hl-medium { background: #fbf0d6; box-shadow: inset 0 -2px 0 #8f5500; }
-  .hl-low { background: #e7eaf7; box-shadow: inset 0 -2px 0 #1b2a6b; }
-  .hl-confirmed { border-bottom-style: double; }
-  .hl-active {
-    outline: 2px solid var(--royal-navy);
-    outline-offset: 1px;
-    animation: hl-pulse 900ms cubic-bezier(0.16, 1, 0.3, 1) 1;
-  }
-  @keyframes hl-pulse {
-    0%   { box-shadow: inset 0 -3px 0 currentColor, 0 0 0 0 rgba(201, 162, 39, 0.55); }
-    60%  { box-shadow: inset 0 -3px 0 currentColor, 0 0 0 6px rgba(201, 162, 39, 0); }
-    100% { box-shadow: inset 0 -3px 0 currentColor, 0 0 0 0 rgba(201, 162, 39, 0); }
-  }
+  [data-theme="dark"] .bg-ivory\/90, [data-theme="dark"] .bg-white\/90 { background-color: rgba(22, 25, 31, 0.92); }
+  [data-theme="dark"] .bg-ivory\/80 { background-color: rgba(22, 25, 31, 0.82); }
+  [data-theme="dark"] .bg-ivory\/70, [data-theme="dark"] .bg-white\/70 { background-color: rgba(22, 25, 31, 0.72); }
+  [data-theme="dark"] .bg-ivory\/60, [data-theme="dark"] .bg-white\/60 { background-color: rgba(22, 25, 31, 0.64); }
+  [data-theme="dark"] .bg-ivory\/50, [data-theme="dark"] .bg-white\/50 { background-color: rgba(22, 25, 31, 0.54); }
+  [data-theme="dark"] .bg-ivory\/45, [data-theme="dark"] .bg-white\/45 { background-color: rgba(29, 33, 40, 0.48); }
+  [data-theme="dark"] .bg-ivory\/40, [data-theme="dark"] .bg-white\/40 { background-color: rgba(29, 33, 40, 0.44); }
+  [data-theme="dark"] .bg-ivory-deep\/70, [data-theme="dark"] .bg-parchment\/70 { background-color: rgba(29, 33, 40, 0.72); }
+  [data-theme="dark"] .bg-ivory-deep\/60, [data-theme="dark"] .bg-parchment\/60 { background-color: rgba(29, 33, 40, 0.64); }
+  [data-theme="dark"] .bg-ivory-deep\/50, [data-theme="dark"] .bg-parchment\/50 { background-color: rgba(29, 33, 40, 0.54); }
+  [data-theme="dark"] .bg-ivory-deep\/45, [data-theme="dark"] .bg-parchment\/45 { background-color: rgba(29, 33, 40, 0.48); }
+  [data-theme="dark"] .bg-ivory-deep\/40, [data-theme="dark"] .bg-parchment\/40 { background-color: rgba(29, 33, 40, 0.44); }
+  [data-theme="dark"] .bg-ivory-deep\/30, [data-theme="dark"] .bg-parchment\/30 { background-color: rgba(29, 33, 40, 0.36); }
+  [data-theme="dark"] .bg-paper\/95 { background-color: rgba(14, 16, 20, 0.95); }
+  [data-theme="dark"] .bg-paper\/92 { background-color: rgba(14, 16, 20, 0.92); }
 
-  /* the scan pass: one gold line travels down the document when a review lands */
-  @keyframes scan-sweep {
-    0%   { transform: translateY(0); opacity: 0; }
-    8%   { opacity: 1; }
-    85%  { opacity: 0.9; }
-    100% { transform: translateY(var(--scan-distance, 100%)); opacity: 0; }
-  }
-  .scan-running {
-    animation: scan-sweep 1000ms cubic-bezier(0.4, 0, 0.2, 1) 1 both;
-    opacity: 1;
-  }
+  [data-theme="dark"] .text-ink { color: var(--ink); }
+  [data-theme="dark"] .text-ink-soft { color: var(--ink-2); }
+  [data-theme="dark"] .text-ink-mute { color: var(--ink-3); }
+  [data-theme="dark"] .text-navy, [data-theme="dark"] .text-navy-700,
+  [data-theme="dark"] .text-navy-500 { color: var(--ink); }
+  [data-theme="dark"] .text-gold-deep { color: var(--ink-3); }
+  [data-theme="dark"] .text-gold, [data-theme="dark"] .text-gold-soft { color: var(--highlight); }
 
-  /* tracked change: strikethrough original, gold highlight replacement */
-  .tracked-old { text-decoration: line-through; text-decoration-color: #9b1c31; color: #6b2530; }
-  .tracked-new { background: linear-gradient(180deg, #f6e7b4 0%, #efd98c 100%); border-bottom: 1px solid var(--gold-deep); }
+  /* semantic colours: the deep inks vanish on black, so the light set takes over */
+  [data-theme="dark"] .text-critical, [data-theme="dark"] .text-mark,
+  [data-theme="dark"] .text-mark-text { color: #ff8a7a; }
+  [data-theme="dark"] .text-possible { color: var(--warn); }
+  [data-theme="dark"] .text-confirmed { color: var(--pass); }
+  [data-theme="dark"] .bg-critical-tint, [data-theme="dark"] .bg-critical-tint\/60 { background-color: #2a1512; }
+  [data-theme="dark"] .bg-possible-tint, [data-theme="dark"] .bg-possible-tint\/60 { background-color: #2b2614; }
+  [data-theme="dark"] .bg-confirmed-tint, [data-theme="dark"] .bg-confirmed-tint\/60 { background-color: #12241b; }
+  [data-theme="dark"] .bg-mark-tint { background-color: #2a1512; }
+  [data-theme="dark"] .bg-highlight-tint { background-color: #2b2614; }
+  [data-theme="dark"] .bg-gold-tint, [data-theme="dark"] .bg-gold-tint\/60 { background-color: rgba(255, 224, 102, 0.14); }
 
-  [data-theme="dark"] .hl-critical { background: #3a1620; box-shadow: inset 0 -3px 0 #f0a0ac; }
-  [data-theme="dark"] .hl-high { background: #3a1720; box-shadow: inset 0 -3px 0 #f0a0ac; }
-  [data-theme="dark"] .hl-medium { background: #3a2c12; box-shadow: inset 0 -2px 0 #e7b45b; }
-  [data-theme="dark"] .hl-low { background: #1a2350; box-shadow: inset 0 -2px 0 #a8b6e8; }
+  /* hairlines: ink rules become visible rules on black */
+  [data-theme="dark"] .border-ink\/10 { border-color: #24292f; }
+  [data-theme="dark"] .border-ink\/12 { border-color: #24292f; }
+  [data-theme="dark"] .border-ink\/15 { border-color: #272c34; }
+  [data-theme="dark"] .border-ink\/20 { border-color: #2a2f38; }
+  [data-theme="dark"] .border-ink\/25 { border-color: #2e343d; }
+  [data-theme="dark"] .border-ink\/30 { border-color: #333a44; }
+  [data-theme="dark"] .border-gold\/25, [data-theme="dark"] .border-gold\/30 { border-color: #2a2f38; }
+  [data-theme="dark"] .border-gold\/40, [data-theme="dark"] .border-gold\/50 { border-color: #3a4149; }
+  [data-theme="dark"] .divide-ink\/10 > :not([hidden]) ~ :not([hidden]) { border-color: #24292f; }
+  [data-theme="dark"] .divide-gold\/25 > :not([hidden]) ~ :not([hidden]) { border-color: #2a2f38; }
 }

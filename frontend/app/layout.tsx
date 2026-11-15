@@ -15,34 +15,32 @@ import { Shell } from "./components/Shell";
  * container with no egress, and the browser still makes no third-party requests.
  * Licences: app/fonts/OFL-NOTICE.md (SIL Open Font License 1.1).
  */
-const playfair = localFont({
-  src: [
-    { path: "./fonts/playfair-400-normal.woff2", weight: "400", style: "normal" },
-    { path: "./fonts/playfair-600.woff2", weight: "600", style: "normal" },
-    { path: "./fonts/playfair-700.woff2", weight: "700", style: "normal" },
-    /* the italic is the emphasis cut: one word per headline, never a whole sentence */
-    { path: "./fonts/playfair-italic-400.woff2", weight: "400", style: "italic" },
-    { path: "./fonts/playfair-italic-600.woff2", weight: "600", style: "italic" },
-  ],
-  variable: "--font-playfair", display: "swap", preload: true,
-});
-const cormorant = localFont({
-  src: [
-    { path: "./fonts/cormorant-600.woff2", weight: "600", style: "normal" },
-    { path: "./fonts/cormorant-700.woff2", weight: "700", style: "normal" },
-  ],
-  variable: "--font-cormorant", display: "swap", preload: true,
-});
+/* Proof desk typography, self-hosted from ./fonts.
+ *
+ * Inter carries the whole interface — including headings. The serif is reserved for
+ * the draft on the desk, because the draft is the document being judged; using it for
+ * chrome too would blur the one distinction the product is built on. IBM Plex Mono
+ * takes rule IDs, stamps, gate labels and every figure.
+ *
+ * Local files rather than `next/font/google`: the build must work offline and the
+ * browser must make no third-party request. Licences: app/fonts/OFL-NOTICE.md.
+ */
 const inter = localFont({
   src: [{ path: "./fonts/inter-var.woff2", weight: "100 900", style: "normal" }],
   variable: "--font-inter", display: "swap", preload: true,
 });
-const jetbrains = localFont({
+const plexMono = localFont({
   src: [
-    { path: "./fonts/jetbrains-400.woff2", weight: "400", style: "normal" },
-    { path: "./fonts/jetbrains-500.woff2", weight: "500", style: "normal" },
+    { path: "./fonts/ibmplexmono-400.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/ibmplexmono-500.woff2", weight: "500", style: "normal" },
+    { path: "./fonts/ibmplexmono-600.woff2", weight: "600", style: "normal" },
   ],
-  variable: "--font-jetbrains", display: "swap", preload: false,
+  variable: "--font-plex-mono", display: "swap", preload: true,
+});
+/* one variable file covers 400-600 */
+const sourceSerif = localFont({
+  src: [{ path: "./fonts/sourceserif4-var.woff2", weight: "400 600", style: "normal" }],
+  variable: "--font-source-serif", display: "swap", preload: false,
 });
 
 const SITE = process.env.NEXT_PUBLIC_SITE_URL || "https://sentinel-ai.example";
@@ -68,7 +66,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${playfair.variable} ${cormorant.variable} ${inter.variable} ${jetbrains.variable}`}>
+    <html lang="en" className={`${inter.variable} ${plexMono.variable} ${sourceSerif.variable}`}>
       <body className="min-h-screen bg-paper font-sans text-ink antialiased">
         <a href="#main" className="skip-link">Skip to main content</a>
         <PrefsProvider>
