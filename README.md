@@ -15,7 +15,7 @@ system learns from manager decisions.
 | Auth | JWT (local HS256) or Supabase/Clerk JWKS verification |
 | AI | Provider-agnostic adapter: offline deterministic engine (default) or hosted LLM + embeddings, **server-side only** |
 | Parsing | PyMuPDF, python-docx, Pillow, OCR (pytesseract + tesseract) — the container ships it |
-| Tests | 209 pytest cases (`pytest -q`) — reconciled against the docs by `python -m eval.doc_facts` — plus a rule-engine regression benchmark, a held-out adversarial set and an LLM evaluation harness |
+| Tests | 241 pytest cases (`pytest -q`) — reconciled against the docs by `python -m eval.doc_facts` — plus a rule-engine regression benchmark, a held-out adversarial set and an LLM evaluation harness |
 
 ---
 
@@ -106,6 +106,28 @@ database level by Postgres RLS (`migrations/rls.sql`, `FORCE ROW LEVEL SECURITY`
 | `/learn` | Adaptive learning: overrides, learning-prompt answers, Approver gate, regression runs |
 | `/analytics` | Brand Score, mistake mix, department compliance, approval time, repeats, 8-week trend, monthly report |
 | `/audit` | Append-only, hash-chained audit log with chain verification |
+| `/welcome` | The public brief: what the committee is, how a review reads, what it refuses to do |
+| `/about` | What the project is, the three improvements by name, the design language, the stack, and the AI-assistance disclosure |
+| `/trust` | Plain-language summary of `docs/SECURITY-AND-RESPONSIBLE-AI.md`, plus honest privacy and terms sections |
+
+### A brand-new workspace
+
+`POST /v1/auth/workspace` creates the organisation, its first Admin **and a draft Brand Kit
+named "Brand Kit"**, so a new workspace is never in a state the pipeline was not written
+for. Two consequences worth knowing:
+
+- an image uploaded to a workspace with no kit is still measured (dimensions, contrast,
+  aspect ratio); only the palette judgement is skipped, and the upload returns 201;
+- `POST /v1/content/{id}/analyze` checks for a kit **before** queueing. If there is none it
+  answers **409** with `{"code": "no_brand_kit"}` instead of a 202 followed by a background
+  failure, and the UI shows a button to `/kit` rather than the word "failed".
+
+A kit with no confirmed rules still reviews: the run completes and records
+`metrics.no_rules_confirmed = {"count": 0, "note": "no rules confirmed; results limited to
+built-in checks"}`, which the proof desk shows above the draft. `/kit` offers **Start with a
+sample Brand Kit** for an empty kit — `POST /v1/brand-kits/{id}/sample` writes the fictional
+seed set (14 rules, 10 terms, 8 facts, 8 assets, one guideline document), labels every item
+`sample`, and refuses (409) to touch a kit that already holds content.
 
 ### The finding card (the core of the product)
 
@@ -281,7 +303,7 @@ Provider transparency: `/v1/provider`, `/v1/meta` and every finding expose provi
 
 ```bash
 cd backend
-pytest -q                      # 209 passed
+pytest -q                      # 241 passed
 python -m eval.run_eval        # precision / recall / F1 / FP-rate per reviewer vs. single-prompt baseline
 python -m eval.run_llm_eval    # needs a key; refuses to print numbers without one
 python -m eval.doc_facts       # fails if this README or docs/ disagree with those runs

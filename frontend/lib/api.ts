@@ -15,10 +15,33 @@ export function clearToken() {
 
 export class ApiError extends Error {
   status: number;
-  constructor(status: number, message: string) {
+  /** The API's machine-readable reason, when it sends one (`no_brand_kit`). */
+  code?: string;
+  constructor(status: number, message: string, code?: string) {
     super(message);
     this.status = status;
+    this.code = code;
   }
+}
+
+/**
+ * A missing Brand Kit is not an error the reader caused, and it is not a crash: it is a
+ * state with a one-click fix. Everything that renders an API failure checks this first so
+ * those two cases never share a red box.
+ */
+export function isNoBrandKit(err: unknown): boolean {
+  return err instanceof ApiError && (err.code === "no_brand_kit" || err.status === 409 && /brand kit/i.test(err.message));
+}
+
+/** A message that is safe to show a person. Never "undefined", never a bare status code. */
+export function readableError(err: unknown, fallback = "That did not work. Nothing was changed."): string {
+  if (err instanceof ApiError) {
+    if (err.status >= 500) return `${err.message} The server refused the request — try again, and if it repeats, tell an Admin.`;
+    return err.message;
+  }
+  if (err instanceof Error && err.message) return err.message;
+  if (typeof err === "string" && err.trim()) return err;
+  return fallback;
 }
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -36,14 +59,19 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   }
   if (!res.ok) {
     let detail = `${res.status} ${res.statusText}`;
+    let code: string | undefined;
     try {
       const body = await res.json();
       if (typeof body.detail === "string") detail = body.detail;
-      else if (Array.isArray(body.detail)) detail = body.detail.map((d: any) => d.msg).join("; ");
+      else if (body.detail && typeof body.detail === "object" && typeof body.detail.detail === "string") {
+        detail = body.detail.detail;
+        code = body.detail.code;
+      } else if (Array.isArray(body.detail)) detail = body.detail.map((d: any) => d.msg).join("; ");
+      if (typeof body.code === "string") code = body.code;
     } catch {
       /* keep default */
     }
-    throw new ApiError(res.status, detail);
+    throw new ApiError(res.status, detail, code);
   }
   if (res.status === 204) return null as T;
   return (await res.json()) as T;
@@ -97,7 +125,18 @@ export interface FindingMetrics {
   deterministic?: boolean;
 }
 
+/** What the run itself says it could not check (server-side, always measured facts). */
+export interface NoRulesConfirmed {
+  count: number;
+  note: string;
+}
+
 export interface RunMetrics {
+  /** Present only when the run had no confirmed rules to check against. */
+  no_rules_confirmed?: NoRulesConfirmed;
+  /** Present only when a run failed because the workspace has no Brand Kit at all. */
+  no_brand_kit?: boolean;
+  code?: string;
   wall_ms?: number;
   mean_reviewer_ms?: number | null;
   slowest_reviewer_ms?: number | null;

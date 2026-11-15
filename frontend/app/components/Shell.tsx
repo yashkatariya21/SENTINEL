@@ -15,7 +15,7 @@ import { Icon, type IconName } from "./Icon";
 import { NAV, NAV_GROUPS, ROLE_LABEL, visibleNav } from "@/lib/nav";
 
 /** Routes that render without the chrome (public marketing / auth). */
-const BARE_ROUTES = ["/login", "/welcome"];
+const BARE_ROUTES = ["/login", "/welcome", "/about", "/trust"];
 
 const ICONS: Record<string, IconName> = {
   "/": "overview",

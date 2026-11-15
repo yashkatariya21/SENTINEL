@@ -27,6 +27,7 @@ from ..models import (
 )
 from ..schemas import ReviewerName
 from . import deterministic
+from .errors import NoBrandKitError
 from .exceptions import exception_value
 from .extraction import injection_scan
 from .retrieval import kit_bundle, retrieve, rules_in_scope
@@ -47,7 +48,15 @@ def _clock() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def active_brand_kit(db: Session, org_id: str) -> BrandKit:
+def active_brand_kit(db: Session, org_id: str, *, required: bool = True) -> BrandKit | None:
+    """The kit this organisation reviews against, or None when it has none.
+
+    `required=False` is for callers that can do something useful without a kit — measuring
+    an uploaded image, for example, needs pixels but not a palette. Everything that would
+    otherwise read `kit.rules` must keep `required=True`, so a missing kit is a typed
+    `NoBrandKitError` (HTTP 409, `code: "no_brand_kit"`) rather than an AttributeError
+    five frames later.
+    """
     kit = db.execute(
         select(BrandKit).where(BrandKit.org_id == org_id, BrandKit.status == "active")
         .order_by(BrandKit.version.desc())
@@ -55,8 +64,8 @@ def active_brand_kit(db: Session, org_id: str) -> BrandKit:
     if kit is None:
         kit = db.execute(select(BrandKit).where(BrandKit.org_id == org_id)
                          .order_by(BrandKit.version.desc())).scalars().first()
-    if kit is None:
-        raise RuntimeError("No Brand Kit exists for this organisation. Upload one first.")
+    if kit is None and required:
+        raise NoBrandKitError()
     return kit
 
 
@@ -604,8 +613,24 @@ def execute_run(run_id: str) -> None:
                 metrics["engine_fallback"] = reviewer_info
             if confidential_skip:
                 metrics["external_calls_skipped"] = confidential_skip
+            # A kit with nothing confirmed is not a failed review — it is a review with
+            # less to check against. Say so on the run itself so the screen can repeat it.
+            if not prep["rules"]:
+                metrics["no_rules_confirmed"] = {
+                    "count": 0,
+                    "note": "no rules confirmed; results limited to built-in checks",
+                }
             run.metrics = metrics
             run.status = "complete"
+            run.finished_at = datetime.now(timezone.utc)
+            db.flush()
+        except NoBrandKitError as exc:
+            # Not a crash: a workspace with no Brand Kit is a legitimate state. Record it
+            # in a shape the UI can act on (a button to /kit), not a stack-trace string.
+            log.warning("analysis run %s has no Brand Kit for org %s", run_id, org_id)
+            run.status = "failed"
+            run.error = str(exc)
+            run.metrics = {**(run.metrics or {}), "no_brand_kit": True, "code": "no_brand_kit"}
             run.finished_at = datetime.now(timezone.utc)
             db.flush()
         except Exception as exc:

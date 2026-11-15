@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import re
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from sqlalchemy import select
@@ -18,7 +19,7 @@ from ..schemas import (
     RuleVersionOut, TermOut,
 )
 from ..security import Principal, current_user, get_owned
-from ..services.extraction import extract_upload
+from ..services.extraction import blocks_to_text, extract_upload
 from ..services.retrieval import ingest_document
 from ..services.workflows import revert_rule_version
 from ..storage import delete_bytes, read_bytes, save_bytes, sha256
@@ -736,6 +737,116 @@ def refresh_proposals(kit_id: str, principal: Principal = Depends(current_user),
            entity_id=kit.id, detail={"proposals": created})
     db.commit()
     return {"created": created}
+
+
+@router.post("/brand-kits/{kit_id}/sample")
+def load_sample_kit(kit_id: str, principal: Principal = Depends(current_user),
+                    db: Session = Depends(get_db)):
+    """Fill an EMPTY kit with the bundled sample data, so a new workspace can review today.
+
+    This writes no new content: every rule, term, fact and asset below is imported from
+    `seed/brand_kit.py`, the same fictional set the demo workspace uses. It is labelled
+    "sample" everywhere it lands — the kit name, the document metadata, and each rule's
+    reason — so nobody mistakes Northwind's standards for their own.
+
+    It refuses a kit that already holds rules, terms or facts. Overwriting a real Brand
+    Kit with demo data would be precisely the kind of silent change this product exists
+    to prevent.
+    """
+    principal.require("brand_kit:write")
+    kit = get_owned(db, BrandKit, kit_id, principal)
+
+    existing_rules = db.execute(select(Rule).where(Rule.brand_kit_id == kit.id)).scalars().all()
+    existing_terms = db.execute(select(Term).where(Term.brand_kit_id == kit.id)).scalars().all()
+    existing_facts = db.execute(select(Fact).where(Fact.brand_kit_id == kit.id)).scalars().all()
+    if existing_rules or existing_terms or existing_facts:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "This kit already has content, so the sample was not loaded. Load the sample into "
+            "a new kit instead, or add rules by hand.")
+
+    from seed.brand_kit import ASSETS, FACTS, GUIDELINE_TEXT, RULES, TERMS
+
+    adapter = get_adapter()
+    label = "sample — fictional demo data from the bundled sample kit"
+
+    # ---- the guideline document the rules cite -----------------------------
+    body_bytes = GUIDELINE_TEXT.encode()
+    key = save_bytes(body_bytes, org_id=principal.org_id, prefix="documents",
+                     filename="sample-brand-guidelines.md")
+    doc = Document(org_id=principal.org_id, brand_kit_id=kit.id, filename="sample-brand-guidelines.md",
+                   mime="text/markdown", size_bytes=len(body_bytes), kind="guideline", version=1,
+                   pages=6, status="extracted", storage_key=key,
+                   meta={"source": "sample", "note": label})
+    db.add(doc)
+    db.flush()
+
+    blocks: list[dict] = []
+    page = 1
+    for line in GUIDELINE_TEXT.splitlines():
+        text = line.strip()
+        if not text:
+            continue
+        if text[:1].isdigit() and text.split(".")[0].isdigit():
+            page = min(6, max(1, int(text.split(".")[0])))
+        blocks.append({"id": "", "kind": "heading" if text[:1].isdigit() else "paragraph",
+                       "text": text, "page": page, "meta": {}})
+    body, blocks = blocks_to_text(blocks)
+    page_map = [{"start": b["start"], "end": b["end"], "page": b["page"]} for b in blocks]
+    ingest_document(db, org_id=principal.org_id, document=doc, text=body, page_map=page_map)
+
+    # ---- rules, terms, facts, assets (exactly the seed's set) --------------
+    rule_by_key: dict[str, Rule] = {}
+    for spec in RULES:
+        rule = Rule(org_id=principal.org_id, brand_kit_id=kit.id, key=spec["key"],
+                    category=spec["category"], check_type=spec["check_type"],
+                    requires_approver=spec["requires_approver"], current_version=1, active=True)
+        db.add(rule)
+        db.flush()
+        db.add(RuleVersion(
+            org_id=principal.org_id, rule_id=rule.id, version=1, title=spec["title"],
+            body=spec["body"], author_id=principal.user_id, status="active",
+            source_document_id=doc.id, source_page=spec["source_page"],
+            source_section=spec["source_section"],
+            reason=(f"Sample rule, loaded on request. {label.capitalize()}."),
+            embedding=adapter.embed([spec["body"]])[0],
+        ))
+        rule_by_key[spec["key"]] = rule
+
+    for kind, value, replacement, severity, note in TERMS:
+        db.add(Term(org_id=principal.org_id, brand_kit_id=kit.id, kind=kind, value=value,
+                    replacement=replacement, severity=severity,
+                    note=f"Sample term. {note}" if note else "Sample term.",
+                    status="confirmed", rule_id=rule_by_key["TERM-001"].id))
+
+    for statement, value, topic, page_no in FACTS:
+        db.add(Fact(org_id=principal.org_id, brand_kit_id=kit.id, statement=statement,
+                    value=value, topic=topic, source_document_id=doc.id, source_page=page_no,
+                    status="confirmed", confirmed_by=principal.user_id,
+                    confirmed_at=datetime.now(timezone.utc)))
+
+    for asset in ASSETS:
+        db.add(Asset(org_id=principal.org_id, brand_kit_id=kit.id, kind=asset["kind"],
+                     name=f"{asset['name']} (sample)", value=asset["value"],
+                     version=asset.get("version"), status=asset["status"],
+                     meta={**(asset.get("meta") or {}), "sample": True}))
+
+    if "(sample)" not in kit.name:
+        kit.name = f"{kit.name} (sample)"[:200]
+
+    record(db, org_id=principal.org_id, action="brand_kit.sample_loaded", actor_id=principal.user_id,
+           actor_role=principal.role, entity="brand_kit", entity_id=kit.id,
+           detail={"rules": len(RULES), "terms": len(TERMS), "facts": len(FACTS),
+                   "assets": len(ASSETS), "source": "seed/brand_kit.py"})
+    db.commit()
+    return {
+        "kit_id": kit.id, "name": kit.name, "status": kit.status,
+        "loaded": {"rules": len(RULES), "terms": len(TERMS), "facts": len(FACTS),
+                   "assets": len(ASSETS), "documents": 1},
+        "sample": True,
+        "note": "Fictional sample data. Nothing here is your organisation's standard — "
+                "replace or delete it whenever you like.",
+    }
 
 
 @router.get("/brand-kits/{kit_id}/health")

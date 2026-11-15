@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { api, ContentItem } from "@/lib/api";
+import { api, ContentItem, Finding, isNoBrandKit, readableError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import {
   Button, Card, EmptyState, Field, SectionHeading, Skeleton, StatusPill, Tag, TextArea, useToast,
@@ -11,6 +11,15 @@ import { LoadDemoButton } from "./components/Demo";
 import { BrandScoreRing } from "./components/brand/BrandScoreRing";
 import { DeskSentri, Figure } from "./components/Desk";
 import { Icon } from "./components/Icon";
+
+/** What `GET /brand-kits/{id}/health` reports, narrowed to what the checklist needs. */
+interface Readiness {
+  hasKit: boolean;
+  checks: { item: string; ok: boolean }[];
+  counts: { rules: number };
+}
+
+const CHECKLIST_KEY = "sentinel.overview.checklist";
 
 interface Summary {
   brand_score: number;
@@ -24,6 +33,122 @@ interface Summary {
   provider: { provider: string; model: string; prompt_version: string };
 }
 
+/**
+ * The getting-started checklist.
+ *
+ * Shown only while there is something to start: no kit, no confirmed rules, no draft, or
+ * no decision yet. Every tick comes from the readiness endpoint or from data the overview
+ * already loaded, so a completed step is never claimed before it happened. Dismissible,
+ * and the dismissal is remembered on this machine — a reader who knows the product should
+ * not have to sweep it away on every visit.
+ */
+function GettingStarted({
+  readiness, hasDraft, decisionMade, onDismiss,
+}: {
+  readiness: Readiness;
+  hasDraft: boolean;
+  decisionMade: boolean;
+  onDismiss: () => void;
+}) {
+  const rulesConfirmed = (readiness.counts?.rules ?? 0) > 0;
+  const steps = [
+    {
+      key: "kit",
+      label: "Set up a Brand Kit",
+      body: readiness.hasKit
+        ? "A kit exists. Load the sample standards, or upload your own guideline."
+        : "There is no kit yet, so nothing can be checked against your standards.",
+      done: readiness.hasKit,
+      href: "/kit",
+      cta: "Open the Brand Kit",
+    },
+    {
+      key: "rules",
+      label: "Confirm some rules",
+      body: "Extracted rules stay in draft until an Admin confirms them. Until one is confirmed, a review is limited to built-in checks.",
+      done: rulesConfirmed,
+      href: "/kit",
+      cta: "Confirm rules",
+    },
+    {
+      key: "draft",
+      label: "Send the first draft",
+      body: "Paste text or upload a DOCX, PDF or image. Six reviewers read it against the kit.",
+      done: hasDraft,
+      href: "/new",
+      cta: "Review new content",
+    },
+    {
+      key: "decision",
+      label: "Make the first decision",
+      body: "Accept, edit, dismiss or escalate a finding. That decision is what the learning loop remembers.",
+      done: decisionMade,
+      href: hasDraft ? "/content" : "/new",
+      cta: hasDraft ? "Open the queue" : "Start with a draft",
+    },
+  ];
+  const remaining = steps.filter((step) => !step.done).length;
+  if (remaining === 0) return null;
+
+  return (
+    <section
+      aria-labelledby="getting-started-title"
+      className="mb-6 rounded-[10px] border-[1.5px] border-[color:var(--hairline-strong)] bg-[color:var(--paper)]"
+    >
+      <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-[color:var(--hairline)] px-4 py-2.5">
+        <div className="min-w-0">
+          <p className="font-mono text-2xs uppercase tracking-[0.16em] text-[color:var(--ink-3)]">
+            Getting started · {steps.length - remaining} of {steps.length} done
+          </p>
+          <h2 id="getting-started-title" className="mt-0.5 text-sm font-semibold text-[color:var(--ink)]">
+            Four steps from an empty workspace to a decided review
+          </h2>
+        </div>
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="rounded-[4px] px-2 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-[color:var(--ink-3)] transition-colors hover:text-[color:var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]"
+        >
+          Dismiss
+        </button>
+      </div>
+      <ol className="divide-y divide-[color:var(--hairline)]">
+        {steps.map((step, i) => (
+          <li key={step.key} className="flex items-start gap-3 px-4 py-2.5">
+            <span
+              aria-hidden="true"
+              className={`mt-0.5 grid h-5 w-5 flex-none place-items-center rounded-full border font-mono text-[10px] tabular-nums ${
+                step.done
+                  ? "border-[color:var(--pass-graphic)] bg-[color:var(--pass-tint)] text-[color:var(--pass)]"
+                  : "border-[color:var(--hairline-strong)] text-[color:var(--ink-3)]"
+              }`}
+            >
+              {step.done ? "✓" : i + 1}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className={`text-sm font-medium ${step.done ? "text-[color:var(--ink-3)] line-through decoration-[color:var(--pass-graphic)]" : "text-[color:var(--ink)]"}`}>
+                {step.label}
+                <span className="sr-only">{step.done ? " — done" : " — not done yet"}</span>
+              </p>
+              {!step.done && (
+                <p className="mt-0.5 text-xs leading-relaxed text-[color:var(--ink-2)]">{step.body}</p>
+              )}
+            </div>
+            {!step.done && (
+              <Link
+                href={step.href}
+                className="mt-0.5 flex-none whitespace-nowrap rounded-[5px] border border-[color:var(--hairline-strong)] px-2 py-1 font-mono text-[10px] uppercase tracking-[0.1em] text-[color:var(--ink)] transition-colors hover:bg-[color:var(--ink)] hover:text-[color:var(--paper)]"
+              >
+                {step.cta}
+              </Link>
+            )}
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
 export default function OverviewPage() {
   const { me, can } = useAuth();
   const router = useRouter();
@@ -33,13 +158,54 @@ export default function OverviewPage() {
   const [items, setItems] = useState<ContentItem[] | null>(null);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [error, setError] = useState("");
+  const [readiness, setReadiness] = useState<Readiness | null>(null);
+  const [decisionMade, setDecisionMade] = useState(false);
+  const [checklistHidden, setChecklistHidden] = useState(true);
 
   useEffect(() => {
-    api.get<ContentItem[]>("/content").then(setItems).catch((e) => setError(e.message));
+    api.get<ContentItem[]>("/content").then(setItems).catch((e) => setError(readableError(e)));
     if (can("can_read_analytics")) {
       api.get<Summary>("/analytics/summary").then(setSummary).catch(() => setSummary(null));
     }
   }, [can]);
+
+  /* The getting-started checklist is driven by the readiness endpoint the Brand Kit page
+     already uses (`GET /brand-kits/{id}/health`), plus two facts the overview has anyway:
+     whether anything has been written, and whether any finding has been decided. Nothing
+     here is inferred from a spinner or a guess. */
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const kits = await api.get<{ id: string; status: string }[]>("/brand-kits");
+        const kit = kits.find((k) => k.status === "active") ?? kits[0];
+        if (!alive) return;
+        if (!kit) {
+          setReadiness({ hasKit: false, checks: [], counts: { rules: 0 } });
+          return;
+        }
+        const health = await api.get<{
+          checks: { item: string; ok: boolean }[];
+          counts: { rules: number };
+        }>(`/brand-kits/${kit.id}/health`);
+        if (alive) setReadiness({ hasKit: true, checks: health.checks, counts: health.counts });
+      } catch {
+        if (alive) setReadiness(null);
+      }
+    })();
+    api
+      .get<Finding[]>("/findings")
+      .then((rows) => alive && setDecisionMade(rows.some((f) => f.decision_status !== "open")))
+      .catch(() => undefined);
+    try {
+      setChecklistHidden(window.localStorage.getItem(CHECKLIST_KEY) === "hidden");
+    } catch {
+      setChecklistHidden(false);
+    }
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const pending = (items || []).filter((i) => i.status === "in_review");
   const mine = (items || []).filter((i) => i.owner_id === me?.user.id);
@@ -83,6 +249,22 @@ export default function OverviewPage() {
         <div className="mb-4 flex items-start gap-2 rounded-[8px] border border-[color:var(--mark)] bg-[color:var(--mark-tint)] px-3 py-2 text-sm text-[color:var(--mark-text)]">
           <Icon name="alert" size={15} /> {error}
         </div>
+      )}
+
+      {readiness && !checklistHidden && (
+        <GettingStarted
+          readiness={readiness}
+          hasDraft={(items || []).length > 0}
+          decisionMade={decisionMade}
+          onDismiss={() => {
+            setChecklistHidden(true);
+            try {
+              window.localStorage.setItem(CHECKLIST_KEY, "hidden");
+            } catch {
+              /* private mode: it simply comes back next visit */
+            }
+          }}
+        />
       )}
 
       {/* ----------------------------------------------- the instrument strip
@@ -183,8 +365,13 @@ export default function OverviewPage() {
                     text: draft,
                   });
                   router.push(`/content/${created.id}`);
-                } catch (err: any) {
-                  push(err.message, "error");
+                } catch (err: unknown) {
+                  if (isNoBrandKit(err)) {
+                    push("This workspace has no Brand Kit yet — set one up first.", "error");
+                    router.push("/kit");
+                  } else {
+                    push(readableError(err, "That draft could not be read."), "error");
+                  }
                   setTrying(false);
                 }
               }}
