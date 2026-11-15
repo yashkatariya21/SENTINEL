@@ -106,7 +106,8 @@ database level by Postgres RLS (`migrations/rls.sql`, `FORCE ROW LEVEL SECURITY`
 | `/learn` | Adaptive learning: overrides, learning-prompt answers, Approver gate, regression runs |
 | `/analytics` | Brand Score, mistake mix, department compliance, approval time, repeats, 8-week trend, monthly report |
 | `/audit` | Append-only, hash-chained audit log with chain verification |
-| `/welcome` | The public brief: what the committee is, how a review reads, what it refuses to do |
+| `/` | The public brief — the front door: what the committee is, how a review reads, what it refuses to do, and **the walkthrough** (every room, described, openable) |
+| `/desk` | The proof desk's overview — the first page behind the sign-in (previously `/`; `/welcome` permanently redirects to `/`) |
 | `/about` | What the project is, the three improvements by name, the design language, the stack, and the AI-assistance disclosure |
 | `/trust` | Plain-language summary of `docs/SECURITY-AND-RESPONSIBLE-AI.md`, plus honest privacy and terms sections |
 

@@ -176,7 +176,7 @@ export default function LoginPage() {
               Reviews · Explains · Never publishes
             </span>
             <Link
-              href="/welcome"
+              href="/"
               className="link-under w-fit font-mono text-[10px] uppercase tracking-[0.22em] text-[#FFE066] hover:text-[#FFF0A8]"
             >
               What Sentinel is — read the brief

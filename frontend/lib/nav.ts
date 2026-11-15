@@ -18,7 +18,7 @@ export interface NavItem {
 }
 
 export const NAV: NavItem[] = [
-  { href: "/", label: "Overview", permission: null, key: "1", group: "desk",
+  { href: "/desk", label: "Overview", permission: null, key: "1", group: "desk",
     blurb: "Today at the gate: what is waiting on a person, and how the workspace is scoring." },
   { href: "/new", label: "New submission", permission: null, key: "2", group: "desk",
     blurb: "Paste text or upload a file; the six reviewers read it against the Brand Kit." },
