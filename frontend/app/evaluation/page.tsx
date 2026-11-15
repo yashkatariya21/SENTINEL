@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { Button, Card, EmptyState, SectionHeading, Skeleton, Tag, useToast } from "../components/ui";
+import { Button, Card, SectionHeading, Skeleton, Tag, useToast } from "../components/ui";
 import { DeskSentri } from "../components/Desk";
 import { Scene } from "../components/brand/Scenes";
 
@@ -26,19 +26,55 @@ interface Block {
   missed: { reviewer: string; sample: string; type: string; span: string }[];
   note: string | null;
   is_heldout: boolean;
+  /** "eval/report.json" for a live run, or the recorded copy baked into the build. */
+  source?: string | null;
+  recorded_at?: string | null;
+  provider?: string | null;
+  model?: string | null;
 }
 
 interface Payload {
   regression: Block | null;
   heldout: Block | null;
   llm: any | null;
+  /** the tracked markdown column: measured offline, no key needed */
+  llm_markdown: string | null;
+  llm_source: string | null;
   llm_configured: boolean;
+  can_generate: boolean;
+  looked_for: string;
   provenance: Record<string, string>;
   generated: Record<string, string | null>;
 }
 
 const pct = (value: number | null | undefined) =>
   value === null || value === undefined ? "—" : `${Math.round(value * 100)}%`;
+
+const when = (iso: string | null | undefined) => {
+  if (!iso) return "not recorded";
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? iso : d.toLocaleString();
+};
+
+/** A recorded copy is a measurement, but not a live one. Say which, every time. */
+function SourceLine({ block }: { block: Block }) {
+  const snapshot = (block.source || "").includes("snapshot");
+  return (
+    <p className="mt-2 border-t border-[color:var(--hairline)] pt-1.5 font-mono text-[10px] uppercase tracking-[0.08em] text-[color:var(--ink-3)]">
+      {snapshot ? (
+        <>
+          recorded copy · {when(block.recorded_at)} ·{" "}
+          <span className="normal-case tracking-normal">bundled at build time; re-run to refresh</span>
+        </>
+      ) : (
+        <>
+          {block.source || "eval/report.json"} · measured {when(block.recorded_at)}
+          {block.model ? ` · ${block.provider} / ${block.model}` : ""}
+        </>
+      )}
+    </p>
+  );
+}
 
 export default function EvaluationPage() {
   const { push } = useToast();
@@ -100,17 +136,34 @@ export default function EvaluationPage() {
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
         <BenchmarkCard
           title="Pipeline regression benchmark"
-          subtitle="Rule-based engine · 53 labelled samples written alongside the rules"
+          subtitle={
+            data.regression?.samples
+              ? `Rule-based engine · ${data.regression.samples} labelled samples written alongside the rules`
+              : "Rule-based engine · labelled samples written alongside the rules"
+          }
           block={data.regression}
           generated={data.generated.regression}
+          onGenerate={rerun}
+          generating={busy}
+          lookedFor={data.looked_for}
         />
         <BenchmarkCard
           title="Held-out adversarial set"
-          subtitle="20 samples written after the rules, never used for tuning"
+          subtitle={
+            data.heldout?.samples
+              ? `${data.heldout.samples} samples written after the rules, never used for tuning`
+              : "Samples written after the rules, never used for tuning"
+          }
           block={data.heldout}
           heldout
+          onGenerate={rerun}
+          generating={busy}
+          lookedFor={data.looked_for}
         />
       </div>
+
+      {/* Confidence bands: the measurement behind "a higher band is more trustworthy" */}
+      {data.regression && <ConfidenceBands block={data.regression} />}
 
       {/* LLM evaluation */}
       <Card className="mt-4 p-5">
@@ -120,6 +173,20 @@ export default function EvaluationPage() {
         />
         {data.llm ? (
           <LLMTable report={data.llm} />
+        ) : data.llm_markdown ? (
+          <div>
+            <p className="mb-2 text-xs leading-relaxed text-ink-soft">
+              No hosted model has been measured in this deployment, so no hosted number is shown. What
+              follows is the <strong>offline engine’s</strong> column from a recorded run — measured, and
+              reproducible without a key.
+            </p>
+            <pre className="max-h-80 overflow-auto rounded-md border border-[color:var(--hairline)] bg-[color:var(--paper-2)] p-3 font-mono text-[11px] leading-relaxed text-[color:var(--ink-2)]">
+              {data.llm_markdown}
+            </pre>
+            <p className="mt-2 font-mono text-2xs uppercase tracking-[0.08em] text-[color:var(--ink-3)]">
+              Hosted model measured: no · key configured: {data.llm_configured ? "yes" : "no"}
+            </p>
+          </div>
         ) : (
           <div className="rounded-md border border-dashed border-ink/20 bg-ivory-deep/50 p-4">
             <p className="text-sm font-semibold text-ink">Not measured in this deployment.</p>
@@ -188,18 +255,92 @@ python -m eval.run_llm_eval            # writes eval/report_llm.{md,json}`}
   );
 }
 
+/**
+ * Confidence bands — the measurement behind the claim that a higher band is better.
+ *
+ * If medium and high are tied, the card says so instead of implying a ranking. On this
+ * data they are tied, so the copy is fixed rather than flattering.
+ */
+function ConfidenceBands({ block }: { block: Block }) {
+  const bands = (block as any).bands || {};
+  const rows = ["low", "medium", "high"]
+    .map((name) => ({ name, ...(bands[name] || {}) }))
+    .filter((row) => typeof row.predicted === "number");
+  if (rows.length === 0) return null;
+
+  const tied = rows.length === 3 && bands.medium?.precision === bands.high?.precision;
+  const nonMonotonic = rows.some((row, i) => i > 0 && row.precision < rows[i - 1].precision);
+
+  return (
+    <Card className="mt-4 p-5">
+      <SectionHeading
+        title="Does a higher confidence band mean a more accurate finding?"
+        subtitle="Measured on the labelled set: how often each band was right. This is the only evidence behind the confidence score."
+      />
+      <table className="w-full text-left text-xs">
+        <caption className="sr-only">Precision by confidence band on the labelled set</caption>
+        <thead>
+          <tr className="text-2xs uppercase tracking-[0.1em] text-ink-mute">
+            <th scope="col" className="py-1 font-medium">Band</th>
+            <th scope="col" className="py-1 text-right font-medium">Findings</th>
+            <th scope="col" className="py-1 text-right font-medium">Matched a label</th>
+            <th scope="col" className="py-1 text-right font-medium">Precision</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.name} className="border-t border-ink/10">
+              <th scope="row" className="py-1 font-mono text-2xs uppercase tracking-[0.08em] text-ink-soft">{row.name}</th>
+              <td className="py-1 text-right tabular-nums text-ink-soft">{row.predicted}</td>
+              <td className="py-1 text-right tabular-nums text-ink-soft">{row.matched}</td>
+              <td className="py-1 text-right font-semibold tabular-nums text-ink">{pct(row.precision)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="mt-2 text-xs leading-relaxed text-ink-soft">
+        {nonMonotonic
+          ? "Precision does not rise with the band on this sample, so the band is a sort order only — not a probability."
+          : tied
+            ? "Precision never falls as the band rises, but medium and high are tied here, so the difference between them is not established. The band is a defensible sort order; it is not a calibrated probability."
+            : "Precision rises with the band on this sample, and that ordering is all it claims to be."}
+      </p>
+    </Card>
+  );
+}
+
 function BenchmarkCard({
-  title, subtitle, block, generated, heldout = false,
+  title, subtitle, block, generated, heldout = false, onGenerate, generating, lookedFor,
 }: {
-  title: string; subtitle: string; block: Block | null; generated?: string | null; heldout?: boolean;
+  title: string; subtitle: string; block: Block | null; generated?: string | null;
+  heldout?: boolean; onGenerate?: () => void; generating?: boolean; lookedFor?: string;
 }) {
   if (!block) {
+    /* The old empty state told the reader to go and run a command. A screen that can
+       measure the thing itself should offer to, and say exactly what it looked for. */
     return (
       <Card className="p-5">
         <SectionHeading title={title} subtitle={subtitle} />
         <Scene name="evaluation" height={110} className="mb-3" />
-        <EmptyState title="No report on disk"
-                    body="Run `python -m eval.run_eval` from backend/ to produce it." />
+        <div className="rounded-md border border-dashed border-ink/20 bg-ivory-deep/50 p-4">
+          <p className="text-sm font-semibold text-ink">Nothing has been measured here yet.</p>
+          <p className="mt-1 text-xs leading-relaxed text-ink-soft">
+            Sentinel looked for <code className="font-mono text-2xs">{lookedFor || "eval/report.json"}</code> and
+            found neither that file nor the recorded copy bundled with this build. It will not show a
+            placeholder in its place.
+          </p>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <Button size="sm" onClick={onGenerate} loading={generating}>
+              Measure it now
+            </Button>
+            <span className="text-2xs text-ink-mute">
+              Runs the offline engine over the labelled set — about ten seconds, no API key.
+            </span>
+          </div>
+          <p className="mt-2 font-mono text-[10px] text-ink-mute">
+            or, on a machine with the repo: <code>cd backend &amp;&amp; python -m eval.run_eval</code>
+          </p>
+        </div>
       </Card>
     );
   }
@@ -228,6 +369,8 @@ function BenchmarkCard({
           “right problem, wrong lens” rate.
         </p>
       )}
+
+      <SourceLine block={block} />
 
       <table className="mt-3 w-full text-left text-xs">
         <thead>

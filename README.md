@@ -15,7 +15,7 @@ system learns from manager decisions.
 | Auth | JWT (local HS256) or Supabase/Clerk JWKS verification |
 | AI | Provider-agnostic adapter: offline deterministic engine (default) or hosted LLM + embeddings, **server-side only** |
 | Parsing | PyMuPDF, python-docx, Pillow, OCR (pytesseract + tesseract) — the container ships it |
-| Tests | 197 pytest cases (`pytest -q`) — reconciled against the docs by `python -m eval.doc_facts` — plus a rule-engine regression benchmark, a held-out adversarial set and an LLM evaluation harness |
+| Tests | 209 pytest cases (`pytest -q`) — reconciled against the docs by `python -m eval.doc_facts` — plus a rule-engine regression benchmark, a held-out adversarial set and an LLM evaluation harness |
 
 ---
 
@@ -281,7 +281,7 @@ Provider transparency: `/v1/provider`, `/v1/meta` and every finding expose provi
 
 ```bash
 cd backend
-pytest -q                      # 197 passed
+pytest -q                      # 209 passed
 python -m eval.run_eval        # precision / recall / F1 / FP-rate per reviewer vs. single-prompt baseline
 python -m eval.run_llm_eval    # needs a key; refuses to print numbers without one
 python -m eval.doc_facts       # fails if this README or docs/ disagree with those runs

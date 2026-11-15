@@ -90,6 +90,13 @@ jobs:
           python -m seed.seed || true
           python -m eval.run_eval
 
+      # The screen falls back to a copy of the report baked into the app, because a
+      # serverless deploy does not ship `eval/`. That copy is committed, so it can go
+      # stale: this compares it with the run above (measurements, not clocks).
+      - name: Bundled evaluation copy matches the run
+        working-directory: backend
+        run: python -m eval.snapshot --check
+
       # Every published figure is rebuilt from the runs above (and from pytest's own
       # collection) and compared with README/QUICKSTART/docs. A stale count fails here.
       - name: Docs must agree with the measured runs

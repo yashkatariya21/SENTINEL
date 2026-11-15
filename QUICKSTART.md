@@ -47,7 +47,7 @@ Password for every demo user: `Sentinel!2026`
 
 ```bash
 cd backend
-python3 -m pytest -q                 # 197 passed
+python3 -m pytest -q                 # 209 passed
 python3 -m eval.run_eval             # precision/recall/FPR vs a single-prompt baseline
 python3 -m eval.run_eval --repeat 3  # micro F1 0.98, false-positive rate 0.00
 ```

@@ -102,6 +102,18 @@ def main() -> int:
         print(f"{name:8s} {row.get('predicted', 0):9d} {row.get('matched', 0):8d} {prec:>9s}")
     print("  " + (bands.get("note") or "not measured"))
 
+    # Stamp the run. Without this the screen cannot say *when* a number was measured,
+    # and a reader cannot tell a fresh run from a bundled copy of an old one.
+    from datetime import datetime, timezone
+
+    from app.config import settings
+
+    result["generated_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    result["provider"] = settings.llm_provider
+    result["model"] = settings.llm_model
+    result["embedding_mode"] = "offline" if "hash" in (settings.embedding_model or "") else settings.embedding_model
+    result["repeat_runs"] = args.repeat
+
     for path in (args.json, args.md):
         os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     with open(args.json, "w") as fh:

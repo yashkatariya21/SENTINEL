@@ -6,6 +6,48 @@ documents' figures stop agreeing with those runs.
 
 ---
 
+## Evaluation screen, in a deploy that does not ship `eval/`
+
+### Fixed
+
+- The **Evaluation** screen no longer reads "No report on disk" on a healthy deployment.
+  A serverless build traces only the files reachable from `api/index.py`, so
+  `backend/eval/report.json` is simply not there and every number read "not measured”.
+  `python -m eval.snapshot` now bakes the last recorded run into
+  `backend/app/eval_snapshot.py` (committed), and the router serves that copy when no
+  file is on disk.
+- The copy is labelled as a copy. Every response carries `source` and `recorded_at`, and
+  the card renders "recorded copy · <time> · bundled at build time; re-run to refresh" —
+  a bundled number can never be presented as a live measurement. The live path says
+  `eval/report.json` and shows the provider/model that produced it.
+- `run_eval.py` stamps `generated_at`, `provider`, `model`, `embedding_mode` and
+  `repeat_runs` into the report, so a number without a time or a provider is no longer
+  possible.
+- When nothing at all has been measured the card says so and offers **Measure it now**
+  (plus the CLI equivalent) instead of instructing the reader to go and run a command.
+  It names the path it looked in.
+- The LLM card falls back to the tracked `eval/report_llm.md` column — measured offline,
+  no key — rather than showing nothing, and states that no hosted model was measured.
+- The **confidence-band table** moved onto the screen. It was in the docs but not in the
+  UI, which left the confidence score unfalsifiable. The copy is fixed, not flattering:
+  medium and high are tied on this data, so the card says the band is a sort order rather
+  than a probability.
+
+### Added
+
+- `python -m eval.snapshot --check` fails when the committed copy drifts from
+  `eval/report.json`. CI runs it after the benchmark, so a bundled number cannot go
+  stale. It compares **measurements, not clocks** — CI re-runs the benchmark, so
+  `generated_at` always differs there, and comparing it would train everyone to ignore
+  the check.
+- `tests/test_evaluation_sources.py` (12 cases): the snapshot imports, contains Python
+  rather than JSON literals, the fallback serves the recorded numbers exactly, live and
+  recorded sources are distinguishable, a missing snapshot yields `null` rather than
+  `0.0`, and the drift check catches a moved number, tolerates a new timestamp and
+  survives an unimportable generated file.
+
+---
+
 ## Round 3 — free model, learning loop, image evidence
 
 Three workstreams, each finished and verified before the next started. **197 pytest

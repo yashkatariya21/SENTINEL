@@ -5,7 +5,7 @@ interchangeably.
 
 | What | Command | Needs a key? | Question it answers |
 |---|---|---|---|
-| Behaviour tests | `cd backend && pytest -q` (that is 197 tests) | no | Do the deterministic rules, permissions and tenancy boundaries hold? |
+| Behaviour tests | `cd backend && pytest -q` (that is 209 tests) | no | Do the deterministic rules, permissions and tenancy boundaries hold? |
 | **Pipeline regression benchmark (rule-based engine)** | `python -m eval.run_eval` | no | Did a rule or code change break the engine's behaviour on the tuning set? |
 | **Held-out adversarial set** | `python -m eval.run_eval` (same run) | no | Does the engine generalise to copy it was not tuned on? |
 | **LLM evaluation** | `python -m eval.run_llm_eval` | **yes** | How well do three prompt configurations perform, at what latency and cost? |
@@ -14,6 +14,32 @@ The in-app `/evaluation` page renders whatever is on disk. If a report is missin
 "not measured" — it never shows a placeholder score.
 
 ---
+
+## 0. Where the Evaluation screen gets its numbers
+
+The screen shows what a run recorded — and says which run.
+
+| Source | When it is used | How the screen labels it |
+|---|---|---|
+| `backend/eval/report.json` | a report file is on disk (local dev, a container that ships the repo) | `eval/report.json · measured <time> · <provider> / <model>` |
+| `backend/app/eval_snapshot.py` | no file on disk — the serverless case, where the deploy traces only `api/index.py` | `recorded copy · <time> · bundled at build time; re-run to refresh` |
+| neither | nothing has been measured | "Nothing has been measured here yet", the path that was looked for, and a **Measure it now** button |
+
+The fallback exists because a correct measurement that is invisible is worse than a visible
+one: on Vercel the reports were never bundled, so a healthy deployment displayed "not
+measured" everywhere. Baking in the recorded run fixes that **without** loosening the rule
+that the UI never shows an unmeasured number — the copy carries its own timestamp and is
+labelled a copy, and `python -m eval.snapshot --check` (run in CI after the benchmark)
+fails if it drifts from the report it copies.
+
+To refresh it after re-running the benchmark:
+
+```bash
+cd backend
+python -m eval.run_eval        # writes eval/report.json + eval/heldout.json
+python -m eval.snapshot        # bakes them into app/eval_snapshot.py
+python -m eval.snapshot --check
+```
 
 ## 1. Pipeline regression benchmark (rule-based engine)
 

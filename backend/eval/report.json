@@ -1505,5 +1505,10 @@
     "comparable": true,
     "note": "Precision never falls as the band rises, but medium and high are tied, so the difference between them is not established at this sample size. The band is a defensible sort order; it is not a calibrated probability."
   },
-  "samples": 53
+  "samples": 53,
+  "generated_at": "2026-11-15T11:34:10+00:00",
+  "provider": "local",
+  "model": "sentinel-local-1",
+  "embedding_mode": "offline",
+  "repeat_runs": 3
 }
