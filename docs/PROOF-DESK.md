@@ -41,7 +41,7 @@ share it:
 Why it does not cost legibility: every panel that carries meaning sits on opaque
 `--paper` above the desk; the strongest pattern line is 6 % ink and the ghost glyphs are
 9 % ink (13 % on night stock), both far below the level at which the measured contrast
-ratios in §3 change. axe-core was re-run over all 32 combinations after the layer went in
+ratios in §1b.1 change. axe-core was re-run over all 32 combinations after the layer went in
 and still reports **0 violations** — the two regressions it caught on the way in were
 fixed rather than waived (see below).
 
@@ -59,7 +59,83 @@ pointers never get the lamp.
 - the fixed white sample sheet on `/login` was inheriting night-shift tokens
   (`2.19:1`); `Stamp` grew a `tone="stock"` for sheets that never invert.
 
-## 1b. The rail says what it is
+## 1b. The night shift — a dark room with three lights in it
+
+The day shift is a desk. The night shift is the same desk in a dark room, lit from
+three sides. Colour appears **only as glow**: nothing is tinted, no card is coloured,
+most of the page stays near-black. It is one fixed, non-interactive layer
+(`.desk-glow`, `position: absolute` inside the already-fixed `.desk-bg`,
+`pointer-events: none`) painted *under* the paper patterns, so the grid rules still
+read on top of the light.
+
+| light | where | full recipe (public pages) | app screens |
+|---|---|---|---|
+| ember | behind the seal, bottom-right | `rgba(150,102,22,.46)` at 78 % 88 %, 45 % × 45 %, fade 70 % | `rgba(150,102,22,.20)` at 96 % 96 % |
+| emerald | bottom-left | `rgba(14,107,85,.44)` at 8 % 95 %, 46 % × 44 %, fade 72 % | `rgba(14,107,85,.17)` at 18 % 100 % |
+| aurora violet | top-right | `rgba(70,48,140,.42)` at 90 % 5 % | `rgba(70,48,140,.16)` at 100 % 0 % |
+| aurora teal | top-left | `rgba(15,74,85,.38)` at 20 % 0 % | `rgba(15,74,85,.13)` at 44 % 0 % |
+| base | the room | `#07090d` | `#07090d` |
+
+`/welcome` and `/login` pass `variant="public"` to `DeskBackground`; everything else gets
+the edge recipe. Cards stay opaque `--paper` / `--paper-2`, and the only decoration on
+top of a glow is the seal's orbit ring (night shift only, contained inside the stage box
+so it cannot reach the headline).
+
+### 1b.1 Measured on the worst-case background pixel
+
+Not against a flat fill: the glow layer was isolated in a headless render (every other
+element hidden, 5 px median to drop 1–2 px decorations, 4 px inset for the trim-edge
+crop marks), and the **brightest pixel any of it can produce** was used as the worst
+case for every text token.
+
+| | 1920 × 1080 | 390 × 844 (worst) |
+|---|---|---|
+| brightest field pixel | `rgb(36,66,62)` | `rgb(37,71,65)` |
+| its luminance | 0.0462 | 0.0528 |
+
+| token | value | on the worst glow pixel | on `--paper` `#10141a` | on `--paper-2` `#161b22` |
+|---|---|---|---|---|
+| `--ink` | `#f2f4f7` | **9.27** | 16.76 | 15.70 |
+| `--ink-2` | `#b9c0cb` | **5.58** | 10.08 | 9.44 |
+| `--ink-3` | `#a8b0bc` | **4.67** | 8.44 | 7.91 |
+| `--mark-text` | `#ff9b8c` | **5.02** | 9.08 | 8.50 |
+| `--pass` | `#7be0a8` | **6.36** | 11.49 | 10.77 |
+| `--warn` | `#f0c070` | **6.07** | 10.98 | 10.28 |
+
+Everything clears 4.5:1 on the worst pixel, not just on the cards. Two values had to
+move to get there, and both are reported rather than hidden:
+
+- **`--mark` / `--mark-text` went `#ff8a7a` → `#ff9b8c`.** The old red measured
+  **4.38:1** on the brightest pixel the first glow recipe produced — a fail. The new
+  red clears it at 5.02:1.
+- **the glow alphas are the tuned values, not the first ones.** The starting recipe
+  (ember .55 / emerald .45 / violet .45 / teal .40) measured 4.68:1 for `--ink-3`
+  on paper analysis but only **4.42:1** once the 3 % grain and the pattern layers were
+  composited on top at phone width. Ember `.46`, emerald `.44` over a wider radius, and
+  violet/teal `.42`/`.38` land at 4.67:1, which is the number above.
+
+The other dark-stock tokens: `--canvas #07090d`, `--paper #10141a`, `--paper-2 #161b22`,
+`--hairline #232a33`, `--hairline-strong #2f3944`, `--ink-faint #6c7683` (ink-stock only),
+`--mark-tint #2a1714`. The whole old dark grey ramp was replaced (22 hard-coded values
+in `globals.css`), and the surfaced utilities (`bg-paper`, `bg-ivory`,
+`bg-ivory/{90…40}`, `border-ink/{10…30}`) were remapped onto the new stock so no corner
+kept a leftover tone.
+
+**No flash, and the switch still works.** The saved theme is now painted by a three-line
+inline script in `<head>` before the first frame (verified: `data-theme="dark"` is
+already set at `domcontentloaded` on a cold navigation, and the script sits between
+`<head>` and `<body>` in the served HTML), and `PrefsProvider` no longer writes its
+default `light` over it before reading the preference. The theme switch was exercised:
+`dark → light → dark`, `localStorage` following, no console errors. `ThemeSwitch`'s
+fallback overlay colour was updated to `#07090d` so the circular reveal no longer
+flashes a different near-black.
+
+**The day shift did not move.** Same viewport, reduced motion, everything settled, old
+build vs new build on port 3201/3100: `/login` pixel-identical, the other four pages
+differ by 0.01–0.06 % — every differing pixel is inside the seal's orbit rings or the
+status-bar clock (verified by diff mask bounding boxes). No light-theme token changed.
+
+## 1c. The rail says what it is
 
 The 64 px icon rail became a 236 px labelled rail at `lg` and up (`app/components/Shell.tsx`),
 reading left to right as **glyph · name · shortcut**. Items are banded the way the desk is

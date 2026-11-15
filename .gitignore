@@ -72,3 +72,11 @@ frontend/tsconfig.tsbuildinfo
 /sentinel-chancery.bundle
 /sentinel-chancery.patch
 /uploads/
+
+# --- night-shift verification scratch -------------------------------------
+/darkbg_check.py
+/darkshots.py
+/lightdiff.py
+/lightstable.py
+/abtest.py
+/themeflash.py

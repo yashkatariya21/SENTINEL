@@ -21,7 +21,7 @@ const INKS: { name: string; token: string; hex: string; use: string }[] = [
   { name: "Highlight", token: "--highlight", hex: "#FFE066", use: "A fill only — 14.3:1 under ink" },
   { name: "Pass", token: "--pass", hex: "#15704A", use: "Resolved, approved, verified" },
   { name: "Warn", token: "--warn", hex: "#8F5500", use: "Possible, pending, waiting" },
-  { name: "Night", token: "--canvas (night)", hex: "#0E1014", use: "Proof black, the night shift" },
+  { name: "Night", token: "--canvas (night)", hex: "#07090D", use: "The dark room, under three lights" },
 ];
 
 const TYPE = [

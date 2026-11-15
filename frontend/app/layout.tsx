@@ -67,6 +67,18 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${inter.variable} ${plexMono.variable} ${sourceSerif.variable}`}>
+      <head>
+        {/* The night shift is a saved preference, so it has to be on the <html>
+            before the first paint — otherwise a dark reader gets one white frame.
+            Three lines, no dependency, nothing else runs before hydration. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "(function(){try{var t=localStorage.getItem('sentinel.prefs.theme');" +
+              "if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t);}catch(e){}})();",
+          }}
+        />
+      </head>
       <body className="min-h-screen bg-[color:var(--paper)] font-sans text-ink antialiased">
         <a href="#main" className="skip-link">Skip to main content</a>
         <PrefsProvider>

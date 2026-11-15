@@ -16,7 +16,7 @@ interface ViewTransitionDocument extends Document {
   startViewTransition?: StartViewTransition;
 }
 
-const SURFACE = { light: "#fbf7ee", dark: "#050816" } as const;
+const SURFACE = { light: "#fbf7ee", dark: "#07090d" } as const;
 
 export function ThemeSwitch({ className = "", showLabel = false }: { className?: string; showLabel?: boolean }) {
   const { theme, toggleTheme } = usePrefs();

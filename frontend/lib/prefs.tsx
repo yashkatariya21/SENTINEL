@@ -17,6 +17,9 @@ const Ctx = createContext<Prefs>({
 export function PrefsProvider({ children }: { children: React.ReactNode }) {
   const [showCharacters, setShow] = useState(true);
   const [theme, setTheme] = useState<"light" | "dark">("light");
+  /** False until the saved preference has been read, so the default cannot
+      overwrite the theme the head script already painted. */
+  const [read, setRead] = useState(false);
 
   useEffect(() => {
     try {
@@ -27,11 +30,13 @@ export function PrefsProvider({ children }: { children: React.ReactNode }) {
     } catch {
       /* private mode */
     }
+    setRead(true);
   }, []);
 
   useEffect(() => {
+    if (!read) return;
     document.documentElement.setAttribute("data-theme", theme);
-  }, [theme]);
+  }, [theme, read]);
 
   const setShowCharacters = useCallback((value: boolean) => {
     setShow(value);

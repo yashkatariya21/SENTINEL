@@ -98,7 +98,7 @@ function glyphFor(pathname: string): React.ReactNode {
   return GLYPHS.content;
 }
 
-export function DeskBackground() {
+export function DeskBackground({ variant = "app" }: { variant?: "public" | "app" }) {
   const pathname = usePathname();
   const rootRef = useRef<HTMLDivElement>(null);
   const lampRef = useRef<HTMLDivElement>(null);
@@ -201,6 +201,11 @@ export function DeskBackground() {
 
   return (
     <div aria-hidden="true" ref={rootRef} className="desk-bg">
+      {/* 0 · the three lights: full on the public pages, a third on the desk.
+             Painted first so the grid rules still read on top of them. In the
+             day shift this layer is simply nothing. */}
+      <div className={`desk-glow ${variant === "public" ? "desk-glow-full" : "desk-glow-edge"}`} />
+
       {/* 1 · the drawing grid, drifting with the page */}
       <div className="desk-grid absolute inset-0" />
 
