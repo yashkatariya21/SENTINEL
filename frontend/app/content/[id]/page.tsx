@@ -81,7 +81,8 @@ export default function ReviewReportPage({ params }: { params: { id: string } })
     return () => clearInterval(timer);
   }, [run, loadRun]);
 
-  const findings = run?.findings ?? [];
+  // a stable array identity: the two memo blocks below depend on it
+  const findings = useMemo(() => run?.findings ?? [], [run]);
 
   const filtered = useMemo(() => findings.filter((f) => {
     if (!severities.includes(f.severity)) return false;
@@ -134,11 +135,26 @@ export default function ReviewReportPage({ params }: { params: { id: string } })
     }
   }
 
+  /** Highlight → card: the mark you pressed scrolls its card into view. */
   function focusFinding(findingId: string) {
     setActiveId(findingId);
     const el = document.getElementById(`finding-${findingId}`);
     el?.scrollIntoView({ behavior: "smooth", block: "center" });
     el?.focus({ preventScroll: true });
+  }
+
+  /** Card → highlight: the other half of the link. The quoted span is brought back
+   *  into view and the gold pulse on `.hl-active` marks it. On a narrow screen the
+   *  document sits above the panel, so this also scrolls the page back up. */
+  function revealSpan(findingId: string) {
+    setActiveId(findingId);
+    const mark = document.getElementById(`mark-${findingId}`);
+    if (!mark) return;
+    mark.scrollIntoView({ behavior: "smooth", block: "center" });
+    // restart the pulse without unmounting the mark
+    mark.classList.remove("hl-active");
+    void mark.offsetWidth;
+    mark.classList.add("hl-active");
   }
 
   if (error) {
@@ -384,7 +400,7 @@ export default function ReviewReportPage({ params }: { params: { id: string } })
                         index={findings.indexOf(finding)}
                         canDecide={can("can_approve")}
                         active={activeId === finding.id}
-                        onActivate={() => setActiveId(finding.id)}
+                        onActivate={() => revealSpan(finding.id)}
                         onDecision={onDecision}
                         isApplied={applied[finding.id] !== undefined}
                         onApplySuggestion={(f) => setApplied((prev) => {

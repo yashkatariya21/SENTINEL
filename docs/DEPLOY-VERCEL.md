@@ -31,6 +31,33 @@ env file, but you should know *why*:
 
 ---
 
+## Which path to pick
+
+| | **A — Backend on Render, frontend on Vercel** ⭐ | **B — Both on Vercel** |
+|---|---|---|
+| Effort | ~10 min, one blueprint file + one frontend env var | ~10 min, but more moving parts |
+| Runtime | normal long-lived process: background jobs, process-wide rate limits, no timeouts | serverless functions: cold starts, request ceilings |
+| Cost | free (sleeps after ~15 min idle; ~50 s to wake) | free |
+| Best for | **a judged demo you link from a submission** | a purely static-ish showcase |
+
+Path A is recommended: this app was written as one API process, and Render runs it that way.
+The blueprint for it is `render.demo.yaml` (the default `render.yaml` is the *hardened
+production* config and deliberately turns the demo off — do not use it for judging).
+
+### Path A, in order
+
+1. **Render → New → Blueprint** → pick this repo → **Blueprint Path: `render.demo.yaml`** → Apply.
+   It creates `sentinel-demo-api` (Docker, free) + `sentinel-demo-db` (Postgres 16, free; pgvector
+   is supported — `CREATE EXTENSION vector` runs at boot).
+2. When it deploys, open `https://sentinel-demo-api.onrender.com/health`. You want
+   `"database": "postgres+pgvector"`, `"demo_mode": true`, `"rls": {"applied": true}`.
+3. **Vercel → frontend project → Settings → Environment Variables**:
+   `API_URL=https://sentinel-demo-api.onrender.com` → **Redeploy** (build-time, see below).
+4. In Render, set `CORS_ORIGINS` to the Vercel domain (Render redeploys itself).
+5. Open the Vercel URL and press **Load demo data** once (see the checklist at the end).
+
+Everything from §1 (database) onwards is for **Path B**; on Path A skip §1–§3 entirely.
+
 ## 1. Create the database (5 minutes, free)
 
 Any managed Postgres with **pgvector** works. Neon is the quickest:
@@ -46,8 +73,10 @@ postgresql://user:pass@ep-cool-1234-pooler.ap-south-1.aws.neon.tech/neondb?sslmo
 postgresql+psycopg://user:pass@ep-cool-1234-pooler.ap-south-1.aws.neon.tech/neondb?sslmode=require
 ```
 
-That `+psycopg` matters: without it SQLAlchemy looks for `psycopg2`, which is not in
-`requirements.txt`, and every request fails with `ModuleNotFoundError: psycopg2`.
+`postgresql+psycopg://` is still the safest thing to paste, but you no longer have to edit the
+string: the app rewrites `postgres://` and `postgresql://` to the psycopg driver at startup
+(`Settings._driver_for_postgres`). The failure it prevents — `ModuleNotFoundError: psycopg2` on
+every request — therefore cannot happen from a copy-pasted URL.
 
 **pgvector:** the API runs `CREATE EXTENSION IF NOT EXISTS vector` on boot. On Neon the
 project owner is allowed to, so nothing else is needed. On Supabase run it once in the SQL
@@ -175,6 +204,25 @@ the API origin out of the bundle, avoids CORS entirely and means the token never
 same-origin request.
 
 ---
+
+## 4a. Before you submit the link (do this, in order)
+
+A link is only as good as its first 60 seconds. Five checks, ten minutes:
+
+1. **Warm the backend.** If the API sleeps (Render free), open `https://<backend>/health` and
+   wait for JSON. A judge who is the first visitor after idle sees ~50 s of nothing.
+2. **Load the demo once yourself.** On the frontend URL press **Load demo data** and let it
+   finish. A judge then lands on a workspace that is already full; the button stays a no-op
+   that reports "already loaded".
+3. **Open the link in a private window** (no session, no cache) and click through: `/login` →
+   **Load demo data** → a review report → **View as** → Creator → `/analytics` → `/evaluation`.
+   If that works signed-out, it works for a judge.
+4. **Check the phone.** 390 px wide: the rail collapses, the demo card stays tappable.
+5. **Write the demo credentials into the submission** — there are none to leak: the role
+   switcher mints a token server-side. Say that, because judges expect to see a password.
+
+Two things you must not claim in the submission: that LLM quality is measured (it is not —
+`/evaluation` labels it), and that CI is green (the workflow exists but has never run).
 
 ## 5. End-to-end check (2 minutes)
 

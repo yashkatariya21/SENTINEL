@@ -6,6 +6,8 @@ import { LoadDemoButton, ResetDemoButton } from "../components/Demo";
 import { Crest, PatternDivider } from "../components/brand/Crest";
 import { Damask } from "../components/brand/Pattern";
 import { Button, Card, Field, Select, TextInput, useToast } from "../components/ui";
+import { EntrySequence } from "../components/EntrySequence";
+import Link from "next/link";
 
 export default function LoginPage() {
   const { login, setup, loginAs } = useAuth();
@@ -53,7 +55,8 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="grid min-h-screen lg:grid-cols-[1.05fr_1fr]">
+    <main id="main" className="grid min-h-screen lg:grid-cols-[1.05fr_1fr]">
+      <EntrySequence />
       {/* ------------------------------------------------ left: the charter */}
       <section className="relative flex flex-col justify-between overflow-hidden bg-gradient-royal px-7 py-10 text-ivory lg:px-14">
         <Damask className="pointer-events-none absolute inset-0 h-full w-full text-gold-soft" opacity={0.07} />
@@ -96,14 +99,23 @@ export default function LoginPage() {
           </ul>
         </div>
 
-        <p className="relative mt-10 max-w-md rounded-lg border border-gold/25 bg-navy/40 p-3 text-2xs leading-relaxed text-ivory/70">
+        <p className="relative mt-6">
+          <Link
+            href="/welcome"
+            className="link-under font-mono text-[10px] uppercase tracking-[0.22em] text-gold-soft/80 hover:text-gold-soft"
+          >
+            What Sentinel is — read the brief
+          </Link>
+        </p>
+
+        <p className="relative mt-4 max-w-md rounded-lg border border-gold/25 bg-navy/40 p-3 text-2xs leading-relaxed text-ivory/70">
           Sentinel reviews and explains. It never publishes, never auto-fixes, and never changes a rule without a
           manager’s click. Legal reviewer output is an AI risk perspective, not legal advice.
         </p>
       </section>
 
       {/* --------------------------------------------------- right: sign in */}
-      <section id="main" className="flex items-center justify-center px-5 py-10 sm:px-6">
+      <section className="flex items-center justify-center px-5 py-10 sm:px-6">
         <div className="w-full max-w-md">
           {/* Phase 1: one-click demo, before sign-in */}
           <Card className="mb-5 border-gold/40 p-4">
@@ -219,6 +231,6 @@ export default function LoginPage() {
           )}
         </div>
       </section>
-    </div>
+    </main>
   );
 }

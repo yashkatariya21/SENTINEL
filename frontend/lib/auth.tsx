@@ -42,7 +42,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [refresh]);
 
   useEffect(() => {
-    if (!loading && !me && pathname !== "/login") router.replace("/login");
+    if (!loading && !me && pathname !== "/login" && pathname !== "/welcome") router.replace("/login");
   }, [loading, me, pathname, router]);
 
   const login = useCallback(async (email: string, password: string) => {

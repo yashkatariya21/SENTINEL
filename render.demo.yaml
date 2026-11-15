@@ -1,0 +1,92 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Sentinel AI — one-click demo blueprint for Render.
+#
+# This is the *judged demo* configuration: the whole product runs on a normal,
+# long-lived process (no serverless timeouts, background jobs work, rate limits
+# are process-wide) with a managed Postgres 16 that supports pgvector.
+#
+# ⚠ RENDER → New → Blueprint → pick this repo → set `render.demo.yaml` as the
+#   blueprint path (the default `render.yaml` is the hardened production one and
+#   turns the demo OFF: DEMO_MODE=0, SEED_ON_STARTUP=0, AUTH_MODE=supabase).
+#
+# After the first deploy, open the service URL + /health. It must say:
+#   "database": "postgres+pgvector", "demo_mode": true, "rls": {"applied": true}
+# Then the frontend's API_URL is that service URL.
+# ─────────────────────────────────────────────────────────────────────────────
+services:
+  - type: web
+    name: sentinel-demo-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free                     # free sleeps after ~15 min idle: warm /health before judging
+    region: singapore              # closest to India; pick one region and keep Vercel near it
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      # ── operating mode: the demo is ON ───────────────────────────────────────
+      # `development` is deliberate: with SENTINEL_ENV=production the API refuses to
+      # boot while DEMO_MODE=1 (that endpoint can rebuild and delete demo content).
+      # Consequence on a public URL: anyone can POST /v1/demo/reset. Fine for
+      # disposable demo data; never for real data.
+      - key: SENTINEL_ENV
+        value: development
+      - key: DEMO_MODE
+        value: "1"
+      - key: SEED_ON_STARTUP
+        value: "1"                 # Brand Kit + 16 starter submissions on first boot
+      - key: AUTH_MODE
+        value: local               # no Supabase/Clerk needed for the demo
+
+      # ── database ────────────────────────────────────────────────────────────
+      # The URL is rewritten to the `postgresql+psycopg://` driver automatically,
+      # and `CREATE EXTENSION vector` runs at boot.
+      - key: DATABASE_URL
+        fromDatabase:
+          name: sentinel-demo-db
+          property: connectionString
+
+      # ── security ────────────────────────────────────────────────────────────
+      - key: SECRET_KEY
+        generateValue: true        # Render makes a strong random value
+      - key: ACCESS_TOKEN_TTL_MINUTES
+        value: "720"
+      # The frontend origin. Set this to your Vercel production domain after the
+      # frontend exists (Render → Environment → edit → it redeploys automatically).
+      - key: CORS_ORIGINS
+        sync: false
+
+      # ── AI: offline, deterministic, zero cost ───────────────────────────────
+      - key: LLM_PROVIDER
+        value: local
+      - key: LLM_MODEL
+        value: sentinel-local-1
+      - key: EMBEDDING_MODEL
+        value: sentinel-hash-embed-1
+
+      # ── storage ─────────────────────────────────────────────────────────────
+      # The container's own disk is fine for a demo. Render disks are not available
+      # on the free plan; for durable uploads set STORAGE_BACKEND=s3 + S3_BUCKET.
+      - key: STORAGE_BACKEND
+        value: local
+      - key: STORAGE_DIR
+        value: /app/storage
+      - key: MAX_UPLOAD_MB
+        value: "20"
+
+      # ── limits ──────────────────────────────────────────────────────────────
+      - key: LOGIN_RATE_LIMIT_PER_MINUTE
+        value: "10"
+      - key: DEMO_RATE_LIMIT_PER_MINUTE
+        value: "3"
+      - key: DEMO_ANALYSIS_CONCURRENCY
+        value: "4"
+      # Left empty on purpose: a random demo password is generated and logged once.
+      # The one-click demo never needs a password (POST /v1/demo/session).
+      - key: SEED_PASSWORD
+        value: ""
+
+databases:
+  - name: sentinel-demo-db
+    plan: free                     # free Postgres expires after ~30 days; upgrade for permanence
+    postgresMajorVersion: "16"

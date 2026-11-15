@@ -5,6 +5,7 @@ import { ReviewerAvatar } from "../../components/brand/ReviewerAvatar";
 import { CHARACTER_LIST, PERSONAS } from "../../components/brand/characters";
 import { Sentri } from "../../components/brand/Sentri";
 import { Ribbon } from "../../components/brand/Seal";
+import { readableOn } from "@/lib/contrast";
 
 export default function CharactersPage() {
   return (
@@ -78,8 +79,8 @@ export default function CharactersPage() {
             <Card className="flex items-center gap-3 p-3">
               <span
                 aria-hidden
-                className="grid h-10 w-10 shrink-0 place-items-center rounded-full font-display text-sm font-semibold text-ivory"
-                style={{ background: p.accent }}
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-full font-display text-sm font-semibold"
+                style={{ background: p.accent, color: readableOn(p.accent) }}
               >
                 {p.initials}
               </span>

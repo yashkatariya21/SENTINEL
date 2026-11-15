@@ -3,7 +3,7 @@
  * The ivory “document” a review is printed on: letterhead, highlighted spans and
  * inline tracked changes for suggestions the reviewer has applied in preview.
  */
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { ContentItem, Finding } from "@/lib/api";
 import { Crest } from "./Crest";
@@ -60,6 +60,19 @@ export function DocumentView({
   }, [text, findings, applied]);
 
   const changed = Object.keys(applied).filter((id) => findings.some((f) => f.id === id));
+
+  /* One gold scan line passes down the document when a completed review is shown.
+     It is a receipt that the text above has been read — not a loading state, and it
+     never repeats on re-render. Skipped entirely under prefers-reduced-motion. */
+  const [scanning, setScanning] = useState(false);
+  useEffect(() => {
+    if (status === "draft") return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    setScanning(true);
+    const timer = window.setTimeout(() => setScanning(false), 1100);
+    return () => window.clearTimeout(timer);
+    // re-run only when the document itself changes
+  }, [item?.id, item?.current_version, status]);
   const sealLabel =
     status === "approved" ? "Approved" : status === "rejected" ? "Rejected" : "In review";
 
@@ -87,6 +100,12 @@ export function DocumentView({
 
       {/* highlighted document */}
       <div className="relative px-6 py-5">
+        {scanning && (
+          <span
+            aria-hidden="true"
+            className="scan-line scan-running pointer-events-none absolute inset-x-0 top-0 z-10"
+          />
+        )}
         <div aria-hidden className="pointer-events-none absolute inset-0 opacity-[0.035]">
           <svg width="100%" height="100%"><rect width="100%" height="100%" fill="url(#doc-rules)" />
             <defs>
@@ -108,6 +127,8 @@ export function DocumentView({
             ) : seg.findingId ? (
               <mark
                 key={i}
+                id={`mark-${seg.findingId}`}
+                data-finding={seg.findingId}
                 className={`hl hl-${seg.severity} ${seg.findingId === activeId ? "hl-active" : ""} cursor-pointer`}
                 tabIndex={0}
                 role="button"

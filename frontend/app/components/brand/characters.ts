@@ -37,7 +37,7 @@ export const CHARACTERS: Record<ReviewerKey, Character> = {
   visual: {
     key: "visual", reviewer: "visual", name: "Lord Mateo", role: "Visual",
     catchphrase: "That blue is not our blue.",
-    accent: "#8F7418", accentTint: "#F6EDD2", hair: "#6B4A2F", skin: "#C98D63",
+    accent: "#6F5A0E", accentTint: "#F6EDD2", hair: "#6B4A2F", skin: "#C98D63",
   },
   accessibility: {
     key: "accessibility", reviewer: "accessibility", name: "Dr. Amara", role: "Accessibility",
@@ -72,8 +72,8 @@ export const PERSONAS: Record<string, Persona> = {
   "meera@northwind.example": { email: "meera@northwind.example", name: "Meera Krishnan", role: "Brand Manager", initials: "MK", accent: "#3D2468" },
   "arjun@northwind.example": { email: "arjun@northwind.example", name: "Arjun Nair", role: "Approver", initials: "AN", accent: "#1F6F4A" },
   "karan@northwind.example": { email: "karan@northwind.example", name: "Karan Mehta", role: "Manager", initials: "KM", accent: "#1B2A6B" },
-  "priya@northwind.example": { email: "priya@northwind.example", name: "Priya Raghavan", role: "Manager", initials: "PR", accent: "#B26A00" },
-  "rhea@northwind.example": { email: "rhea@northwind.example", name: "Rhea D'Souza", role: "Creator", initials: "RD", accent: "#8F7418" },
+  "priya@northwind.example": { email: "priya@northwind.example", name: "Priya Raghavan", role: "Manager", initials: "PR", accent: "#8F5500" },
+  "rhea@northwind.example": { email: "rhea@northwind.example", name: "Rhea D'Souza", role: "Creator", initials: "RD", accent: "#6F5A0E" },
   "vikram@northwind.example": { email: "vikram@northwind.example", name: "Vikram Sethi", role: "Creator", initials: "VS", accent: "#9B1C31" },
   "nikhil@northwind.example": { email: "nikhil@northwind.example", name: "Nikhil Verma", role: "External Creator", initials: "NV", accent: "#5C5C72" },
 };

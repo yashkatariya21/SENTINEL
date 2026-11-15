@@ -8,13 +8,19 @@ module.exports = {
         /* --- Phase 2 royal palette ------------------------------------- */
         royal: { DEFAULT: "#1B2A6B", light: "#2A3D8F", deep: "#121D4D" },
         imperial: { DEFAULT: "#3D2468", light: "#513185", deep: "#2A1849" },
-        gold: { DEFAULT: "#C9A227", soft: "#E8D48B", deep: "#8F7418", tint: "#F3E4AE" },
+        gold: { DEFAULT: "#C9A227", soft: "#E8D48B", deep: "#6F5A0E", tint: "#F3E4AE" },
         ivory: { DEFAULT: "#FBF7EE", deep: "#F3ECDC" },
         parchment: { DEFAULT: "#F3ECDC", deep: "#EADFC6" },
-        night: { DEFAULT: "#070B1F", soft: "#0D1330", card: "#111834" },
+        night: {
+          DEFAULT: "#050816",  /* night-0 · the page */
+          soft: "#0A1028",     /* night-1 · panels */
+          card: "#111834",     /* night-2 · raised */
+        },
+        /* the only new accent: live / actively-scanning states. Never decorative. */
+        live: { DEFAULT: "#0F6B5C", night: "#5FD3C2", tint: "#E2F1ED" },
         /* semantic — always paired with an icon and a text label in the UI */
         confirmed: { DEFAULT: "#1F6F4A", tint: "#E4F1EA", dark: "#8FD3B0" },
-        possible: { DEFAULT: "#B26A00", tint: "#FBF0D6", dark: "#E7B45B" },
+        possible: { DEFAULT: "#8F5500", tint: "#FBF0D6", dark: "#E7B45B" },
         critical: { DEFAULT: "#9B1C31", tint: "#FBEAEC", dark: "#F0A0AC" },
         info: { DEFAULT: "#1B2A6B", tint: "#E7EAF7", dark: "#A8B6E8" },
 
@@ -38,6 +44,8 @@ module.exports = {
         mono: ["var(--font-jetbrains)", "ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
       },
       fontSize: {
+        "hero": ["clamp(3.5rem, 9vw, 9rem)", { lineHeight: "0.95", letterSpacing: "-0.03em" }],
+        "section": ["clamp(2rem, 4.5vw, 4rem)", { lineHeight: "1.02", letterSpacing: "-0.025em" }],
         "2xs": ["0.75rem", { lineHeight: "1.2" }],   /* 12 */
         xs: ["0.875rem", { lineHeight: "1.45" }],    /* 14 */
         sm: ["1rem", { lineHeight: "1.6" }],         /* 16 base */
@@ -56,8 +64,18 @@ module.exports = {
         "gradient-royal": "linear-gradient(160deg, #0B1437 0%, #1B2A6B 55%, #3D2468 100%)",
         "gradient-parchment": "linear-gradient(180deg, #FBF7EE 0%, #F3ECDC 100%)",
       },
-      transitionTimingFunction: { royal: "cubic-bezier(0.22, 0.61, 0.36, 1)" },
-      transitionDuration: { 200: "180ms" },
+      transitionTimingFunction: {
+        royal: "cubic-bezier(0.22, 0.61, 0.36, 1)",
+        settle: "cubic-bezier(0.16, 1, 0.3, 1)",
+        snap: "cubic-bezier(0.7, 0, 0.2, 1)",
+      },
+      transitionDuration: {
+        200: "180ms",
+        micro: "140ms",
+        ui: "240ms",
+        reveal: "700ms",
+        scene: "1100ms",
+      },
       keyframes: {
         rise: {
           "0%": { opacity: "0", transform: "translateY(8px)" },
@@ -71,11 +89,27 @@ module.exports = {
           "0%, 92%, 100%": { transform: "scaleY(1)" },
           "96%": { transform: "scaleY(0.1)" },
         },
+        "gold-shimmer": {
+          "0%": { transform: "translateX(-100%)" },
+          "100%": { transform: "translateX(100%)" },
+        },
+        "seal-press": {
+          "0%": { transform: "translateZ(0) scale(1.6)", opacity: "0" },
+          "55%": { transform: "translateZ(0) scale(0.94)", opacity: "1" },
+          "75%": { transform: "translateZ(0) scale(1.03)", opacity: "1" },
+          "100%": { transform: "translateZ(0) scale(1)", opacity: "1" },
+        },
+        "rule-draw": {
+          "0%": { transform: "scaleX(0)" },
+          "100%": { transform: "scaleX(1)" },
+        },
       },
       animation: {
         rise: "rise 220ms cubic-bezier(0.22,0.61,0.36,1) both",
         shimmer: "shimmer 2.4s linear infinite",
         blink: "blink 5s ease-in-out infinite",
+        "seal-press": "seal-press 520ms cubic-bezier(0.7,0,0.2,1) both",
+        "rule-draw": "rule-draw 700ms cubic-bezier(0.16,1,0.3,1) both",
       },
     },
   },

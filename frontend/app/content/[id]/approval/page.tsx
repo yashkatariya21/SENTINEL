@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { api, AnalysisRun, ContentItem } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { Seal } from "../../../components/brand/Seal";
 import {
   Button, Card, Field, KeyValue, SectionHeading, SeverityChip, Skeleton, StatusPill,
   Tag, TextArea, useToast,
@@ -27,6 +28,14 @@ export default function ApprovalPage({ params }: { params: { id: string } }) {
   const [comment, setComment] = useState("");
   const [visibility, setVisibility] = useState<"internal" | "external">("internal");
   const [tab, setTab] = useState<"content" | "history" | "comments">("content");
+  /** The stamp that is pressed when a decision is recorded. Cleared automatically. */
+  const [stamp, setStamp] = useState<{ action: string; version: number; by: string } | null>(null);
+
+  useEffect(() => {
+    if (!stamp) return;
+    const timer = window.setTimeout(() => setStamp(null), 3200);
+    return () => window.clearTimeout(timer);
+  }, [stamp]);
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
@@ -62,6 +71,13 @@ export default function ApprovalPage({ params }: { params: { id: string } }) {
           : "Changes requested.",
         "ok");
       setReason("");
+      if (action === "approve" || action === "reject") {
+        setStamp({
+          action,
+          version: item?.current_version ?? 0,
+          by: me?.user.name ?? "a reviewer",
+        });
+      }
       await load();
     } catch (err: any) {
       push(err.message, "error");
@@ -102,6 +118,31 @@ export default function ApprovalPage({ params }: { params: { id: string } }) {
 
   return (
     <div>
+      {stamp && (
+        <div
+          className="fixed inset-0 z-[80] grid place-items-center bg-navy/35 p-6"
+          role="status"
+          aria-live="assertive"
+          onClick={() => setStamp(null)}
+        >
+          <div className="animate-[seal-press_620ms_cubic-bezier(0.16,1,0.3,1)_both] motion-reduce:animate-none rounded-[3px] border border-gold/50 bg-ivory px-8 py-6 text-center shadow-herald">
+            <Seal
+              label={stamp.action === "approve" ? "Approved" : "Rejected"}
+              tone={stamp.action === "approve" ? "approved" : "critical"}
+              size={104}
+            />
+            <p className="mt-3 font-display text-lg font-semibold text-navy">
+              {stamp.action === "approve" ? "Approved" : "Rejected"} · version {stamp.version}
+            </p>
+            <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.18em] text-ink-mute">
+              {stamp.by} · recorded in the audit log
+            </p>
+            <p className="mt-2 text-[11px] leading-relaxed text-ink-mute">
+              Sentinel did not publish anything. That stays with your publishing tool.
+            </p>
+          </div>
+        </div>
+      )}
       <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
         <div>
           <nav className="mb-1 text-xs text-ink-mute" aria-label="Breadcrumb">
@@ -243,20 +284,45 @@ export default function ApprovalPage({ params }: { params: { id: string } }) {
 
           <Card className="p-5">
             <SectionHeading title="Timeline" subtitle="Every version, decision and comment, in order" />
-            <ol className="space-y-2">
-              {timeline.map((event, i) => (
-                <li key={i} className="flex gap-3 text-sm">
-                  <time className="w-32 shrink-0 text-xs text-ink-mute" dateTime={event.at}>
-                    {new Date(event.at).toLocaleDateString()}
-                  </time>
-                  <span aria-hidden="true" className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-navy-500" />
-                  <span className="text-ink-soft">
-                    <span className="font-medium text-ink">{event.actor}</span> · {event.kind} · v{event.version} —{" "}
-                    {event.detail}
-                  </span>
-                </li>
-              ))}
-            </ol>
+            {timeline.length === 0 ? (
+              <p className="text-sm text-ink-mute">Nothing has happened to this submission yet.</p>
+            ) : (
+              <ol className="relative ml-1 border-l border-gold/40">
+                {timeline.map((event, i) => {
+                  const newest = i === 0;
+                  return (
+                    <li
+                      key={`${event.at}-${i}`}
+                      className="relative pb-4 pl-5 last:pb-0"
+                      style={{ animationDelay: `${Math.min(i, 11) * 60}ms` }}
+                    >
+                      <span
+                        aria-hidden="true"
+                        className={`absolute -left-[5px] top-1.5 h-[9px] w-[9px] rounded-full border-2 ${
+                          newest ? "border-gold-deep bg-gold" : "border-gold/60 bg-ivory"
+                        }`}
+                      />
+                      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                        <span className={`text-sm font-semibold ${newest ? "text-navy" : "text-ink"}`}>
+                          {labelFor(event.kind)}
+                        </span>
+                        <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-gold-deep">
+                          v{event.version}
+                        </span>
+                        <time className="font-mono text-[10px] tabular-nums text-ink-mute" dateTime={event.at}>
+                          {new Date(event.at).toLocaleString("en-GB", {
+                            day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
+                          })}
+                        </time>
+                      </div>
+                      <p className="mt-0.5 text-xs leading-relaxed text-ink-soft">
+                        <span className="text-ink">{event.actor}</span> — {event.detail}
+                      </p>
+                    </li>
+                  );
+                })}
+              </ol>
+            )}
           </Card>
         </div>
 
@@ -331,4 +397,23 @@ export default function ApprovalPage({ params }: { params: { id: string } }) {
       </div>
     </div>
   );
+}
+
+/** Plain-language label for a timeline event kind; unknown kinds are left alone. */
+function labelFor(kind: string): string {
+  const LABELS: Record<string, string> = {
+    created: "Created",
+    version_created: "New version",
+    version: "New version",
+    submitted: "Submitted for approval",
+    submitted_for_approval: "Submitted for approval",
+    approved: "Approved",
+    rejected: "Rejected",
+    changes_requested: "Changes requested",
+    commented: "Comment",
+    comment: "Comment",
+    finding_decision: "Finding decided",
+    review_completed: "Review completed",
+  };
+  return LABELS[kind] ?? kind.replace(/_/g, " ");
 }

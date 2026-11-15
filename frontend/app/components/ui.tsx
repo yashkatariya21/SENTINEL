@@ -37,20 +37,39 @@ type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
 
 export function Button({ variant = "secondary", size = "md", loading, className = "", children, ...rest }: ButtonProps) {
   const base =
-    "inline-flex items-center justify-center gap-2 rounded-md font-semibold transition duration-200 ease-royal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold focus-visible:ring-offset-2 focus-visible:ring-offset-navy disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0";
+    "group relative inline-flex items-center justify-center gap-2 overflow-hidden rounded-[3px] font-semibold transition duration-micro ease-royal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold focus-visible:ring-offset-2 focus-visible:ring-offset-navy disabled:cursor-not-allowed disabled:opacity-50";
+  // the gold fill wipes in from the left on hover (aria/props untouched)
+  const wipe =
+    "before:absolute before:inset-0 before:-z-10 before:origin-left before:scale-x-0 before:bg-gold-soft/25 before:transition-transform before:duration-micro before:ease-royal hover:before:scale-x-100 focus-visible:before:scale-x-100";
   const variants = {
     primary:
-      "bg-gradient-gold text-navy border border-gold-deep/60 shadow-[0_1px_0_rgba(255,255,255,0.45)_inset,0_2px_6px_-2px_rgba(143,116,24,0.6)] hover:brightness-[1.04] hover:-translate-y-px",
-    secondary: "bg-white/70 text-navy border border-navy/30 hover:bg-ivory-deep hover:border-navy/50",
-    ghost: "bg-transparent text-navy border border-transparent hover:bg-navy/[0.06]",
+      "bg-gradient-gold text-navy border border-gold-deep/60 shadow-[0_1px_0_rgba(255,255,255,0.45)_inset,0_2px_6px_-2px_rgba(143,116,24,0.6)] hover:brightness-[1.03]",
+    secondary: `bg-white/70 text-navy border border-navy/25 hover:border-navy/45 ${wipe}`,
+    ghost: `bg-transparent text-navy border border-transparent hover:bg-navy/[0.06] ${wipe}`,
     danger: "bg-critical text-white border border-critical hover:brightness-110",
   };
   const sizes = { sm: "min-h-[36px] px-3 py-1.5 text-xs", md: "min-h-[44px] px-4 py-2 text-xs" };
+  const label = typeof children === "string" ? <RollText>{children}</RollText> : children;
   return (
     <button className={`${base} ${variants[variant]} ${sizes[size]} ${className}`} {...rest}>
       {loading && <Spinner small />}
-      {children}
+      {label}
     </button>
+  );
+}
+
+/** Label that rolls up and is replaced by itself from below on hover. */
+export function RollText({ children }: { children: React.ReactNode }) {
+  return (
+    /* both copies are inside one clipped box; the inner track moves up by exactly one
+       line so the duplicate takes the first copy's place. Decorative: the button's own
+       text remains the accessible name, so this subtree is hidden from screen readers. */
+    <span className="roll h-[1.15em] leading-[1.15]">
+      <span className="block transition-transform duration-micro ease-royal group-hover:-translate-y-[1.15em] group-focus-visible:-translate-y-[1.15em]">
+        <span className="block">{children}</span>
+        <span className="block" aria-hidden="true">{children}</span>
+      </span>
+    </span>
   );
 }
 
@@ -78,7 +97,69 @@ export function Field({ label, hint, children, htmlFor, required }: {
 }
 
 const inputClass =
-  "w-full rounded-md border border-ink/20 bg-white px-3 py-2 text-xs text-ink placeholder:text-ink-mute/70 transition duration-200 ease-royal focus:border-gold focus:outline-none focus:ring-2 focus:ring-gold/40 disabled:opacity-60";
+  "w-full rounded-[3px] border border-ink/20 bg-white px-3 py-2 text-xs text-ink placeholder:text-ink-mute/70 transition duration-micro ease-royal focus:border-gold focus:outline-none focus:ring-2 focus:ring-gold/40 disabled:opacity-60";
+
+/**
+ * FloatField — the label lifts into a mono eyebrow when the control is focused or filled,
+ * and a gold underline draws in beneath it. Errors slide in from the left with a glyph.
+ * Wraps any single input/textarea child (the child keeps its own id/name/autocomplete).
+ */
+export function FloatField({ label, hint, error, htmlFor, required, children }: {
+  label: string; hint?: string; error?: string; htmlFor?: string; required?: boolean;
+  children: React.ReactNode;
+}) {
+  const [filled, setFilled] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const node = wrapRef.current?.querySelector<HTMLInputElement | HTMLTextAreaElement>("input, textarea, select");
+    if (!node) return;
+    const update = () => setFilled(Boolean(node.value));
+    update();
+    node.addEventListener("input", update);
+    node.addEventListener("change", update);
+    return () => {
+      node.removeEventListener("input", update);
+      node.removeEventListener("change", update);
+    };
+  }, []);
+
+  return (
+    <div className="group/field relative mb-3">
+      <div ref={wrapRef} className="relative pt-3">
+        <label
+          htmlFor={htmlFor}
+          className={`pointer-events-none absolute left-0 top-0 origin-left font-mono uppercase transition-all duration-micro ease-royal ${
+            filled
+              ? "text-[10px] tracking-[0.24em] text-gold-deep"
+              : "text-[10px] tracking-[0.24em] text-ink-mute peer-focus:text-gold-deep"
+          } group-focus-within/field:text-[10px] group-focus-within/field:tracking-[0.24em] group-focus-within/field:text-gold-deep`}
+        >
+          {label}
+          {required && <span className="ml-1 text-critical" aria-hidden="true">*</span>}
+        </label>
+        <div className="[&_input]:border-x-0 [&_input]:border-t-0 [&_input]:rounded-none [&_input]:bg-transparent [&_input]:px-0
+                        [&_textarea]:border-x-0 [&_textarea]:border-t-0 [&_textarea]:rounded-none [&_textarea]:bg-transparent [&_textarea]:px-0
+                        [&_select]:border-x-0 [&_select]:border-t-0 [&_select]:rounded-none [&_select]:bg-transparent [&_select]:px-0">
+          {children}
+        </div>
+        {/* the gold underline draws in from the left when the field is active */}
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute bottom-0 left-0 h-px w-full origin-left scale-x-0 bg-gold transition-transform duration-ui ease-settle group-focus-within/field:scale-x-100"
+        />
+      </div>
+      {error ? (
+        <p className="mt-1.5 flex items-center gap-1.5 text-xs text-critical">
+          <span aria-hidden="true">▲</span>
+          {error}
+        </p>
+      ) : hint ? (
+        <p className="mt-1.5 text-xs text-ink-mute">{hint}</p>
+      ) : null}
+    </div>
+  );
+}
 
 export function TextInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return <input {...props} className={`${inputClass} ${props.className || ""}`} />;
@@ -230,16 +311,26 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastCtx.Provider value={{ push }}>
       {children}
-      <div aria-live="polite" className="pointer-events-none fixed bottom-4 right-4 z-[60] flex w-80 flex-col gap-2">
+      <div aria-live="polite" className="pointer-events-none fixed bottom-10 right-4 z-[60] flex w-80 flex-col gap-2">
         {toasts.map((t) => (
           <div
             key={t.id}
-            className={`rounded-lg border px-3 py-2 text-sm shadow-card ${
+            className={`pointer-events-auto relative overflow-hidden rounded-[3px] border px-3 py-2 text-sm shadow-card animate-[toast-in_240ms_cubic-bezier(0.16,1,0.3,1)_both] ${
               t.tone === "ok" ? "border-confirmed/40 bg-confirmed-tint text-confirmed"
               : t.tone === "error" ? "border-critical/40 bg-critical-tint text-critical"
               : "border-gold/40 bg-ivory text-ink"}`}
           >
-            {t.message}
+            <span className="flex items-start gap-2">
+              <span aria-hidden="true" className="mt-1 text-[10px] leading-none">
+                {t.tone === "ok" ? "✓" : t.tone === "error" ? "▲" : "◆"}
+              </span>
+              {t.message}
+            </span>
+            {/* thin timer line: how long the message has left */}
+            <span
+              aria-hidden="true"
+              className="absolute bottom-0 left-0 h-[2px] w-full origin-left bg-current opacity-40 animate-[toast-timer_5s_linear_forwards]"
+            />
           </div>
         ))}
       </div>
@@ -267,12 +358,8 @@ export function EmptyState({ title, body, action }: { title: string; body?: stri
 }
 
 export function Skeleton({ className = "" }: { className?: string }) {
-  return (
-    <div
-      className={`animate-pulse rounded-md bg-gradient-to-r from-ink/[0.06] via-ink/[0.11] to-ink/[0.06] ${className}`}
-      aria-hidden
-    />
-  );
+  /* a single gold hairline sweeps across the block — no grey pulsing boxes */
+  return <div className={`skeleton-gold rounded-[2px] ${className}`} aria-hidden />;
 }
 
 export function KeyValue({ label, children }: { label: string; children: React.ReactNode }) {
