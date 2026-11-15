@@ -283,7 +283,10 @@ def kit_bundle(db: Session, *, org_id: str, brand_kit_id: str) -> dict:
 
     colours = [a.value for a in assets if a.kind == "colour" and a.value]
     fonts = [a.value or a.name for a in assets if a.kind == "font"]
-    logos = [{"name": a.name, "version": a.version, "value": a.value}
+    logos = [{"name": a.name, "version": a.version, "value": a.value,
+              # B5: only the hash is compared — never the bytes — and only for PNG logos
+              # an admin attached. A logo without a hash simply takes no part in the check.
+              "phash": getattr(a, "phash", None), "status": a.status}
              for a in assets if a.kind == "logo"]
     contrast_pairs = []
     naming_variants = []

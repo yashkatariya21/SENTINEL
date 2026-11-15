@@ -3,6 +3,7 @@ import { useState } from "react";
 import type { Finding } from "@/lib/api";
 import { REVIEWERS } from "@/lib/api";
 import { usePrefs } from "@/lib/prefs";
+import { VisualEvidencePanel } from "./VisualEvidence";
 import { ReviewerAvatar } from "./brand/ReviewerAvatar";
 import { characterFor } from "./brand/characters";
 import { Ribbon } from "./brand/Seal";
@@ -15,6 +16,8 @@ interface Props {
   index: number;
   canDecide: boolean;
   active: boolean;
+  /** needed to fetch the stored original a visual finding points at (B4) */
+  contentItemId?: string;
   onActivate: () => void;
   onDecision: (finding: Finding, action: "accept" | "edit" | "dismiss" | "escalate",
                payload: { reason?: string; edited_suggestion?: string }) => Promise<void>;
@@ -24,6 +27,7 @@ interface Props {
 
 export function FindingCard({
   finding, index, canDecide, active, onActivate, onDecision, onApplySuggestion, isApplied,
+  contentItemId,
 }: Props) {
   const { showCharacters } = usePrefs();
   const { push } = useToast();
@@ -94,6 +98,15 @@ export function FindingCard({
         )}
         {finding.deterministic && <Ribbon tone="muted">deterministic check</Ribbon>}
       </div>
+
+      {/* the pixels this finding is about, when the finding is about pixels */}
+      {finding.visual_evidence && (
+        <VisualEvidencePanel
+          evidence={finding.visual_evidence}
+          contentItemId={contentItemId}
+          label={finding.label}
+        />
+      )}
 
       {/* ------------------------------------------------- the four sections */}
       <dl className="mt-3 space-y-2.5 text-xs">

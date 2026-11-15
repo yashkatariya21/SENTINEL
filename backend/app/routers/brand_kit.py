@@ -11,7 +11,8 @@ from sqlalchemy.orm import Session
 from ..audit import record
 from ..db import get_db
 from ..llm.factory import get_adapter, provider_info
-from ..models import Asset, BrandKit, Chunk, Document, Fact, Rule, RuleVersion, Term, User
+from ..models import (Asset, BrandKit, Chunk, Document, Fact, Rule, RuleReviewTask, RuleVersion,
+                      Term, User)
 from ..schemas import (
     AssetOut, BrandKitIn, BrandKitOut, ConfirmIn, DocumentOut, FactOut, RuleOut, RuleUpdateIn,
     RuleVersionOut, TermOut,
@@ -95,6 +96,7 @@ async def upload_document(
     file: UploadFile = File(...),
     kind: str = Form("guideline"),
     brand_kit_id: str | None = Form(None),
+    replaces_document_id: str | None = Form(None),
     principal: Principal = Depends(current_user),
     db: Session = Depends(get_db),
 ):
@@ -106,13 +108,33 @@ async def upload_document(
     data, mime = await storage.read_upload(file)
     kit = get_owned(db, BrandKit, brand_kit_id, principal) if brand_kit_id else _active_kit(db, principal.org_id)
 
+    # Version lineage. A guideline is uploaded again and again; before this, every
+    # one of those uploads was called "version 1" and the previous text was lost to
+    # comparison. `replaces_document_id` names the version being replaced; without
+    # it, the same kind + filename in this kit is treated as the predecessor.
+    previous = _predecessor(db, principal, kit, kind=kind,
+                            filename=file.filename or "upload",
+                            replaces_document_id=replaces_document_id)
+    version = (previous.version + 1) if previous else 1
+    lineage = list((previous.meta or {}).get("lineage") or []) if previous else []
+    if previous:
+        lineage.append({"document_id": previous.id, "version": previous.version,
+                        "filename": previous.filename})
+
     doc = Document(org_id=principal.org_id, brand_kit_id=kit.id, filename=file.filename or "upload",
                    mime=mime, size_bytes=len(data), sha256=sha256(data), kind=kind,
                    storage_key=save_bytes(data, org_id=principal.org_id, prefix="documents",
                                           filename=file.filename or "upload"),
-                   version=1)
+                   version=version,
+                   meta={"lineage": lineage,
+                         "replaces_document_id": previous.id if previous else None,
+                         "replaces_version": previous.version if previous else None})
     db.add(doc)
     db.flush()
+    if previous:
+        previous.meta = {**(previous.meta or {}), "superseded_by": doc.id,
+                         "superseded_by_version": version}
+        db.flush()
 
     if kind == "logo" or mime.startswith("image/"):
         doc.status = "extracted"
@@ -137,8 +159,12 @@ async def upload_document(
                             f"Could not extract text: {type(exc).__name__}") from exc
 
     doc.pages = extracted["pages"]
-    doc.meta = {"tokens": extracted["tokens"], "injection": extracted["injection"],
-                "blocks": len(extracted["blocks"])}
+    doc.meta = {**(doc.meta or {}), "tokens": extracted["tokens"],
+                "injection": extracted["injection"], "blocks": len(extracted["blocks"]),
+                # The extracted text is kept so the *next* upload can be diffed against
+                # it section by section. Chunks are for retrieval, not for diffing: they
+                # are split on token count and lose the headings that define a section.
+                "text": extracted["text"][:200_000]}
     page_map = _page_map(extracted["blocks"])
     chunks = ingest_document(db, org_id=principal.org_id, document=doc,
                              text=extracted["text"], page_map=page_map)
@@ -147,15 +173,67 @@ async def upload_document(
     proposals = get_adapter().propose_rules(extracted["text"], {"kind": kind})
     _store_proposals(db, principal, kit, doc, proposals, kind)
 
+    # C1/C2: what changed against the version this replaces, and which rules are now
+    # standing on text that has changed or gone. Nothing here alters a rule: the diff
+    # only creates review tasks, and a task waits for an Admin.
+    diff_summary = None
+    if previous is not None:
+        from ..services.guideline_changes import record_change
+        from ..services.guideline_diff import diff_documents
+
+        try:
+            previous_text = _document_text(db, previous)
+            sections = diff_documents(previous_text, extracted["text"])
+            diff_summary = record_change(db, org_id=principal.org_id, principal=principal,
+                                         previous=previous, current=doc, sections=sections)
+        except Exception as exc:  # a diff must never block an upload
+            log.warning("guideline diff failed for %s: %s", doc.id, type(exc).__name__)
+            diff_summary = {"error": type(exc).__name__}
+
     record(db, org_id=principal.org_id, action="document.uploaded", actor_id=principal.user_id,
            actor_role=principal.role, entity="document", entity_id=doc.id,
            detail={"kind": kind, "mime": mime, "bytes": len(data), "chunks": len(chunks),
                    "proposed_rules": len(proposals.get("rules", [])),
                    "injection_flag": extracted["injection"]["detected"]})
     db.commit()
-    return DocumentOut(id=doc.id, filename=doc.filename, mime=doc.mime, kind=doc.kind,
-                       version=doc.version, pages=doc.pages, size_bytes=doc.size_bytes,
-                       status=doc.status, created_at=doc.created_at, chunks=len(chunks))
+    out = DocumentOut(id=doc.id, filename=doc.filename, mime=doc.mime, kind=doc.kind,
+                      version=doc.version, pages=doc.pages, size_bytes=doc.size_bytes,
+                      status=doc.status, created_at=doc.created_at, chunks=len(chunks))
+    if diff_summary is not None:
+        out.replaces_document_id = (doc.meta or {}).get("replaces_document_id")
+        out.change_id = diff_summary.get("change_id")
+        out.review_tasks = diff_summary.get("tasks", 0)
+    return out
+
+
+def _predecessor(db: Session, principal: Principal, kit: BrandKit, *, kind: str, filename: str,
+                 replaces_document_id: str | None) -> Document | None:
+    """The document this upload supersedes, if any."""
+    if replaces_document_id:
+        return get_owned(db, Document, replaces_document_id, principal)
+    return db.execute(
+        select(Document).where(Document.org_id == principal.org_id,
+                               Document.brand_kit_id == kit.id,
+                               Document.kind == kind,
+                               Document.filename == filename,
+                               Document.status != "deleted")
+        .order_by(Document.version.desc(), Document.created_at.desc())
+    ).scalars().first()
+
+
+def _document_text(db: Session, doc: Document) -> str:
+    """The text a version will be diffed by: the stored extraction, else its chunks.
+
+    Chunks are the retrieval record, but they are cut on token counts and lose the
+    heading that tells you which section you are in — so a diff built from them sees
+    one anonymous blob. The extraction is stored at upload for exactly this purpose.
+    """
+    stored = (doc.meta or {}).get("text")
+    if stored:
+        return stored
+    rows = db.execute(select(Chunk).where(Chunk.document_id == doc.id)
+                      .order_by(Chunk.ordinal)).scalars().all()
+    return "\n\n".join(c.text for c in rows)
 
 
 def _page_map(blocks: list[dict]) -> list[dict]:
@@ -417,6 +495,43 @@ def list_assets(principal: Principal = Depends(current_user), db: Session = Depe
                      status=a.status, meta=a.meta or {}) for a in rows]
 
 
+@router.post("/assets/{asset_id}/logo", response_model=AssetOut)
+async def upload_logo(asset_id: str, file: UploadFile = File(...),
+                      principal: Principal = Depends(current_user),
+                      db: Session = Depends(get_db)):
+    """Attach the PNG bytes of a logo asset so a review can compare shapes (B5).
+
+    PNG only: a perceptual hash of a JPEG moves with the encoder, and a measurement that
+    depends on the compressor is not a measurement. The stored bytes stay in object
+    storage; only the hash is compared.
+    """
+    principal.require("brand_kit:write")
+    asset = get_owned(db, Asset, asset_id, principal)
+    if asset.kind != "logo":
+        raise HTTPException(status.HTTP_400_BAD_REQUEST,
+                            f"Asset '{asset.name}' is a {asset.kind}, not a logo.")
+    from .. import storage as _storage
+    from ..services import phash as _phash
+
+    data, mime = await _storage.read_upload(file, allow={"image/png"})
+    if mime != "image/png" or not data.startswith(b"\x89PNG"):
+        raise HTTPException(status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+                            "Logo comparison needs a PNG file.")
+    digest = _phash.phash_bytes(data)
+    if not digest:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "That PNG could not be read as an image.")
+    asset.storage_key = save_bytes(data, org_id=principal.org_id, prefix="logos",
+                                   filename=file.filename or "logo.png")
+    asset.phash = digest
+    asset.meta = {**(asset.meta or {}), "logo_png": True}
+    record(db, org_id=principal.org_id, action="asset.logo_uploaded", actor_id=principal.user_id,
+           actor_role=principal.role, entity="asset", entity_id=asset.id,
+           detail={"name": asset.name, "phash": digest})
+    db.commit()
+    return AssetOut(id=asset.id, kind=asset.kind, name=asset.name, value=asset.value,
+                    version=asset.version, status=asset.status, meta=asset.meta or {})
+
+
 @router.post("/assets", response_model=AssetOut, status_code=status.HTTP_201_CREATED)
 def create_asset(body: dict, principal: Principal = Depends(current_user), db: Session = Depends(get_db)):
     principal.require("brand_kit:write")
@@ -450,7 +565,17 @@ def list_rules(principal: Principal = Depends(current_user), db: Session = Depen
     ).all()
     docs = {d.id: d.filename for d in db.execute(select(Document).where(
         Document.org_id == principal.org_id)).scalars()}
-    return [_rule_out(r, v, author, docs.get(v.source_document_id)) for r, v, author in rows]
+    # A rule whose source section moved in a newer guideline is still active; it is
+    # only *marked*, so the badge on the rules page has something true to show.
+    pending = {t.rule_id for t in db.execute(
+        select(RuleReviewTask).where(RuleReviewTask.org_id == principal.org_id,
+                                     RuleReviewTask.status == "needs_review")).scalars()}
+    out = []
+    for rule, version, author in rows:
+        item = _rule_out(rule, version, author, docs.get(version.source_document_id))
+        item.needs_review = rule.id in pending
+        out.append(item)
+    return out
 
 
 @router.get("/rules/{rule_id}/versions", response_model=list[RuleVersionOut])

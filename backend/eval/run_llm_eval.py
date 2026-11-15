@@ -1,36 +1,50 @@
-"""LLM evaluation: three real configurations, measured end to end.
+"""LLM evaluation: four real configurations, measured end to end.
 
     cd backend
-    export LLM_PROVIDER=openai LLM_API_KEY=sk-... LLM_MODEL=gpt-4o-mini
-    python -m eval.run_llm_eval                 # runs all three configs
-    python -m eval.run_llm_eval --configs six_reviewers --limit 10
-    python -m eval.run_llm_eval --samples heldout
+    # free path — Ollama, no key, no spend:
+    export LLM_PROVIDER=openai_compatible
+    export LLM_BASE_URL=http://localhost:11434/v1
+    export LLM_API_KEY=ollama            # any non-empty string; Ollama ignores it
+    export LLM_MODEL=llama3.1:8b
+    python -m eval.run_llm_eval
+
+    python -m eval.run_llm_eval --configs full_context --samples heldout --limit 10
+    python -m eval.run_llm_eval --samples blind --configs full_context,offline_engine
+    python -m eval.run_llm_eval --configs offline_engine     # no key needed at all
 
 Configurations (identical samples, identical matching rules, identical seeds):
 
-1. `single_prompt`  — one generic reviewer prompt asks for every issue at once.
-                      No per-reviewer job, no brand rules, no citations.
-2. `six_reviewers`  — six specialist prompts, one call each, no retrieved rules.
-                      Isolates the effect of splitting the job six ways.
-3. `full_context`   — the product configuration: six specialists, retrieved rule
-                      text and approved facts in the prompt, evidence required.
+1. `full_context`        — **the shipped path.** The product's own prompt
+                           (`HostedLLM.build_prompt`), its own ReviewContext with the
+                           retrieved rules, approved facts and evidence chunks, its
+                           own JSON parser, repeat runs, and its own `merge_findings`.
+                           The only substitution is a disk cache in front of the
+                           HTTP call, so a re-run is free and reproducible.
+2. `specialists_no_rules` — six specialist prompts, one call each, no retrieved
+                           rules and no citations. Isolates what the rule context and
+                           the citation requirement contribute.
+3. `offline_engine`      — the deterministic engine through `analyse_text`, i.e. the
+                           product with no model at all. The free floor.
+4. `single_prompt`       — one generic prompt asking for every issue at once. The
+                           shape most teams ship first. Not enabled by default.
 
 What is measured per configuration:
-    precision / recall / F1 (micro and per reviewer), false-positive rate on
-    samples with no seeded mistake, latency p50/p95, prompt + completion tokens,
-    estimated cost at the model's published list price, and the number of
-    findings produced. Every figure is produced by running the code.
+    precision / recall / F1 (micro and per reviewer), false-positive rate on samples
+    with no seeded mistake, precision per confidence band, latency p50/p95, prompt
+    and completion tokens, cost with its basis, the number of provider calls used,
+    and the exact model name that produced the answers.
 
 Honesty rules baked in:
-    * No key → exits with a clear message and a non-zero status. It never prints
-      placeholder or "expected" numbers.
-    * Responses are cached on disk by (provider, model, prompt version, config,
-      text hash, temperature, seed) so a re-run with the same inputs is free and
-      reproducible. `--no-cache` forces fresh calls and is the only way to get new
-      latency numbers.
-    * Temperature is 0 and a fixed seed is sent where the provider supports one.
-    * Figures from this harness are written to `eval/report_llm.{md,json}` and are
-      the only LLM numbers allowed to appear in docs or the UI.
+    * No hosted adapter and a hosted config was asked for → exits non-zero with a
+      clear message. It never prints placeholder or "expected" numbers.
+    * Responses are cached on disk by (provider, model, config, reviewer, text,
+      temperature, seed) so a re-run with the same inputs is free. `--no-cache`
+      forces fresh calls and is the only way to get new latency numbers.
+    * Cost is 0.00 with `cost_basis: "unpriced"` for a free or local model — never
+      null, and never a guess. Prices come from `app/llm/pricing.py`, the single
+      table the pipeline also uses.
+    * The blind set (`--samples blind`) is run by hand for the final report and never
+      in CI.
 """
 from __future__ import annotations
 
@@ -45,17 +59,13 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
+from app.llm.pricing import PRICES  # single shared price table
+
 CACHE_DIR = Path(os.environ.get("SENTINEL_EVAL_CACHE", ".eval-cache"))
 SEED = 20260101
-
-# USD per 1M tokens, published list prices used only for the cost estimate.
-PRICES = {
-    "gpt-4o-mini": (0.15, 0.60),
-    "gpt-4o": (2.50, 10.00),
-    "gpt-4.1-mini": (0.40, 1.60),
-    "claude-3-5-haiku-latest": (0.80, 4.00),
-    "claude-sonnet-4": (3.00, 15.00),
-}
+REVIEWERS = ("brand_voice", "terminology", "visual", "legal", "fact_checker", "accessibility")
+HOSTED_CONFIGS = ("full_context", "specialists_no_rules", "single_prompt")
+DEFAULT_CONFIGS = "full_context,specialists_no_rules,offline_engine"
 
 
 def _hash(*parts: object) -> str:
@@ -97,10 +107,8 @@ def _call_model(*, adapter, system: str, user: str, cache_key: str, use_cache: b
 
 
 # --------------------------------------------------------------------------- #
-# prompts
+# prompts for the non-shipped configurations
 # --------------------------------------------------------------------------- #
-REVIEWERS = ("brand_voice", "terminology", "fact_checker", "visual", "accessibility", "legal")
-
 JOBS = {
     "brand_voice": "tone, banned words, tone drift from the brand voice",
     "terminology": "approved terms, deprecated names, wrong capitalisation of product names",
@@ -128,21 +136,7 @@ SPECIALIST_SYSTEM = (
     "{{\"findings\": []}}."
 )
 
-FULL_CONTEXT_SYSTEM = SPECIALIST_SYSTEM + (
-    " The approved brand rules that apply are listed below. Cite the rule id in `rule_key`. "
-    "If no approved rule covers what you see, still report it but set rule_key to null — "
-    "never invent a rule."
-)
 
-
-def _rules_block(rules: list[dict]) -> str:
-    if not rules:
-        return "(no rules retrieved)"
-    return "\n".join(f"- {r.get('key')}: {r.get('text')}" for r in rules[:12])
-
-
-# --------------------------------------------------------------------------- #
-# running one configuration
 # --------------------------------------------------------------------------- #
 def _build_adapter():
     from app.config import settings
@@ -158,113 +152,234 @@ def _build_adapter():
 
 
 def _context_for(db, org_id: str, sample: dict):
-    """Retrieve the real rule/fact context the product would use for this sample."""
+    """The real ReviewContext the product would build for this sample."""
     from app.services.pipeline import active_brand_kit, build_context
 
     text = sample["text"]
     kit = active_brand_kit(db, org_id)
-    ctx, _bundle, _prep = build_context(
+    ctx, _bundle, prep = build_context(
         db, org_id=org_id, kit=kit, text=text,
         blocks=[{"id": "b1", "kind": "paragraph", "text": text, "page": 1, "meta": {}}],
         content_type=sample.get("content_type", "blog"), department=sample.get("department"),
     )
-    rules = ctx.rules
-    return ctx, [
-        {"key": r.get("key"), "text": r.get("text")}
-        for r in rules
-    ]
+    return ctx, prep
 
 
-def run_config(*, adapter, db, org_id: str, samples: list[dict], config: str,
-               use_cache: bool, seed: int) -> dict:
-    from eval.metrics import evaluate, locate
+def _scored(sample: dict, predictions: list[dict]) -> dict:
+    from eval.metrics import locate
 
-    latency: list[float] = []
-    prompt_tokens = 0
-    completion_tokens = 0
-    cached_calls = 0
-    live_calls = 0
+    text = sample["text"]
+    return {
+        "id": sample["id"], "text": text,
+        "labels": [{"reviewer": r, "type": t, "start": locate(text, span)[0],
+                    "end": locate(text, span)[1]} for r, t, span in sample["labels"]],
+        "predictions": predictions,
+    }
+
+
+def _recommendation(merged: list[dict]) -> list[dict]:
+    return [{"reviewer": f["reviewer"], "start": f["span_start"], "end": f["span_end"],
+             "confidence": f.get("confidence"), "confidence_band": f.get("confidence_band")}
+            for f in merged]
+
+
+# --------------------------------------------------------------------------- #
+# the four configurations
+# --------------------------------------------------------------------------- #
+def _run_full_context(*, adapter, db, org_id: str, samples: list[dict], repeat_runs: int,
+                      use_cache: bool, seed: int, meter: dict) -> list[dict]:
+    """The shipped path, with a disk cache in front of the HTTP call."""
+    from app.llm.base import ProviderLimitReached
+    from app.services.pipeline import (candidate_rows, deterministic_candidates,
+                                       merge_findings)
+
     scored: list[dict] = []
+    for sample in samples:
+        ctx, prep = _context_for(db, org_id, sample)
+        candidates = deterministic_candidates(prep, prep["rules"])
+        for run_index in range(repeat_runs):
+            for reviewer in REVIEWERS:
+                system, user = adapter.build_prompt(reviewer, ctx)  # the product's prompt
+                key = _hash(adapter.provider_name, adapter.model_name, "full_context",
+                            reviewer, sample["text"], run_index, seed)
+                try:
+                    call = _call_model(adapter=adapter, system=system, user=user,
+                                       cache_key=key, use_cache=use_cache)
+                except ProviderLimitReached as exc:
+                    meter["stopped"] = str(exc)
+                    return scored
+                if call.cached:
+                    meter["cached"] += 1
+                else:
+                    meter["live"] += 1
+                    meter["latency"].append(call.latency_ms)
+                meter["prompt_tokens"] += call.prompt_tokens
+                meter["completion_tokens"] += call.completion_tokens
+                out = adapter._parse(reviewer, call.raw)  # the product's parser
+                if out is None:
+                    meter["invalid_json"] += 1
+                    continue
+                candidates += candidate_rows(out, ctx, run_index=run_index, engine=adapter,
+                                             latency_ms=call.latency_ms,
+                                             prompt_tokens=call.prompt_tokens,
+                                             completion_tokens=call.completion_tokens)
+        merged = merge_findings(sample["text"], candidates, repeat_runs)  # the product's merge
+        scored.append(_scored(sample, _recommendation(merged)))
+    return scored
 
+
+def _run_specialists_no_rules(*, adapter, db, org_id: str, samples: list[dict],
+                              use_cache: bool, seed: int, meter: dict) -> list[dict]:
+    """Six specialist prompts with no rules and no citations — the A/B control."""
+    from app.llm.base import ProviderLimitReached
+    from eval.metrics import locate
+
+    scored: list[dict] = []
     for sample in samples:
         text = sample["text"]
         predictions: list[dict] = []
+        for reviewer in REVIEWERS:
+            system = SPECIALIST_SYSTEM.format(reviewer=reviewer, job=JOBS[reviewer])
+            user = f"<<<CONTENT>>>\n{text}\n<<<END CONTENT>>>\nReturn JSON only."
+            key = _hash(adapter.provider_name, adapter.model_name, "specialists_no_rules",
+                        reviewer, text, seed)
+            try:
+                call = _call_model(adapter=adapter, system=system, user=user,
+                                   cache_key=key, use_cache=use_cache)
+            except ProviderLimitReached as exc:
+                meter["stopped"] = str(exc)
+                return scored
+            if call.cached:
+                meter["cached"] += 1
+            else:
+                meter["live"] += 1
+                meter["latency"].append(call.latency_ms)
+            meter["prompt_tokens"] += call.prompt_tokens
+            meter["completion_tokens"] += call.completion_tokens
+            for item in _parse_findings(call.raw, meter):
+                start, end = locate(text, item.get("span_text", ""))
+                predictions.append({"reviewer": reviewer, "start": start, "end": end})
+        scored.append(_scored(sample, predictions))
+    return scored
 
-        if config == "single_prompt":
-            key = _hash(adapter.provider_name, adapter.model_name, "single", text, seed)
+
+def _run_single_prompt(*, adapter, db, org_id: str, samples: list[dict],
+                       use_cache: bool, seed: int, meter: dict) -> list[dict]:
+    from app.llm.base import ProviderLimitReached
+    from eval.metrics import locate
+
+    scored: list[dict] = []
+    for sample in samples:
+        text = sample["text"]
+        key = _hash(adapter.provider_name, adapter.model_name, "single", text, seed)
+        try:
             call = _call_model(adapter=adapter, system=SINGLE_SYSTEM,
                                user=SINGLE_USER.format(text=text), cache_key=key,
                                use_cache=use_cache)
-            latency.append(call.latency_ms) if not call.cached else None
-            cached_calls += int(call.cached)
-            live_calls += int(not call.cached)
-            prompt_tokens += call.prompt_tokens
-            completion_tokens += call.completion_tokens
-            for item in _parse_findings(call.raw):
-                start, end = locate(text, item.get("span_text", ""))
-                predictions.append({"reviewer": item.get("reviewer") or "brand_voice",
-                                    "start": start, "end": end})
+        except ProviderLimitReached as exc:
+            meter["stopped"] = str(exc)
+            return scored
+        if call.cached:
+            meter["cached"] += 1
         else:
-            ctx, rules = _context_for(db, org_id, sample)
-            for reviewer in REVIEWERS:
-                if config == "full_context":
-                    system = FULL_CONTEXT_SYSTEM.format(reviewer=reviewer, job=JOBS[reviewer])
-                    user = (f"Approved rules:\n{_rules_block(rules)}\n\n"
-                            f"<<<CONTENT>>>\n{text}\n<<<END CONTENT>>>\nReturn JSON only.")
-                else:
-                    system = SPECIALIST_SYSTEM.format(reviewer=reviewer, job=JOBS[reviewer])
-                    user = f"<<<CONTENT>>>\n{text}\n<<<END CONTENT>>>\nReturn JSON only."
-                key = _hash(adapter.provider_name, adapter.model_name, config, reviewer, text, seed)
-                call = _call_model(adapter=adapter, system=system, user=user,
-                                   cache_key=key, use_cache=use_cache)
-                if call.cached:
-                    cached_calls += 1
-                else:
-                    live_calls += 1
-                    latency.append(call.latency_ms)
-                prompt_tokens += call.prompt_tokens
-                completion_tokens += call.completion_tokens
-                for item in _parse_findings(call.raw):
-                    start, end = locate(text, item.get("span_text", ""))
-                    predictions.append({"reviewer": reviewer, "start": start, "end": end})
+            meter["live"] += 1
+            meter["latency"].append(call.latency_ms)
+        meter["prompt_tokens"] += call.prompt_tokens
+        meter["completion_tokens"] += call.completion_tokens
+        predictions = []
+        for item in _parse_findings(call.raw, meter):
+            start, end = locate(text, item.get("span_text", ""))
+            predictions.append({"reviewer": item.get("reviewer") or "brand_voice",
+                                "start": start, "end": end})
+        scored.append(_scored(sample, predictions))
+    return scored
 
-        scored.append({
-            "id": sample["id"], "text": text,
-            "labels": [{"reviewer": r, "type": t, "start": locate(text, span)[0],
-                        "end": locate(text, span)[1]}
-                       for r, t, span in sample["labels"]],
-            "predictions": predictions,
-        })
+
+def _run_offline_engine(*, db, org_id: str, samples: list[dict], repeat_runs: int,
+                        meter: dict) -> list[dict]:
+    """The deterministic engine through the product's own `analyse_text`."""
+    from app.services.pipeline import analyse_text
+
+    scored: list[dict] = []
+    for sample in samples:
+        text = sample["text"]
+        started = time.perf_counter()
+        merged, _prep, _meta = analyse_text(
+            db, org_id=org_id, text=text,
+            blocks=[{"id": "b1", "kind": "paragraph", "text": text, "page": 1, "meta": {}}],
+            content_type=sample.get("content_type", "blog"),
+            department=sample.get("department"), repeat_runs=repeat_runs,
+            honour_exceptions=False,
+        )
+        meter["latency"].append((time.perf_counter() - started) * 1000)
+        meter["samples"] += 1
+        scored.append(_scored(sample, _recommendation(merged)))
+    return scored
+
+
+CONFIG_RUNNERS = {
+    "full_context": _run_full_context,
+    "specialists_no_rules": _run_specialists_no_rules,
+    "single_prompt": _run_single_prompt,
+}
+
+
+def run_config(*, adapter, db, org_id: str, samples: list[dict], config: str,
+               use_cache: bool, seed: int, repeat_runs: int) -> dict:
+    from app.llm.pricing import cost_usd
+    from eval.metrics import confidence_bands, evaluate
+
+    meter = {"latency": [], "prompt_tokens": 0, "completion_tokens": 0, "cached": 0,
+             "live": 0, "invalid_json": 0, "samples": 0, "stopped": None}
+
+    if config == "offline_engine":
+        scored = _run_offline_engine(db=db, org_id=org_id, samples=samples,
+                                     repeat_runs=repeat_runs, meter=meter)
+        provider, model = "local", "sentinel-local-1"
+        basis = "deterministic"
+        cost = 0.0
+    else:
+        runner = CONFIG_RUNNERS.get(config)
+        if runner is None:
+            raise SystemExit(f"unknown config {config!r}; choose from "
+                             f"{', '.join(sorted(CONFIG_RUNNERS) + ['offline_engine'])}")
+        scored = runner(adapter=adapter, db=db, org_id=org_id, samples=samples,
+                        repeat_runs=repeat_runs, use_cache=use_cache, seed=seed, meter=meter)
+        provider, model = adapter.provider_name, adapter.model_name
+        cost, basis = cost_usd(model, meter["prompt_tokens"], meter["completion_tokens"])
 
     result = evaluate(scored)
     overall = result["overall"]
-
-    price = PRICES.get(adapter.model_name)
-    cost = None
-    if price:
-        cost = (prompt_tokens / 1_000_000) * price[0] + (completion_tokens / 1_000_000) * price[1]
+    latency = meter["latency"]
 
     return {
         "config": config,
-        "samples": len(samples),
-        "provider": adapter.provider_name,
-        "model": adapter.model_name,
+        "samples": len(scored),
+        "measured_samples": len(scored),
+        "provider": provider,
+        "model": model,                      # exact model name, everywhere
         "seed": seed,
         "temperature": 0.0,
+        "repeat_runs": repeat_runs,
         "metrics": overall,
         "per_reviewer": result["per_reviewer"],
+        "confidence_bands": confidence_bands(scored),
         "misses": {name: m.get("missed", []) for name, m in result["per_reviewer"].items()},
         "latency_ms": {
             "p50": round(statistics.median(latency), 1) if latency else None,
             "p95": round(_p95(latency), 1) if latency else None,
             "calls_measured": len(latency),
         },
-        "tokens": {"prompt": prompt_tokens, "completion": completion_tokens,
-                   "total": prompt_tokens + completion_tokens},
-        "cost_usd_estimate": round(cost, 6) if cost is not None else None,
-        "calls": {"live": live_calls, "cached": cached_calls},
-        "cost_note": ("list price not in the harness price table; cost left null on purpose"
-                      if cost is None else None),
+        "tokens": {"prompt": meter["prompt_tokens"], "completion": meter["completion_tokens"],
+                   "total": meter["prompt_tokens"] + meter["completion_tokens"]},
+        "cost_usd_estimate": round(cost, 6),
+        "cost_basis": basis,
+        "calls": {"live": meter["live"], "cached": meter["cached"],
+                  "total": meter["live"] + meter["cached"]},
+        "invalid_json": meter["invalid_json"],
+        "stopped_early": meter["stopped"],
+        "cost_note": ("free / unpriced model: cost is 0.00 by definition, not an estimate"
+                      if basis == "unpriced" else None),
     }
 
 
@@ -276,43 +391,77 @@ def _p95(values: list[float]) -> float:
     return ordered[idx]
 
 
-def _parse_findings(raw: str) -> list[dict]:
+def _parse_findings(raw: str, meter: dict | None = None) -> list[dict]:
     from app.llm.hosted import HostedLLM
 
-    data = json.loads(HostedLLM._normalise_json(raw) or "{}")
+    try:
+        data = json.loads(HostedLLM._normalise_json(raw) or "{}")
+    except (json.JSONDecodeError, TypeError):
+        if meter is not None:
+            meter["invalid_json"] += 1
+        return []
     items = data.get("findings") or data.get("issues") or []
     return [i for i in items if isinstance(i, dict) and i.get("span_text")]
 
 
 # --------------------------------------------------------------------------- #
-# entry point
-# --------------------------------------------------------------------------- #
+def _load_sets(which: str, limit: int) -> dict[str, list[dict]]:
+    sets: dict[str, list[dict]] = {}
+    if which in ("regression", "both"):
+        from seed.samples import SAMPLES
+
+        sets["regression"] = SAMPLES
+    if which in ("heldout", "both"):
+        from seed.heldout_samples import HELDOUT
+
+        sets["heldout"] = HELDOUT
+    if which == "blind" or which == "blind_only":
+        from seed.blind_samples import BLIND
+
+        sets["blind"] = BLIND
+    if limit:
+        sets = {k: v[:limit] for k, v in sets.items()}
+    return sets
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="LLM evaluation (real calls, real numbers)")
-    parser.add_argument("--configs", default="single_prompt,six_reviewers,full_context")
-    parser.add_argument("--samples", default="regression", choices=["regression", "heldout", "both"])
+    parser.add_argument("--configs", default=DEFAULT_CONFIGS)
+    parser.add_argument("--samples", default="regression",
+                        choices=["regression", "heldout", "both", "blind"])
     parser.add_argument("--limit", type=int, default=0, help="use only the first N samples")
+    parser.add_argument("--repeat", type=int, default=0,
+                        help="repeat runs for agreement (default: LLM_REPEAT_RUNS)")
     parser.add_argument("--no-cache", action="store_true")
     parser.add_argument("--json", default="eval/report_llm.json")
     parser.add_argument("--md", default="eval/report_llm.md")
     args = parser.parse_args()
 
+    configs = [c.strip() for c in args.configs.split(",") if c.strip()]
+    needs_hosted = any(c in HOSTED_CONFIGS for c in configs)
     adapter = _build_adapter()
-    if adapter is None:
+    if adapter is None and needs_hosted:
         print(
             "No hosted LLM is configured, so there is nothing to measure.\n"
-            "Set LLM_PROVIDER and LLM_API_KEY (see .env.example) and run again:\n"
-            "    export LLM_PROVIDER=openai LLM_API_KEY=... LLM_MODEL=gpt-4o-mini\n"
+            "Any OpenAI-compatible endpoint works, including a free local one:\n"
+            "    export LLM_PROVIDER=openai_compatible\n"
+            "    export LLM_BASE_URL=http://localhost:11434/v1\n"
+            "    export LLM_API_KEY=ollama LLM_MODEL=llama3.1:8b\n"
             "    python -m eval.run_llm_eval\n"
-            "This harness refuses to print placeholder numbers: with no key there is no measurement.",
+            "The offline engine needs no key at all:\n"
+            "    python -m eval.run_llm_eval --configs offline_engine\n"
+            "This harness refuses to print placeholder numbers: with no key there is no "
+            "measurement.",
             file=sys.stderr,
         )
         return 2
 
+    from app.config import settings
     from app.db import init_db, session_scope
     from app.models import Organisation
     from seed.brand_kit import ORG
-    from seed.samples import SAMPLES
+
+    repeat_runs = max(1, args.repeat or settings.llm_repeat_runs)
 
     init_db()
     with session_scope() as db:
@@ -322,40 +471,44 @@ def main() -> int:
             return 1
         org_id = org.id
 
-    sets: dict[str, list[dict]] = {}
-    if args.samples in ("regression", "both"):
-        sets["regression"] = SAMPLES
-    if args.samples in ("heldout", "both"):
-        from seed.heldout_samples import HELDOUT
-
-        sets["heldout"] = HELDOUT
-    if args.limit:
-        sets = {k: v[: args.limit] for k, v in sets.items()}
+    sets = _load_sets(args.samples, args.limit)
+    if not sets:
+        print(f"no samples selected for --samples {args.samples}", file=sys.stderr)
+        return 1
 
     report: dict = {
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "provider": adapter.provider_name,
-        "model": adapter.model_name,
+        "provider": adapter.provider_name if adapter else "local",
+        "model": adapter.model_name if adapter else "sentinel-local-1",
+        "embedding_mode": "offline" if settings.embedding_is_offline else "provider",
+        "repeat_runs": repeat_runs,
         "seed": SEED,
         "temperature": 0.0,
         "cache": "disabled" if args.no_cache else str(CACHE_DIR),
+        "configs": configs,
         "note": ("Latency and tokens are measured per call. Cached calls are excluded from latency "
-                 "percentiles and cost is reported for the run that produced them. Use --no-cache to "
-                 "benchmark a fresh run."),
+                 "percentiles. Cost is 0.00 with basis 'unpriced' for a free or local model. "
+                 "`full_context` uses the shipped prompt, parser and merge step; only the HTTP "
+                 "call is cached."),
         "sets": {},
     }
 
     for set_name, samples in sets.items():
         report["sets"][set_name] = {}
-        for config in [c.strip() for c in args.configs.split(",") if c.strip()]:
-            print(f"running {config} on {set_name} ({len(samples)} samples)…", flush=True)
+        for config in configs:
+            print(f"running {config} on {set_name} ({len(samples)} samples, "
+                  f"{repeat_runs} repeat run(s))…", flush=True)
             with session_scope() as db:
                 result = run_config(adapter=adapter, db=db, org_id=org_id, samples=samples,
-                                    config=config, use_cache=not args.no_cache, seed=SEED)
+                                    config=config, use_cache=not args.no_cache, seed=SEED,
+                                    repeat_runs=repeat_runs)
             m = result["metrics"]
             print(f"  P {m['micro_precision']:.2f}  R {m['micro_recall']:.2f}  "
                   f"F1 {m['micro_f1']:.2f}  FPR {m['mean_false_positive_rate']:.2f}  "
-                  f"p95 {result['latency_ms']['p95']} ms  tokens {result['tokens']['total']}")
+                  f"p95 {result['latency_ms']['p95']} ms  "
+                  f"calls {result['calls']['total']}  model {result['model']}")
+            if result["stopped_early"]:
+                print(f"  STOPPED EARLY: {result['stopped_early']}")
             report["sets"][set_name][config] = result
 
     Path(args.json).parent.mkdir(parents=True, exist_ok=True)
@@ -370,30 +523,51 @@ def to_markdown(report: dict) -> str:
         "# Sentinel AI — LLM evaluation",
         "",
         f"Generated {report['generated_at']} · provider `{report['provider']}` · model "
-        f"`{report['model']}` · temperature {report['temperature']} · seed {report['seed']}.",
+        f"`{report['model']}` · embeddings {report.get('embedding_mode', 'offline')} · "
+        f"temperature {report['temperature']} · seed {report['seed']} · "
+        f"{report.get('repeat_runs', 1)} repeat run(s).",
         "",
         report["note"],
         "",
     ]
     for set_name, configs in report["sets"].items():
-        title = ("Held-out adversarial set (never used for tuning)"
-                 if set_name == "heldout" else "Regression sample set")
+        title = {
+            "heldout": "Held-out adversarial set (never used for tuning)",
+            "blind": "Blind set (written after the engine changes, scored once)",
+        }.get(set_name, "Regression sample set")
         lines += [
             f"## {title}",
             "",
-            "| Configuration | Samples | Precision | Recall | F1 | FP rate | p50 ms | p95 ms | Tokens | Cost (USD) |",
-            "|---|---|---|---|---|---|---|---|---|---|",
+            "| Configuration | Model | Samples | Precision | Recall | F1 | FP rate | p50 ms | p95 ms | Calls | Cost (USD) |",
+            "|---|---|---|---|---|---|---|---|---|---|---|",
         ]
         for config, r in configs.items():
             m = r["metrics"]
-            cost = "—" if r["cost_usd_estimate"] is None else f"${r['cost_usd_estimate']:.4f}"
+            cost = f"${r['cost_usd_estimate']:.4f}"
+            if r.get("cost_basis") == "unpriced":
+                cost += " (free)"
             lines.append(
-                f"| `{config}` | {r['samples']} | {m['micro_precision']:.2f} | {m['micro_recall']:.2f} | "
-                f"{m['micro_f1']:.2f} | {m['mean_false_positive_rate']:.2f} | "
+                f"| `{config}` | `{r['model']}` | {r['samples']} | {m['micro_precision']:.2f} | "
+                f"{m['micro_recall']:.2f} | {m['micro_f1']:.2f} | "
+                f"{m['mean_false_positive_rate']:.2f} | "
                 f"{r['latency_ms']['p50'] if r['latency_ms']['p50'] is not None else '—'} | "
                 f"{r['latency_ms']['p95'] if r['latency_ms']['p95'] is not None else '—'} | "
-                f"{r['tokens']['total']} | {cost} |")
+                f"{r['calls']['total']} | {cost} |")
         lines.append("")
+
+        bands = {c: r.get("confidence_bands") for c, r in configs.items() if r.get("confidence_bands")}
+        if bands:
+            lines += ["### Precision by confidence band", "",
+                      "| Configuration | low | medium | high | Monotonic |", "|---|---|---|---|---|"]
+            for config, band in bands.items():
+                cells = []
+                for name in ("low", "medium", "high"):
+                    row = band.get(name) or {}
+                    cells.append("—" if row.get("precision") is None
+                                 else f"{row['precision']:.2f} ({row.get('predicted', 0)})")
+                lines.append(f"| `{config}` | {' | '.join(cells)} | "
+                             f"{'yes' if band.get('monotonic') else 'no'} |")
+            lines += ["", bands[next(iter(bands))].get("note", ""), ""]
 
         misses = [(config, name, miss)
                   for config, r in configs.items()

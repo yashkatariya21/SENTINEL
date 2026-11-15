@@ -15,7 +15,7 @@ import httpx
 
 from ..config import settings
 from ..schemas import ReviewerFinding, ReviewerName, ReviewerOutput
-from .base import LLMAdapter, ReviewContext
+from .base import LLMAdapter, ProviderLimitReached, ReviewContext, hashed_embedding
 
 log = logging.getLogger("sentinel.llm")
 
@@ -67,8 +67,14 @@ class HostedLLM(LLMAdapter):
     def __init__(self, provider: str, model: str, api_key: str, base_url: str):
         self.provider_name = provider
         self.model_name = model
-        self.embedding_model = settings.embedding_model
-        self.embedding_dim = 1536
+        # EMBEDDING_MODE=offline (the default) keeps the deterministic 256-dim hashed
+        # vectors even while the reviewers run on a hosted model. A free model has no
+        # embedding endpoint, and the old hard-coded 1536 dims broke retrieval — and the
+        # pgvector mirror — the moment a provider returned a different width.
+        self.embedding_mode = "offline" if settings.embedding_is_offline else "provider"
+        self.embedding_model = ("sentinel-hash-embed-1" if settings.embedding_is_offline
+                                else settings.embedding_model)
+        self.embedding_dim = settings.embedding_dim
         self._key = api_key
         self._base = base_url.rstrip("/")
         # Usage accounting for the evaluation harness: every chat call records the
@@ -76,9 +82,29 @@ class HostedLLM(LLMAdapter):
         self.calls = 0
         self.prompt_tokens = 0
         self.completion_tokens = 0
+        # The call cap counts *attempts that reached the provider*, not retries that
+        # failed to connect, so a flaky network does not burn the budget.
+        self.attempts = 0
+        self.limit_reached = False
 
     # ------------------------------------------------------------------ #
+    def _request(self, url: str, headers: dict, body: dict) -> dict:
+        with httpx.Client(timeout=settings.llm_timeout_seconds) as client:
+            resp = client.post(url, headers=headers, json=body)
+        resp.raise_for_status()
+        return resp.json()
+
     def _chat(self, system: str, user: str, *, max_tokens: int = 3000) -> str:
+        """One chat call with a call cap and backoff.
+
+        Two different failures are treated differently on purpose:
+
+        * a **budget** problem (MAX_CALLS reached, or a 429 that outlives the
+          retries) raises `ProviderLimitReached`, because waiting longer will not
+          create more of a finite resource;
+        * a transient **transport** problem raises RuntimeError after the retries,
+          which the pipeline already treats as "this reviewer failed".
+        """
         headers = {"content-type": "application/json"}
         if self.provider_name == "anthropic":
             url = f"{self._base}/messages"
@@ -96,13 +122,19 @@ class HostedLLM(LLMAdapter):
                 "response_format": {"type": "json_object"},
                 "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
             }
+
+        attempts = max(1, settings.llm_max_retries)
         last_err: Exception | None = None
-        for attempt in range(3):
+        rate_limited = False
+        for attempt in range(attempts):
+            cap = settings.max_calls
+            if cap and self.calls >= cap:
+                self.limit_reached = True
+                raise ProviderLimitReached(
+                    f"MAX_CALLS={cap} reached after {self.calls} calls to {self.model_name}")
+            self.attempts += 1
             try:
-                with httpx.Client(timeout=90) as client:
-                    resp = client.post(url, headers=headers, json=body)
-                resp.raise_for_status()
-                data = resp.json()
+                data = self._request(url, headers, body)
                 usage = data.get("usage") or {}
                 self.calls += 1
                 self.prompt_tokens += int(usage.get("prompt_tokens") or usage.get("input_tokens") or 0)
@@ -111,47 +143,106 @@ class HostedLLM(LLMAdapter):
                 if self.provider_name == "anthropic":
                     return "".join(b.get("text", "") for b in data.get("content", []))
                 return data["choices"][0]["message"]["content"]
-            except Exception as exc:  # network / rate limit / malformed
+            except Exception as exc:  # network / rate limit / malformed body
                 last_err = exc
-                log.warning("LLM call failed (attempt %s): %s", attempt + 1, type(exc).__name__)
-                time.sleep(1.5 * (attempt + 1))
+                status_code = getattr(getattr(exc, "response", None), "status_code", None)
+                rate_limited = status_code == 429
+                log.warning("LLM call failed (attempt %s/%s on %s): %s%s",
+                            attempt + 1, attempts, self.model_name, type(exc).__name__,
+                            f" HTTP {status_code}" if status_code else "")
+                if attempt + 1 >= attempts:
+                    break
+                # exponential backoff, honouring Retry-After when the provider sends one
+                delay = settings.llm_backoff_seconds * (2 ** attempt)
+                retry_after = None
+                headers_in = getattr(getattr(exc, "response", None), "headers", None) or {}
+                try:
+                    retry_after = float(headers_in.get("retry-after"))
+                    delay = max(delay, retry_after)
+                except (TypeError, ValueError):
+                    retry_after = None
+                time.sleep(min(delay, 30.0))
+
+        if rate_limited:
+            self.limit_reached = True
+            raise ProviderLimitReached(
+                f"{self.model_name} kept answering HTTP 429 after {attempts} attempts")
         raise RuntimeError(f"LLM provider unavailable: {type(last_err).__name__}")
 
     # ------------------------------------------------------------------ #
     def embed(self, texts: list[str]) -> list[list[float]]:
-        if self.provider_name == "anthropic":
-            # Anthropic has no first-party embeddings endpoint; use the configured
-            # OpenAI-compatible embedding gateway.
-            base = settings.llm_base_url.rstrip("/")
-            headers = {"content-type": "application/json"}
-            key = self._key
-        else:
-            base, headers, key = self._base, {"content-type": "application/json"}, self._key
-        headers["authorization"] = f"Bearer {key}"
-        with httpx.Client(timeout=60) as client:
-            resp = client.post(f"{base}/embeddings",
-                               headers=headers,
+        """Offline hashed vectors by default; the provider's only when asked for.
+
+        Keeping this local is what makes a free chat model usable at all: Ollama's
+        chat models have no embedding endpoint, and mixing a 1536-dim provider vector
+        with a 256-dim index makes every retrieval score zero.
+        """
+        if self.embedding_mode == "offline":
+            return [hashed_embedding(t, self.embedding_dim) for t in texts]
+        base = (settings.llm_base_url if self.provider_name == "anthropic" else self._base).rstrip("/")
+        headers = {"content-type": "application/json",
+                   "authorization": f"Bearer {self._key}"}
+        self.attempts += 1
+        with httpx.Client(timeout=settings.llm_timeout_seconds) as client:
+            resp = client.post(f"{base}/embeddings", headers=headers,
                                json={"model": self.embedding_model, "input": texts})
         resp.raise_for_status()
         data = resp.json()["data"]
-        return [item["embedding"] for item in sorted(data, key=lambda d: d["index"])]
+        vectors = [item["embedding"] for item in sorted(data, key=lambda d: d["index"])]
+        width = len(vectors[0]) if vectors else 0
+        if width and width != self.embedding_dim:
+            # Refuse to hand back a vector the index cannot compare against.
+            raise RuntimeError(
+                f"EMBEDDING_MODE=provider but {self.embedding_model} returned {width} dimensions "
+                f"while the index expects {self.embedding_dim}. Set EMBEDDING_MODE=offline or "
+                f"EMBEDDING_DIM to match.")
+        return vectors
 
-    def review(self, reviewer: ReviewerName, ctx: ReviewContext, *, temperature: float = 0.0) -> ReviewerOutput:
+    def build_prompt(self, reviewer: ReviewerName, ctx: ReviewContext) -> tuple[str, str]:
+        """(system, user) for one reviewer. Split out so the evaluation harness can put a
+        disk cache in front of the HTTP call and still use *this* prompt — the one the
+        product ships — rather than a copy of it that drifts."""
         system = SYSTEM_PROMPT.format(reviewer=reviewer, job=REVIEWER_JOBS[reviewer])
         user = (
             _payload(ctx)
             + "\n\n<<<CONTENT>>>\n" + ctx.text[:16000] + "\n<<<END CONTENT>>>\n\n"
             + "Return JSON only."
         )
-        raw = self._chat(system, user)
-        return self._parse(reviewer, raw)
+        return system, user
 
-    def _parse(self, reviewer: ReviewerName, raw: str) -> ReviewerOutput:
+    def review(self, reviewer: ReviewerName, ctx: ReviewContext, *, temperature: float = 0.0) -> ReviewerOutput:
+        system, user = self.build_prompt(reviewer, ctx)
+        raw = self._chat(system, user)
+        parsed = self._parse(reviewer, raw)
+        if parsed is not None:
+            return parsed
+        # Invalid JSON: one more attempt, then discard. A malformed answer from a small
+        # free model must cost that reviewer's findings, not the whole review.
+        log.warning("invalid JSON from %s (%s); retrying once", self.model_name, reviewer)
+        retry_prompt = user + "\n\nYour previous reply was not valid JSON. Reply with the JSON object only."
+        parsed = self._parse(reviewer, self._chat(system, retry_prompt))
+        if parsed is not None:
+            return parsed
+        log.warning("second invalid JSON from %s (%s); discarding this response",
+                    self.model_name, reviewer)
+        return ReviewerOutput(reviewer=reviewer, findings=[],
+                              notes=["The model returned text that was not valid JSON. "
+                                     "This response was discarded rather than guessed at."])
+
+    def _parse(self, reviewer: ReviewerName, raw: str) -> ReviewerOutput | None:
+        """Strict parse. Returns None (never raises) when the payload is not JSON."""
         try:
             data = json.loads(raw)
-        except json.JSONDecodeError:
-            start, end = raw.find("{"), raw.rfind("}")
-            data = json.loads(raw[start:end + 1]) if start >= 0 else {}
+        except (json.JSONDecodeError, TypeError):
+            start, end = (raw or "").find("{"), (raw or "").rfind("}")
+            if start < 0 or end <= start:
+                return None
+            try:
+                data = json.loads(raw[start:end + 1])
+            except json.JSONDecodeError:
+                return None
+        if not isinstance(data, dict):
+            return None
         findings = []
         for item in data.get("findings", []):
             item["reviewer"] = reviewer

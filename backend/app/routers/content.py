@@ -21,8 +21,9 @@ from ..schemas import (
 )
 from ..security import Principal, current_user, get_owned
 from ..services import workflows
-from ..services.extraction import extract_pasted, extract_upload
-from ..services.pipeline import execute_run, start_run
+from ..services.extraction import extract_pasted, extract_upload, measure
+from ..services.retrieval import kit_bundle
+from ..services.pipeline import active_brand_kit, execute_run, start_run
 from ..storage import save_bytes
 
 router = APIRouter(tags=["content"])
@@ -33,6 +34,19 @@ def _can_see(principal: Principal, item: ContentItem) -> bool:
     if principal.is_manager_or_above:
         return True
     return item.owner_id == principal.user_id
+
+
+def _measure_against_kit(db: Session, principal: Principal, extracted: dict, data: bytes, *,
+                         mime: str | None, content_type: str | None) -> dict:
+    kit = active_brand_kit(db, principal.org_id)
+    if kit is None:
+        return extracted
+    bundle = kit_bundle(db, org_id=principal.org_id, brand_kit_id=kit.id)
+    try:
+        return measure(extracted, data, palette=bundle["palette"],
+                       allowed_ratios=bundle["aspect_ratios"], content_type=content_type, mime=mime)
+    except Exception:  # pragma: no cover - defensive: never fail an upload over analysis
+        return extracted
 
 
 def _version_out(version: ContentVersion) -> ContentVersionOut:
@@ -55,6 +69,7 @@ def _item_out(db: Session, item: ContentItem) -> ContentOut:
         owner_id=item.owner_id, owner_name=owner.name if owner else None, status=item.status,
         current_version=item.current_version, created_at=item.created_at,
         submitted_at=item.submitted_at, active_run_id=latest_run.id if latest_run else None,
+        confidential=bool(getattr(item, "confidential", False)),
         version=_version_out(version) if version else None,
     )
 
@@ -62,10 +77,10 @@ def _item_out(db: Session, item: ContentItem) -> ContentOut:
 def _new_item(db: Session, principal: Principal, *, title: str, content_type: str,
               department: str | None, extracted: dict, filename: str | None = None,
               mime: str | None = None, size: int = 0, storage_key: str | None = None,
-              notes: str | None = None) -> tuple[ContentItem, ContentVersion]:
+              notes: str | None = None, confidential: bool = False) -> tuple[ContentItem, ContentVersion]:
     item = ContentItem(org_id=principal.org_id, title=title[:300], content_type=content_type,
                        department=department or principal.department, owner_id=principal.user_id,
-                       status="draft", current_version=1)
+                       status="draft", current_version=1, confidential=bool(confidential))
     db.add(item)
     db.flush()
     version = ContentVersion(
@@ -97,7 +112,8 @@ def create_content(body: ContentIn, principal: Principal = Depends(current_user)
         from ..services.extraction import blocks_to_text
         extracted["text"], extracted["blocks"] = blocks_to_text(extracted["blocks"])
     item, _version = _new_item(db, principal, title=body.title, content_type=body.content_type,
-                               department=body.department, extracted=extracted)
+                               department=body.department, extracted=extracted,
+                               confidential=body.confidential)
     db.commit()
     return _item_out(db, item)
 
@@ -123,6 +139,10 @@ async def upload_content(
         extracted = extract_upload(file.filename or "upload", mime, data, alt=alt)
     except ValueError as exc:
         raise HTTPException(status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, str(exc)) from exc
+    # B2: measure the pixels now, while the bytes are in hand. A measurement failure
+    # never fails the upload — the image simply carries no analysis block.
+    extracted = _measure_against_kit(db, principal, extracted, data, mime=mime,
+                                     content_type=content_type)
     key = save_bytes(data, org_id=principal.org_id, prefix="content", filename=file.filename or "upload")
     item, _version = _new_item(db, principal, title=title, content_type=content_type,
                                department=department, extracted=extracted, filename=file.filename,
@@ -149,6 +169,57 @@ def get_content(item_id: str, principal: Principal = Depends(current_user),
     if not _can_see(principal, item):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "You can only view your own content.")
     return _item_out(db, item)
+
+
+# Only these are ever served back to a browser as a file. Deliberately excludes text,
+# HTML and SVG: an image endpoint must not become a way to render attacker-controlled
+# markup in the app's own origin.
+SERVABLE_IMAGE_MIMES = ("image/png", "image/jpeg", "image/webp")
+
+
+@router.get("/content/{item_id}/original")
+def content_original(item_id: str, version_id: str | None = None,
+                     principal: Principal = Depends(current_user),
+                     db: Session = Depends(get_db)):
+    """The stored original that a visual finding is pointing at (B4).
+
+    Org-scoped and role-checked like every other read: `get_owned` confines the item to
+    the caller's organisation, and `_can_see` applies the same ownership rule the screen
+    uses. The bytes are returned inline with `nosniff`, so the browser treats them as an
+    image and nothing else.
+    """
+    item = get_owned(db, ContentItem, item_id, principal)
+    if not _can_see(principal, item):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "You can only view your own content.")
+    query = select(ContentVersion).where(ContentVersion.content_item_id == item.id)
+    if version_id:
+        query = query.where(ContentVersion.id == version_id)
+    else:
+        query = query.where(ContentVersion.version == item.current_version)
+    version = db.execute(query).scalars().first()
+    if version is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "That version does not exist.")
+    if not version.storage_key:
+        raise HTTPException(status.HTTP_404_NOT_FOUND,
+                            "No original file is stored for this version (it was pasted, not uploaded).")
+    mime = (version.mime or "").lower()
+    if mime not in SERVABLE_IMAGE_MIMES:
+        raise HTTPException(status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+                            f"Only PNG, JPEG and WebP originals are served here, not '{mime or 'unknown'}'.")
+    from .. import storage as _storage
+
+    try:
+        data = _storage.read_bytes(version.storage_key)
+    except FileNotFoundError:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "The stored original is missing.") from None
+    record(db, org_id=principal.org_id, action="content.original_viewed",
+           actor_id=principal.user_id, actor_role=principal.role, entity="content_item",
+           entity_id=item.id, detail={"version": version.version, "mime": mime})
+    db.commit()
+    return Response(content=data, media_type=mime,
+                    headers={"Content-Disposition": f'inline; filename="{item.id}-v{version.version}"',
+                             "X-Content-Type-Options": "nosniff",
+                             "Cache-Control": "private, max-age=60"})
 
 
 @router.get("/content/{item_id}/report.pdf")
@@ -288,6 +359,7 @@ def finding_out(f: Finding) -> FindingOut:
         deterministic=f.deterministic, provider=f.provider, model=f.model,
         prompt_version=f.prompt_version, agreement=f.agreement,
         evidence_strength=f.evidence_strength, metrics=f.metrics or {},
+        visual_evidence=f.visual_evidence,
         decision_status=f.decision_status,
     )
 

@@ -5,9 +5,11 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1
 
-# libgomp1 is needed by PyMuPDF; tesseract is optional (OCR_ENABLED=1)
+# libgomp1 is needed by PyMuPDF. tesseract-ocr + the English model read the text inside
+# uploaded pictures and scanned PDF pages (B1); without them the app still runs, and
+# image findings that need OCR simply report "not measured".
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        libgomp1 curl \
+        libgomp1 curl tesseract-ocr tesseract-ocr-eng \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -23,7 +25,9 @@ RUN useradd --create-home --uid 10001 sentinel \
 USER sentinel
 
 ENV STORAGE_DIR=/app/storage \
-    PORT=8000
+    PORT=8000 \
+    # OCR on by default in the image, because the binary is right here next to it.
+    OCR_ENABLED=1
 EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s \

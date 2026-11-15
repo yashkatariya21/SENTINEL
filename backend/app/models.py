@@ -3,7 +3,7 @@
 Tables: organisations, users, memberships, brand_kits, documents, chunks, rules,
 rule_versions, terms, facts, assets, content_items, content_versions,
 analysis_runs, findings, decisions, overrides, comments, approvals, audit_log,
-regression_runs.
+regression_runs, guideline_changes, rule_review_tasks.
 """
 from __future__ import annotations
 
@@ -191,6 +191,8 @@ class Asset(Base, TimestampMixin):
     version: Mapped[str | None] = mapped_column(String(40), nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="proposed")  # proposed|confirmed|retired
     storage_key: Mapped[str] = mapped_column(String(400), default="")
+    # B5: perceptual hash, so a similar (never "confirmed identical") logo can be flagged
+    phash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     meta: Mapped[dict] = mapped_column(JSON, default=dict)
 
 
@@ -208,6 +210,9 @@ class ContentItem(Base, TimestampMixin):
     status: Mapped[str] = mapped_column(String(30), default="draft")  # draft|in_review|changes_requested|approved|rejected
     current_version: Mapped[int] = mapped_column(Integer, default=1)
     is_demo: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    # Confirmed in writing: this content must never be sent to a hosted model.
+    # Reviews still run; they run on the offline engine only.
+    confidential: Mapped[bool] = mapped_column(Boolean, default=False, nullable=True)
     submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
@@ -288,6 +293,8 @@ class Finding(Base, TimestampMixin):
     dedupe_key: Mapped[str] = mapped_column(String(200), default="", index=True)
     # measured cost of producing *this* finding: latency, tokens, estimated cost
     metrics: Mapped[dict] = mapped_column(JSON, default=dict)
+    # B3: the pixels this finding is about — {page, bbox_norm, detected_text, detected_value}
+    visual_evidence: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     decision_status: Mapped[str] = mapped_column(String(20), default="open")  # open|accepted|edited|dismissed|escalated
 
 
@@ -380,6 +387,54 @@ class AuditLog(Base):
     entry_hash: Mapped[str] = mapped_column(String(64), default="")
 
 
+class GuidelineChange(Base, TimestampMixin):
+    """One new version of a guideline document, and what moved inside it.
+
+    Written when a document is uploaded that replaces an earlier version. It holds
+    the section diff so the review page can show it without re-reading the files,
+    and it is the parent of the review tasks a change creates.
+    """
+    __tablename__ = "guideline_changes"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=uid)
+    org_id: Mapped[str] = mapped_column(ForeignKey("organisations.id"), index=True, nullable=False)
+    previous_document_id: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
+    current_document_id: Mapped[str] = mapped_column(String(32), index=True, nullable=False)
+    filename: Mapped[str] = mapped_column(String(300), default="")
+    previous_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    current_version: Mapped[int] = mapped_column(Integer, default=1)
+    summary: Mapped[dict] = mapped_column(JSON, default=dict)   # {added, removed, changed, unchanged}
+    sections: Mapped[list] = mapped_column(JSON, default=list)  # the section diff itself
+    status: Mapped[str] = mapped_column(String(24), default="open")  # open|reviewed
+    created_by: Mapped[str | None] = mapped_column(String(32), nullable=True)
+
+
+class RuleReviewTask(Base, TimestampMixin):
+    """A rule standing on guideline text that has changed or disappeared.
+
+    The rule **stays active** and keeps being enforced while this task is open. It
+    is a prompt for a human, not a change: only an Admin (or, for a legal or
+    accessibility rule, an Approver) can move it to kept / edited / retired, and
+    every one of those moves is written to the audit log.
+    """
+    __tablename__ = "rule_review_tasks"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=uid)
+    org_id: Mapped[str] = mapped_column(ForeignKey("organisations.id"), index=True, nullable=False)
+    guideline_change_id: Mapped[str] = mapped_column(ForeignKey("guideline_changes.id"),
+                                                     index=True, nullable=False)
+    rule_id: Mapped[str] = mapped_column(String(32), index=True, nullable=False)
+    rule_version_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    rule_key: Mapped[str] = mapped_column(String(40), default="")
+    category: Mapped[str] = mapped_column(String(40), default="")
+    section_title: Mapped[str] = mapped_column(String(300), default="")
+    change_status: Mapped[str] = mapped_column(String(20), default="changed")  # changed|removed
+    similarity: Mapped[float] = mapped_column(Float, default=1.0)
+    status: Mapped[str] = mapped_column(String(24), default="needs_review")  # needs_review|kept|edited|retired
+    decided_by: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    detail: Mapped[dict] = mapped_column(JSON, default=dict)  # diff excerpt for the UI
+
+
 class RegressionRun(Base):
     """Result of re-running the labelled test set after a rule promotion."""
     __tablename__ = "regression_runs"
@@ -390,6 +445,8 @@ class RegressionRun(Base):
     rule_versions: Mapped[list] = mapped_column(JSON, default=list)
     metrics: Mapped[dict] = mapped_column(JSON, default=dict)
     passed: Mapped[bool] = mapped_column(Boolean, default=True)
+    # C4: the run every later run is measured against, until someone pins another.
+    pinned: Mapped[bool] = mapped_column(Boolean, default=False, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, nullable=False)
 
 

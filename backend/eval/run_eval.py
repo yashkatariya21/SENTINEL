@@ -45,6 +45,8 @@ def main() -> int:
     parser.add_argument("--md", default="eval/report.md")
     parser.add_argument("--heldout", default="eval/heldout.json",
                         help="where to write the held-out adversarial set results")
+    parser.add_argument("--samples", default="regression", choices=["regression", "heldout", "blind"],
+                        help="which labelled set to score (blind is run by hand, never in CI)")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.WARNING)
@@ -58,7 +60,16 @@ def main() -> int:
         # honour_exceptions=False: the labelled set measures the reviewers against the
         # written brand rules. Manager-approved exceptions are later policy decisions and
         # are exercised by the app + regression runs, not by this benchmark.
-        result = evaluate_dataset(db, org_id=org_id, samples=SAMPLES, repeat_runs=args.repeat,
+        samples = SAMPLES
+        if args.samples == "heldout":
+            from seed.heldout_samples import HELDOUT
+
+            samples = HELDOUT
+        elif args.samples == "blind":
+            from seed.blind_samples import BLIND
+
+            samples = BLIND
+        result = evaluate_dataset(db, org_id=org_id, samples=samples, repeat_runs=args.repeat,
                                   honour_exceptions=False)
 
     rows = result["comparison"]["rows"]
@@ -81,6 +92,15 @@ def main() -> int:
           f"vs baseline {b['mean_false_positive_rate']:.2f}")
     if result["comparison"]["regressions"]:
         print("\nREGRESSIONS vs baseline:", result["comparison"]["regressions"])
+
+    bands = result.get("confidence_bands") or {}
+    print('\nprecision by confidence band (does "high" mean anything?)')
+    print(f"{'band':8s} {'predicted':>9s} {'matched':>8s} {'precision':>9s}")
+    for name in ("low", "medium", "high"):
+        row = bands.get(name) or {}
+        prec = "—" if row.get("precision") is None else f"{row['precision']:.2f}"
+        print(f"{name:8s} {row.get('predicted', 0):9d} {row.get('matched', 0):8d} {prec:>9s}")
+    print("  " + (bands.get("note") or "not measured"))
 
     for path in (args.json, args.md):
         os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
@@ -118,6 +138,22 @@ def main() -> int:
 
     print(f"\nwrote {args.json}, {args.md} and {args.heldout}")
     return 0
+
+
+def _bands_markdown(bands: dict) -> list[str]:
+    if not bands:
+        return []
+    lines = ["", "### Precision by confidence band", "",
+             "The confidence score is only useful if a higher band is more often right. "
+             "This is the measurement of that claim.", "",
+             "| Band | Findings | Matched a label | Precision |", "|---|---|---|---|"]
+    for name in ("low", "medium", "high"):
+        row = bands.get(name) or {}
+        prec = "—" if row.get("precision") is None else f"{row['precision']:.2f}"
+        lines.append(f"| {name} | {row.get('predicted', 0)} | {row.get('matched', 0)} | {prec} |")
+    lines += ["", ("**Monotonic:** yes. " if bands.get("monotonic") else "**Monotonic:** no. ")
+              + (bands.get("note") or ""), ""]
+    return lines
 
 
 def to_heldout_markdown(heldout: dict) -> str:
@@ -208,6 +244,7 @@ def to_markdown(result: dict) -> str:
         "why `seed/heldout_samples.py` exists: 20 adversarial samples, written after the rules and never used for "
         "tuning, are scored separately in `eval/heldout.json`. Read the two together.",
         "",
+        *_bands_markdown(result.get("confidence_bands") or {}),
         "## Missed detections (worst 8 per reviewer)",
         "",
     ]

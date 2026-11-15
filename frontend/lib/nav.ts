@@ -28,6 +28,8 @@ export const NAV: NavItem[] = [
     blurb: "The source of truth: documents, rules, terms, approved facts, colours and logo." },
   { href: "/rules", label: "Rules", permission: null, key: "5", group: "record",
     blurb: "Every rule with its full version history — nothing is ever overwritten." },
+  { href: "/rules/changes", label: "Guideline changes", permission: null, group: "record",
+    blurb: "Where a new guideline version and the live rules disagree, and who has to decide." },
   { href: "/learn", label: "Learning", permission: null, key: "6", group: "record",
     blurb: "Manager overrides as proposals: the reason, the scope, and what became a rule." },
   { href: "/analytics", label: "Analytics", permission: "can_read_analytics", key: "7", group: "record",

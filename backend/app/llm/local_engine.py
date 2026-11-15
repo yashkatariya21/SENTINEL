@@ -14,9 +14,14 @@ from __future__ import annotations
 
 import random
 import re
+from functools import lru_cache
 
 from ..schemas import ReviewerFinding, ReviewerName, ReviewerOutput
 from .base import LLMAdapter, ReviewContext, extract_claims, hashed_embedding
+from .lexicon import (
+    ABSOLUTE_PATTERNS, GUARANTEE_PATTERNS, INFLECTIONS, MULTILINGUAL_SUPERLATIVE_PATTERNS,
+    SPACE_LIKE, SUPERLATIVE_PATTERNS, VALUE_FRAMING_PATTERNS, ZERO_WIDTH,
+)
 
 SEV_ORDER = {"low": 1, "medium": 2, "high": 3, "critical": 4}
 
@@ -75,6 +80,131 @@ def _specific_rule(ctx: "ReviewContext", category: str, keywords: tuple[str, ...
             if kw.lower() in hay:
                 return r
     return fallback
+
+
+# --------------------------------------------------------------------------- #
+# Matching: normalise, then find inflections, then map offsets back
+# --------------------------------------------------------------------------- #
+@lru_cache(maxsize=16)
+def _normalised_cached(text: str) -> tuple[str, tuple[int, ...]]:
+    return normalise_for_match(text)
+
+
+def normalise_for_match(text: str) -> tuple[str, tuple[int, ...]]:
+    """A view of `text` with invisible characters removed and odd spaces flattened.
+
+    Returns `(clean, index_map)` where `clean[i]` came from `text[index_map[i]]`.
+    `index_map` has one extra entry so an end offset can be mapped too. Offsets in a
+    finding must point at the *original* text, or the highlight lands in the wrong
+    place in the document — so mapping back is not optional.
+    """
+    clean: list[str] = []
+    index: list[int] = []
+    for i, ch in enumerate(text or ""):
+        if ch in ZERO_WIDTH:
+            continue
+        if ch in SPACE_LIKE:
+            ch = " "
+        clean.append(ch)
+        index.append(i)
+    index.append(len(text or ""))
+    return "".join(clean), tuple(index)
+
+
+@lru_cache(maxsize=2048)
+def phrase_variants(phrase: str) -> tuple[str, ...]:
+    """Spellings of one phrase that mean the same thing.
+
+    Only the final word is inflected (English inflects the head of a noun phrase),
+    and every space may equally be a hyphen — "risk free" / "risk-free".
+    """
+    words = [w for w in re.split(r"[\s\-]+", (phrase or "").strip()) if w]
+    if not words:
+        return ()
+    head, tail = words[:-1], words[-1]
+    stems = {tail}
+    low = tail.lower()
+    if low.endswith("ies") and len(low) > 4:
+        stems.add(tail[:-3] + "y")
+    elif low.endswith("ed") and len(low) > 4:
+        stems.add(tail[:-2])
+    elif low.endswith("ing") and len(low) > 5:
+        stems.add(tail[:-3])
+    elif low.endswith("s") and not low.endswith("ss") and len(low) > 3:
+        stems.add(tail[:-1])
+    # British/American doubling: "unrivalled"/"unrivaled", "modelled"/"modeled".
+    # The two spellings are the same claim, so both are searched.
+    for stem in list(stems):
+        dedoubled = re.sub(r"([bcdfglmnprst])\1", r"\1", stem, flags=re.I)
+        if dedoubled != stem:
+            stems.add(dedoubled)
+        elif re.search(r"[aeiou][bcdfglmnprst]$", stem, re.I):
+            stems.add(stem + stem[-1])
+    forms: list[str] = []
+    for stem in sorted(stems):
+        candidates = {stem, stem + "e"}
+        for cand in candidates:
+            forms.append(cand)
+            for suffix in INFLECTIONS:
+                forms.append(cand + suffix)
+    prefix = r"[\s\-]+".join(re.escape(w) for w in head)
+    prefix = prefix + r"[\s\-]+" if head else ""
+    return tuple(prefix + re.escape(f) for f in dict.fromkeys(forms))
+
+
+@lru_cache(maxsize=4096)
+def _phrase_regex(variant: str) -> re.Pattern[str]:
+    return re.compile(r"(?<![A-Za-z0-9])" + variant + r"(?![A-Za-z0-9])", re.I)
+
+
+@lru_cache(maxsize=512)
+def _pattern_regex(pattern: str) -> re.Pattern[str]:
+    return re.compile(pattern, re.I)
+
+
+def find_phrase(text: str, phrase: str) -> list[tuple[int, int, str]]:
+    """[(start, end, matched)] in original-text coordinates, case-insensitive."""
+    clean, index = _normalised_cached(text)
+    out: list[tuple[int, int, str]] = []
+    for variant in phrase_variants(phrase):
+        pattern = _phrase_regex(variant)
+        for m in pattern.finditer(clean):
+            start, end = index[m.start()], index[m.end() - 1] + 1
+            out.append((start, end, text[start:end]))
+    out.sort()
+    return out
+
+
+def spans_collide(a: tuple[int, int], b: tuple[int, int], *, ratio: float = 0.5) -> bool:
+    """Whether two spans are claiming the same words.
+
+    Used to keep a pattern family from re-flagging a phrase a literal list already
+    caught ("the best" inside "best company"). Overlap is measured against the
+    shorter span as well as by IoU, because a short pattern inside a longer one is
+    still the same finding.
+    """
+    inter = min(a[1], b[1]) - max(a[0], b[0])
+    if inter <= 0:
+        return False
+    union = max(a[1], b[1]) - min(a[0], b[0])
+    if union > 0 and inter / union >= 0.3:
+        return True
+    shorter = min(a[1] - a[0], b[1] - b[0]) or 1
+    return inter / shorter >= ratio
+
+
+def find_patterns(text: str, patterns: tuple[str, ...] | list[str]) -> list[tuple[int, int, str]]:
+    """Apply a family of regexes over the normalised view, offsets mapped back."""
+    clean, index = _normalised_cached(text)
+    out: list[tuple[int, int, str]] = []
+    for pattern in patterns:
+        for m in _pattern_regex(pattern).finditer(clean):
+            if m.start() == m.end():
+                continue
+            start, end = index[m.start()], index[m.end() - 1] + 1
+            out.append((start, end, text[start:end]))
+    out.sort()
+    return out
 
 
 class LocalEngine(LLMAdapter):
@@ -194,8 +324,12 @@ class LocalEngine(LLMAdapter):
         return fallback
 
     def _iter_matches(self, text: str, phrase: str):
-        for m in re.finditer(re.escape(phrase), text, re.I):
-            yield m.start(), m.end(), m.group(0)
+        """Every occurrence of `phrase`, tolerating invisibles, hyphens and inflections.
+
+        This replaced a literal `re.escape` search, which is why "guaranteed" used to
+        miss "guarantees" and "risk-free" used to miss "risk free".
+        """
+        yield from find_phrase(text, phrase)
 
     # ------------------------------------------------------------------ #
     # 1. Brand Voice
@@ -247,6 +381,18 @@ class LocalEngine(LLMAdapter):
                     severity="low", suggestion=sentence.replace("!!", "!").strip(),
                     category="brand_voice", rule=rule, evidence_strength=0.45,
                 ))
+        # Price framing ("costs less than a coffee run", "cheaper than") is a voice
+        # problem before it is a compliance one: it anchors the product on price.
+        voice_rule = _specific_rule(ctx, "brand_voice", ("price", "value", "cheap", "tone"), rule)
+        for start, end, found in find_patterns(ctx.text, VALUE_FRAMING_PATTERNS):
+            out.append(self._mk(
+                ctx, "brand_voice", start, end,
+                issue=f"Price-led framing: “{found}”",
+                why=self._why(voice_rule, "We sell on the outcome, not on being the cheapest option."),
+                impact="Anchors the product on price and invites a discount conversation.",
+                severity="low", suggestion="Lead with the outcome the customer gets, not the cost comparison.",
+                category="brand_voice", rule=voice_rule, evidence_strength=0.5,
+            ))
         if ctx.content_type == "social_post":
             for m in re.finditer(r"(?:^|\n)([^\n]{0,20}#\w+(?:\s+#\w+){4,})", ctx.text):
                 out.append(self._mk(
@@ -538,6 +684,49 @@ class LocalEngine(LLMAdapter):
                     evidence_strength=0.85 if severity in ("high", "critical") else 0.6,
                     direct_contradiction=severity in ("high", "critical"),
                 ))
+        # Superlatives and guarantees are shapes, not vocabulary. The families in
+        # `lexicon.py` catch "the world's best", "nothing on the market comes close",
+        # "promise every forecast will land…" and the same claims in French, Spanish,
+        # German and Italian — including when a CMS has hidden zero-width spaces inside
+        # the words. Spans already claimed by a literal phrase above are skipped.
+        claimed = [(f["span_start"], f["span_end"]) for f in out]
+        superiority_rule = _specific_rule(ctx, "legal", ("superiority", "superlative", "rank", "comparative"), rule)
+        guarantee_rule = _specific_rule(ctx, "legal", ("guarantee", "promise", "substantiat"), rule)
+        absolute_rule = _specific_rule(ctx, "legal", ("absolute", "every", "all customer"), rule)
+        families = (
+            (SUPERLATIVE_PATTERNS, superiority_rule, "high",
+             "Superiority claim: “{found}”",
+             "A rank claim needs a dated, verifiable source held on file."),
+            (MULTILINGUAL_SUPERLATIVE_PATTERNS, superiority_rule, "high",
+             "Superiority claim (non-English): “{found}”",
+             "The rule applies in every language the content ships in."),
+            (GUARANTEE_PATTERNS, guarantee_rule, "high",
+             "Guarantee or absolute promise: “{found}”",
+             "A guarantee is a contractual promise; it needs proof held on file."),
+            (ABSOLUTE_PATTERNS, absolute_rule, "medium",
+             "Absolute claim: “{found}”",
+             "Categorical statements about everyone are unprovable and read as puffery."),
+        )
+        seen_spans: list[tuple[int, int]] = list(claimed)
+        for patterns, family_rule, severity, issue_tpl, why in families:
+            for start, end, found in find_patterns(ctx.text, list(patterns)):
+                if any(spans_collide((start, end), span) for span in seen_spans):
+                    continue
+                if (ctx.facts or ctx.evidence) and self._legal_supported(found, ctx):
+                    continue
+                seen_spans.append((start, end))
+                out.append(self._mk(
+                    ctx, "legal", start, end,
+                    issue=issue_tpl.format(found=found),
+                    why=self._why(family_rule, why),
+                    impact="Exposure to advertising-standards complaints and regulator action.",
+                    severity=severity,
+                    suggestion="Replace the claim with the specific, verified benefit.",
+                    category="legal", rule=family_rule, evidence_query=f"{found} substantiation proof",
+                    evidence_strength=0.8,
+                    direct_contradiction=severity == "high",
+                ))
+
         free_rule = _specific_rule(ctx, "legal", ("hidden fees", "free", "condition"), rule)
         for m in re.finditer(r"\b(?:free|completely free|totally free)\b(?!\s*trial)(?!\s*of charge)", ctx.text, re.I):
             out.append(self._mk(

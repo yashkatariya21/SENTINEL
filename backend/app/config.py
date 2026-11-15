@@ -50,9 +50,27 @@ class Settings(BaseSettings):
     llm_model: str = os.getenv("LLM_MODEL", "sentinel-local-1")
     embedding_model: str = os.getenv("EMBEDDING_MODEL", "sentinel-hash-embed-1")
     llm_api_key: str = os.getenv("LLM_API_KEY", "")  # never logged, never returned
+    # Any OpenAI-compatible base URL works: Ollama (http://localhost:11434/v1),
+    # llama.cpp, vLLM, LM Studio, or a free-tier gateway. No paid key is required
+    # for the project to be fully functional — the offline engine is the default.
     llm_base_url: str = os.getenv("LLM_BASE_URL", "https://api.openai.com/v1")
-    llm_repeat_runs: int = int(os.getenv("LLM_REPEAT_RUNS", "3"))
-    prompt_version: str = "p2026-11-09.1"
+    # 1 repeat is the default now: a free local model is slow, and agreement scoring
+    # only needs a second sample when an operator explicitly wants it.
+    llm_repeat_runs: int = int(os.getenv("LLM_REPEAT_RUNS", "1"))
+    # EMBEDDING_MODE=offline keeps the deterministic hashed embeddings (256-dim) even
+    # when the *reviewers* run on a hosted model. Provider embeddings are optional
+    # because free models usually have no embedding endpoint, and a hard-coded
+    # 1536-dim vector silently breaks retrieval (and the pgvector mirror) when they do not.
+    embedding_mode: str = os.getenv("EMBEDDING_MODE", "offline").lower()
+    embedding_dim_hash: int = 256
+    # Call budget, in provider calls (the old design had a spend cap; a call count is
+    # provider-agnostic and works for free models that report no price). 0 = no cap.
+    max_calls: int = int(os.getenv("MAX_CALLS", "0"))
+    llm_max_retries: int = int(os.getenv("LLM_MAX_RETRIES", "4"))
+    llm_backoff_seconds: float = float(os.getenv("LLM_BACKOFF_SECONDS", "2"))
+    # Longest a single hosted call may block before it counts as a failure.
+    llm_timeout_seconds: float = float(os.getenv("LLM_TIMEOUT_SECONDS", "90"))
+    prompt_version: str = "p2026-11-09.2"
 
     # --- parsing ----------------------------------------------------------
     ocr_enabled: bool = os.getenv("OCR_ENABLED", "0") == "1"
@@ -98,6 +116,15 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         extra = "ignore"
+
+    @property
+    def embedding_is_offline(self) -> bool:
+        """Whether embeddings stay local. Anything but an explicit "provider" is offline."""
+        return (self.embedding_mode or "offline") != "provider"
+
+    @property
+    def embedding_dim(self) -> int:
+        return self.embedding_dim_hash if self.embedding_is_offline else 1536
 
     @property
     def is_production(self) -> bool:

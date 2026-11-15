@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from eval.baseline import predict as baseline_predict
-from eval.metrics import compare, evaluate, locate
+from eval.metrics import compare, confidence_bands, evaluate, locate
 
 from ..models import RegressionRun
 from .extraction import blocks_to_text, text_to_blocks
@@ -42,7 +42,9 @@ def predictions_for(db: Session, *, org_id: str, samples: list[dict], repeat_run
                         "end": locate(text, span)[1]}
                        for r, t, span in sample["labels"]],
             "predictions": [{"reviewer": f["reviewer"], "start": f["span_start"],
-                             "end": f["span_end"]} for f in merged],
+                             "end": f["span_end"], "confidence": f.get("confidence"),
+                             "confidence_band": f.get("confidence_band"),
+                             "label": f.get("label")} for f in merged],
         })
     return out
 
@@ -77,17 +79,43 @@ def evaluate_dataset(db: Session, *, org_id: str, samples: list[dict] | None = N
         "predictions": raw,
         "baseline": baseline,
         "comparison": comparison,
+        "confidence_bands": confidence_bands(raw),
         "samples": len(samples),
     }
+
+
+def pinned_baseline(db: Session, *, org_id: str) -> RegressionRun | None:
+    """The run everyone is measured against: the pinned one, else the newest."""
+    pinned = db.execute(
+        select(RegressionRun).where(RegressionRun.org_id == org_id,
+                                    RegressionRun.pinned.is_(True))
+        .order_by(RegressionRun.created_at.desc()).limit(1)
+    ).scalars().first()
+    if pinned is not None:
+        return pinned
+    return db.execute(
+        select(RegressionRun).where(RegressionRun.org_id == org_id)
+        .order_by(RegressionRun.created_at.desc()).limit(1)
+    ).scalars().first()
+
+
+def pin_baseline(db: Session, run: RegressionRun) -> RegressionRun:
+    """Mark one run as the baseline. Exactly one per organisation stays pinned."""
+    for other in db.execute(select(RegressionRun).where(RegressionRun.org_id == run.org_id,
+                                                        RegressionRun.pinned.is_(True))).scalars():
+        other.pinned = False
+    run.pinned = True
+    db.flush()
+    return run
 
 
 def run_regression(db: Session, *, org_id: str, trigger: str = "promotion",
                    override_id: str | None = None, honour_exceptions: bool = True) -> dict:
     result = evaluate_dataset(db, org_id=org_id, repeat_runs=1, honour_exceptions=honour_exceptions)
-    previous = db.execute(
-        select(RegressionRun).where(RegressionRun.org_id == org_id)
-        .order_by(RegressionRun.created_at.desc()).limit(1)
-    ).scalars().first()
+    # Compare against the PINNED baseline when there is one, not merely the previous
+    # run. Otherwise a slow drift is invisible: each step is small and every step is
+    # compared with the step before it, so two years of quiet degradation still "passes".
+    previous = pinned_baseline(db, org_id=org_id)
 
     regressions: list[dict] = []
     if previous and previous.metrics:
@@ -106,9 +134,19 @@ def run_regression(db: Session, *, org_id: str, trigger: str = "promotion",
         "candidate": result["candidate"],
         "baseline": result["baseline"],
         "comparison": result["comparison"],
+        "confidence_bands": result.get("confidence_bands"),
         "regressions": regressions,
         "passed": not regressions,
         "samples": result["samples"],
+        "compared_with": ({
+            "run_id": previous.id,
+            "pinned": bool(previous.pinned),
+            "created_at": previous.created_at.isoformat() if previous.created_at else None,
+            "trigger": previous.trigger,
+        } if previous else None),
+        "threshold": 0.05,
+        "threshold_note": ("A promotion is flagged when any reviewer's F1 drops by more than "
+                           "0.05 against the baseline run."),
     }
     db.add(RegressionRun(
         org_id=org_id, trigger=trigger, override_id=override_id, metrics=payload,
