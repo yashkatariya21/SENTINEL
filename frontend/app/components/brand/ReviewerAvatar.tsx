@@ -28,7 +28,7 @@ export function ReviewerAvatar({
   return (
     <svg
       width={size} height={size} viewBox="0 0 64 64"
-      className={`shrink-0 ${className}`}
+      className={`shrink-0 text-[color:var(--ink-3)] ${className}`}
       role="presentation" aria-hidden focusable="false"
     >
       <defs>
@@ -39,8 +39,8 @@ export function ReviewerAvatar({
 
       {showRing && (
         <>
-          <circle cx="32" cy="32" r="31" fill="none" stroke="#C9A227" strokeWidth="1.6" opacity="0.9" />
-          <circle cx="32" cy="32" r="28.5" fill="none" stroke="#C9A227" strokeWidth="0.6" opacity="0.5" />
+          <circle cx="32" cy="32" r="31" fill="none" stroke="currentColor" strokeWidth="1.4" opacity="0.9" />
+          <circle cx="32" cy="32" r="28.5" fill="none" stroke="currentColor" strokeWidth="0.6" opacity="0.45" />
         </>
       )}
 

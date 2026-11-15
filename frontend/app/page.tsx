@@ -1,15 +1,16 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { api, ContentItem } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import {
-  Button, Card, EmptyState, Field, SectionHeading, SeverityChip, Skeleton, StatusPill, Tag, TextArea, useToast,
+  Button, Card, EmptyState, Field, SectionHeading, Skeleton, StatusPill, Tag, TextArea, useToast,
 } from "./components/ui";
 import { LoadDemoButton } from "./components/Demo";
 import { BrandScoreRing } from "./components/brand/BrandScoreRing";
-import { Sentri } from "./components/brand/Sentri";
-import { useRouter } from "next/navigation";
+import { DeskSentri, Figure } from "./components/Desk";
+import { Icon } from "./components/Icon";
 
 interface Summary {
   brand_score: number;
@@ -42,29 +43,68 @@ export default function OverviewPage() {
 
   const pending = (items || []).filter((i) => i.status === "in_review");
   const mine = (items || []).filter((i) => i.owner_id === me?.user.id);
+  const firstName = me?.user.name.split(" ")[0];
+
+  const today = new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
 
   return (
     <div>
-      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className="font-mono text-2xs uppercase tracking-[0.24em] text-gold-deep">
-            {me?.organisation.name} · workspace overview
-          </p>
-          <h1 className="mt-1 font-display text-4xl font-semibold tracking-tight text-navy">
-            Good to see you, {me?.user.name.split(" ")[0]}.
-          </h1>
-          <p className="mt-1 max-w-2xl text-sm text-ink-mute">
-            Six specialist reviewers check content against the {me?.organisation.name} Brand Kit. Every finding
-            explains itself with a rule and a source; you decide what happens next.
-          </p>
+      {/* ------------------------------------------------------ the desk head */}
+      <div className="mb-6 border-b-[1.5px] border-[color:var(--hairline-strong)] pb-5">
+        <p className="font-mono text-2xs uppercase tracking-[0.24em] text-[color:var(--ink-3)]">
+          {today} <span className="mx-2 text-[color:var(--hairline)]">/</span> {me?.organisation.name} · desk overview
+        </p>
+        <div className="mt-2 flex flex-wrap items-end justify-between gap-4">
+          <div className="min-w-0">
+            <h1 className="text-[2rem] font-semibold leading-[1.05] tracking-[-0.03em] text-[color:var(--ink)] sm:text-[2.5rem]">
+              Today at the gate, {firstName}.
+            </h1>
+            <p className="mt-2 max-w-xl text-sm leading-relaxed text-[color:var(--ink-2)]">
+              Six specialist reviewers check content against the {me?.organisation.name} Brand Kit. Every finding
+              explains itself with a rule and a source; you decide what happens next.
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <Link href="/new">
+              <Button variant="primary">
+                <span className="flex items-center gap-2">
+                  <Icon name="pen" size={14} /> Review new content
+                </span>
+              </Button>
+            </Link>
+            <span className="hidden text-[color:var(--ink-2)] sm:block">
+              <DeskSentri size={64} mood="idle" />
+            </span>
+          </div>
         </div>
-        <Link href="/new"><Button variant="primary">Review new content</Button></Link>
       </div>
 
-      {error && <Card className="mb-4 border-critical/40 p-4 text-sm text-critical">{error}</Card>}
+      {error && (
+        <div className="mb-4 flex items-start gap-2 rounded-[8px] border border-[color:var(--mark)] bg-[color:var(--mark-tint)] px-3 py-2 text-sm text-[color:var(--mark-text)]">
+          <Icon name="alert" size={15} /> {error}
+        </div>
+      )}
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        {/* brand score */}
+      {/* ----------------------------------------------- the instrument strip
+          Four readings, divided by hairlines like a bank of dials. No cards:
+          the eye should read numbers, not boxes. */}
+      <div className="mb-6 grid grid-cols-2 divide-[color:var(--hairline)] border-y border-[color:var(--hairline)] bg-[color:var(--paper)] sm:grid-cols-4 sm:divide-x">
+        <Figure value={items ? String(pending.length) : "—"} label="Waiting on a human" sub={pending.length ? "in review now" : "the desk is clear"} />
+        <Figure value={summary ? String(summary.submissions) : "—"} label="Submissions reviewed" sub="last 90 days" />
+        <Figure
+          value={summary ? summary.brand_score.toFixed(1) : "—"}
+          label="Brand score"
+          sub="90-day composite"
+        />
+        <Figure
+          value={summary?.average_approval_hours != null ? `${summary.average_approval_hours.toFixed(1)}h` : "—"}
+          label="Average approval"
+          sub={summary?.average_approval_hours != null ? "draft to decision" : "not measured yet"}
+        />
+      </div>
+
+      <div className="grid items-start gap-4 [&>*]:min-w-0 lg:grid-cols-3">
+        {/* ------------------------------------------------------ brand score */}
         <Card className="relative overflow-hidden p-5">
           <SectionHeading title="Brand Score" subtitle="Last 90 days across the workspace" />
           {summary ? (
@@ -72,38 +112,51 @@ export default function OverviewPage() {
               <div className="flex items-center gap-4">
                 <BrandScoreRing value={summary.brand_score} size={104} />
                 <div>
-                  <p className="font-display text-2xl font-semibold text-navy">
-                    {summary.submissions} <span className="text-sm font-normal text-ink-mute">submissions reviewed</span>
+                  <p className="font-mono text-2xl font-semibold tabular-nums text-[color:var(--ink)]">
+                    {summary.submissions}{" "}
+                    <span className="font-sans text-sm font-normal text-[color:var(--ink-3)]">submissions reviewed</span>
                   </p>
-                  <p className="mt-1 text-xs text-ink-soft">
-                    {summary.findings_by_severity.critical ?? 0} critical ·{" "}
-                    {summary.findings_by_severity.high ?? 0} high severity findings
+                  <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[color:var(--ink-2)]">
+                    <span className="inline-flex items-center gap-1">
+                      <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-[color:var(--mark)]" />
+                      {summary.findings_by_severity.critical ?? 0} critical
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                      <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-[color:var(--warn)]" />
+                      {summary.findings_by_severity.high ?? 0} high
+                    </span>
                   </p>
-                  <p className="mt-1 text-xs text-ink-mute">
+                  <p className="mt-1 text-xs text-[color:var(--ink-3)]">
                     Average approval {summary.average_approval_hours != null
                       ? `${summary.average_approval_hours.toFixed(1)} h`
                       : "not measured yet"}
                   </p>
                 </div>
               </div>
-              <details className="mt-3 group">
-                <summary className="cursor-pointer text-2xs font-semibold uppercase tracking-[0.14em] text-gold-deep focus-visible:ring-2 focus-visible:ring-gold">
-                  How this is calculated
+              <details className="group mt-4">
+                <summary className="cursor-pointer list-none font-mono text-2xs uppercase tracking-[0.14em] text-[color:var(--ink-2)] transition-colors hover:text-[color:var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]">
+                  <span className="inline-flex items-center gap-1.5">
+                    <Icon name="chevron" size={12} className="transition-transform group-open:rotate-90" />
+                    How this is calculated
+                  </span>
                 </summary>
-                <p className="mt-1 text-[11px] leading-relaxed text-ink-mute">{summary.formula}</p>
+                <p className="mt-1.5 text-[11px] leading-relaxed text-[color:var(--ink-3)]">{summary.formula}</p>
               </details>
-              <Link href="/analytics" className="mt-3 inline-block text-xs font-semibold text-navy-700 underline-offset-2 hover:underline">
-                Open analytics →
+              <Link
+                href="/analytics"
+                className="link-under mt-3 inline-flex items-center gap-1 text-xs font-semibold text-[color:var(--ink)]"
+              >
+                Open analytics <Icon name="arrow" size={13} />
               </Link>
             </>
           ) : can("can_read_analytics") ? (
             <Skeleton className="h-24 w-full" />
           ) : (
-            <p className="text-sm text-ink-mute">Analytics are available to managers and above.</p>
+            <p className="text-sm text-[color:var(--ink-3)]">Analytics are available to managers and above.</p>
           )}
         </Card>
 
-        {/* try your own text */}
+        {/* -------------------------------------------------- try your own text */}
         <Card ornament className="p-5">
           <SectionHeading title="Try your own text" subtitle="Paste two sentences — the six reviewers read them in seconds" />
           <Field label="Draft copy" htmlFor="try-text" hint="Nothing is published. You can delete the result afterwards.">
@@ -113,9 +166,10 @@ export default function OverviewPage() {
               value={draft}
               placeholder="Our fee-free account is the cheapest on the market — guaranteed."
               onChange={(e) => setDraft(e.target.value)}
+              className="font-doc !text-[15px] !leading-[1.7]"
             />
           </Field>
-          <div className="mt-3 flex items-center gap-2">
+          <div className="mt-3 flex items-center justify-between gap-2">
             <Button
               variant="primary"
               loading={trying}
@@ -137,11 +191,13 @@ export default function OverviewPage() {
             >
               Read this draft
             </Button>
-            <Sentri mood="scanning" size={40} decorative />
+            <span className="text-[color:var(--ink-2)]">
+              <DeskSentri mood={trying ? "reading" : "idle"} size={40} />
+            </span>
           </div>
         </Card>
 
-        {/* queue */}
+        {/* ------------------------------------------------------ the queue */}
         <Card className="p-5">
           <SectionHeading title="Waiting on a human" subtitle="Items in review across your workspace" />
           {!items ? <Skeleton className="h-24 w-full" /> : pending.length === 0 ? (
@@ -153,16 +209,21 @@ export default function OverviewPage() {
               action={items.length === 0 ? <LoadDemoButton label="Load demo data" size="sm" /> : undefined}
             />
           ) : (
-            <ul className="space-y-2">
+            <ul className="divide-y divide-[color:var(--hairline)]">
               {pending.slice(0, 5).map((item) => (
                 <li key={item.id}>
-                  <Link href={`/content/${item.id}/approval`}
-                        className="flex items-center justify-between gap-2 rounded-lg border border-ink/10 px-3 py-2 text-sm hover:bg-paper">
-                    <span className="min-w-0">
-                      <span className="block truncate font-medium text-ink">{item.title}</span>
-                      <span className="text-xs text-ink-mute">{item.owner_name} · {item.department}</span>
+                  <Link
+                    href={`/content/${item.id}/approval`}
+                    className="group flex items-center justify-between gap-2 py-2.5 transition-colors hover:bg-[color:var(--highlight-tint)]"
+                  >
+                    <span className="min-w-0 pl-1">
+                      <span className="block truncate text-sm font-medium text-[color:var(--ink)]">{item.title}</span>
+                      <span className="text-xs text-[color:var(--ink-3)]">{item.owner_name} · {item.department}</span>
                     </span>
-                    <StatusPill status={item.status} />
+                    <span className="flex shrink-0 items-center gap-1.5 pr-1">
+                      <StatusPill status={item.status} />
+                      <Icon name="arrow" size={13} className="text-[color:var(--ink-3)] transition-transform group-hover:translate-x-0.5 group-hover:text-[color:var(--ink)]" />
+                    </span>
                   </Link>
                 </li>
               ))}
@@ -170,7 +231,7 @@ export default function OverviewPage() {
           )}
         </Card>
 
-        {/* my content */}
+        {/* ------------------------------------------------------ my content */}
         <Card className="p-5">
           <SectionHeading title="Your recent submissions" subtitle="Drafts and reviews you own" />
           {!items ? <Skeleton className="h-24 w-full" /> : mine.length === 0 ? (
@@ -193,16 +254,21 @@ export default function OverviewPage() {
               />
             )
           ) : (
-            <ul className="space-y-2">
+            <ul className="divide-y divide-[color:var(--hairline)]">
               {mine.slice(0, 5).map((item) => (
                 <li key={item.id}>
-                  <Link href={`/content/${item.id}`}
-                        className="flex items-center justify-between gap-2 rounded-lg border border-ink/10 px-3 py-2 text-sm hover:bg-paper">
-                    <span className="min-w-0">
-                      <span className="block truncate font-medium text-ink">{item.title}</span>
-                      <span className="text-xs text-ink-mute">{item.content_type.replace("_", " ")} · v{item.current_version}</span>
+                  <Link
+                    href={`/content/${item.id}`}
+                    className="group flex items-center justify-between gap-2 py-2.5 transition-colors hover:bg-[color:var(--highlight-tint)]"
+                  >
+                    <span className="min-w-0 pl-1">
+                      <span className="block truncate text-sm font-medium text-[color:var(--ink)]">{item.title}</span>
+                      <span className="text-xs text-[color:var(--ink-3)]">{item.content_type.replace("_", " ")} · v{item.current_version}</span>
                     </span>
-                    <StatusPill status={item.status} />
+                    <span className="flex shrink-0 items-center gap-1.5 pr-1">
+                      <StatusPill status={item.status} />
+                      <Icon name="arrow" size={13} className="text-[color:var(--ink-3)] transition-transform group-hover:translate-x-0.5 group-hover:text-[color:var(--ink)]" />
+                    </span>
                   </Link>
                 </li>
               ))}
@@ -211,66 +277,96 @@ export default function OverviewPage() {
         </Card>
       </div>
 
-      {/* how it works + guardrails */}
-      <div className="mt-4 grid gap-4 lg:grid-cols-3">
+      {/* ------------------------------------------------ how a review runs */}
+      <div className="mt-4 grid items-start gap-4 [&>*]:min-w-0 lg:grid-cols-3">
         <Card className="p-5 lg:col-span-2">
-          <SectionHeading title="How a review runs"
-                         subtitle="Deterministic checks first, then six reviewers in parallel, then de-duplication and confidence scoring." />
-          <ol className="grid gap-3 text-sm sm:grid-cols-2">
+          <SectionHeading
+            title="How a review runs"
+            subtitle="Deterministic checks first, then six reviewers in parallel, then de-duplication and confidence scoring."
+          />
+          <ol className="grid gap-x-4 gap-y-3 text-sm sm:grid-cols-2">
             {[
-              ["1. Extract", "Text blocks and images from pasted text, DOCX, PDF or image uploads."],
-              ["2. Deterministic checks", "Approved and banned terms, colour values, alt text, WCAG contrast — Confirmed findings with a rule ID."],
-              ["3. Retrieve", "Rules, terms and facts filtered to the organisation, plus brand-kit chunks from pgvector."],
-              ["4. Six reviewers", "Brand Voice, Terminology, Fact Checker, Visual, Accessibility, Legal — strict JSON, span-level."],
-              ["5. Merge & score", "Duplicates merged by span overlap; confidence from repeat-run agreement, evidence strength and deterministic backing."],
-              ["6. Human decision", "Accept, edit, dismiss with reason, or escalate. A manager override can become a rule — only after they answer the prompt."],
-            ].map(([title, body]) => (
-              <li key={title} className="rounded-lg border border-ink/10 p-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-navy-700">{title}</p>
-                <p className="mt-1 text-sm text-ink-soft">{body}</p>
+              ["Extract", "Text blocks and images from pasted text, DOCX, PDF or image uploads."],
+              ["Deterministic checks", "Approved and banned terms, colour values, alt text, WCAG contrast — Confirmed findings with a rule ID."],
+              ["Retrieve", "Rules, terms and facts filtered to the organisation, plus brand-kit chunks from pgvector."],
+              ["Six reviewers", "Brand Voice, Terminology, Fact Checker, Visual, Accessibility, Legal — strict JSON, span-level."],
+              ["Merge & score", "Duplicates merged by span overlap; confidence from repeat-run agreement, evidence strength and deterministic backing."],
+              ["Human decision", "Accept, edit, dismiss with reason, or escalate. A manager override can become a rule — only after they answer the prompt."],
+            ].map(([title, body], i) => (
+              <li key={title} className="group flex gap-3 border-l border-[color:var(--hairline)] pl-3 transition-colors hover:border-[color:var(--mark)]">
+                <span className="mt-0.5 shrink-0 font-mono text-[11px] tabular-nums text-[color:var(--ink-3)] transition-colors group-hover:text-[color:var(--mark-text)]">
+                  {String(i + 1).padStart(2, "0")}
+                </span>
+                <span className="min-w-0">
+                  <p className="font-mono text-2xs uppercase tracking-[0.14em] text-[color:var(--ink)]">{title}</p>
+                  <p className="mt-1 text-xs leading-relaxed text-[color:var(--ink-2)]">{body}</p>
+                </span>
               </li>
             ))}
           </ol>
         </Card>
 
-        <Card className="p-5">
-          <SectionHeading title="Guardrails" subtitle="Design constraints, not settings" />
-          <ul className="space-y-2 text-sm text-ink-soft">
-            {[
-              "Never publishes content.",
-              "Never auto-fixes: a suggestion may only change the flagged span.",
-              "Never changes a rule without a manager's click.",
-              "Legal and accessibility rules need an Approver.",
-              "Nobody approves their own item.",
-              "Submitted content is data, never instructions.",
-            ].map((line) => (
-              <li key={line} className="flex gap-2">
-                <span aria-hidden="true" className="text-confirmed">✓</span> {line}
-              </li>
-            ))}
-          </ul>
-          {summary && (
-            <p className="mt-4 border-t border-ink/10 pt-3 text-[11px] text-ink-mute">
-              AI provider <span className="font-medium text-ink-soft">{summary.provider.provider}</span> · model{" "}
-              {summary.provider.model} · prompt {summary.provider.prompt_version}
-            </p>
-          )}
-        </Card>
+        {/* ----------------------------------------------------------- guardrails */}
+        <div className="relative overflow-hidden rounded-[10px] border-[1.5px] border-[#111318] bg-[#111318] p-5 text-[#F4F5F7]">
+          <svg aria-hidden="true" className="pointer-events-none absolute inset-0 h-full w-full opacity-[0.1]">
+            <defs>
+              <pattern id="gr-rules" width="18" height="18" patternUnits="userSpaceOnUse">
+                <path d="M0 18H18" fill="none" stroke="#9AA1AE" strokeWidth="0.7" />
+              </pattern>
+            </defs>
+            <rect width="100%" height="100%" fill="url(#gr-rules)" />
+          </svg>
+          <div className="relative">
+            <p className="font-mono text-2xs uppercase tracking-[0.2em] text-[#9AA1AE]">House rules</p>
+            <h2 className="mt-1 text-lg font-semibold tracking-tight">Guardrails</h2>
+            <p className="mt-1 text-xs text-[#9AA1AE]">Design constraints, not settings</p>
+            <ul className="mt-4 space-y-2 text-sm">
+              {[
+                "Never publishes content.",
+                "Never auto-fixes: a suggestion may only change the flagged span.",
+                "Never changes a rule without a manager's click.",
+                "Legal and accessibility rules need an Approver.",
+                "Nobody approves their own item.",
+                "Submitted content is data, never instructions.",
+              ].map((line) => (
+                <li key={line} className="flex gap-2 text-[#C3CAD6]">
+                  <span aria-hidden="true" className="mt-0.5 shrink-0 text-[#7BE0A8]">
+                    <Icon name="check" size={14} />
+                  </span>
+                  <span className="text-xs leading-relaxed">{line}</span>
+                </li>
+              ))}
+            </ul>
+            {summary && (
+              <p className="mt-4 border-t border-[#3A4149] pt-3 font-mono text-[10px] uppercase leading-relaxed tracking-[0.1em] text-[#6C7683]">
+                AI provider <span className="text-[#FFE066]">{summary.provider.provider}</span> · model{" "}
+                <span className="text-[#C3CAD6]">{summary.provider.model}</span> · prompt{" "}
+                <span className="text-[#C3CAD6]">{summary.provider.prompt_version}</span>
+              </p>
+            )}
+          </div>
+        </div>
       </div>
 
       {summary && summary.most_common_mistakes.length > 0 && (
         <Card className="mt-4 p-5">
           <SectionHeading title="Most common mistakes" subtitle="Where the team keeps drifting from the Brand Kit" />
-          <ul className="space-y-2">
+          <ul className="space-y-2.5">
             {summary.most_common_mistakes.slice(0, 5).map((m) => (
-              <li key={m.rule_key} className="flex items-center gap-3 text-sm">
-                <span className="w-24 shrink-0"><Tag>{m.rule_key}</Tag></span>
-                <span className="h-2 flex-1 overflow-hidden rounded-full bg-ink/10">
-                  <span className="block h-full rounded-full bg-possible"
-                        style={{ width: `${Math.min(100, (m.count / Math.max(1, summary.most_common_mistakes[0].count)) * 100)}%` }} />
+              <li key={m.rule_key} className="grid grid-cols-[5.5rem_minmax(0,1fr)_2rem] items-baseline gap-x-3 gap-y-1 text-sm">
+                <Tag>{m.rule_key}</Tag>
+                <span className="min-w-0">
+                  <span className="relative block h-[6px] overflow-hidden rounded-[1px] bg-[color:var(--hairline)]">
+                    <span
+                      className="block h-full origin-left rounded-[1px] bg-[color:var(--ink)] transition-[width] duration-500 ease-out motion-reduce:transition-none"
+                      style={{ width: `${Math.min(100, (m.count / Math.max(1, summary.most_common_mistakes[0].count)) * 100)}%` }}
+                    />
+                  </span>
+                  <span className="mt-1 block truncate text-xs leading-relaxed text-[color:var(--ink-3)]">
+                    {m.example_issue}
+                  </span>
                 </span>
-                <span className="w-8 text-right text-xs text-ink-mute">{m.count}</span>
-                <span className="hidden flex-1 truncate text-xs text-ink-soft sm:block">{m.example_issue}</span>
+                <span className="text-right font-mono text-xs tabular-nums text-[color:var(--ink-2)]">{m.count}</span>
               </li>
             ))}
           </ul>

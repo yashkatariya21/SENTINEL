@@ -15,7 +15,7 @@ function Half({ hidden = false }: { hidden?: boolean }) {
         <li key={`${hidden ? "b" : "a"}-${i}`} className="flex shrink-0 items-baseline gap-2.5">
           <span aria-hidden="true" className="h-1 w-1 rounded-full bg-gold-deep/70" />
           <span className="font-display text-lg italic text-ink-soft">“{item.phrase}”</span>
-          <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-gold-deep">
+          <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-[color:var(--ink-2)]">
             {item.reviewer}
           </span>
         </li>
@@ -26,7 +26,7 @@ function Half({ hidden = false }: { hidden?: boolean }) {
 
 export function Marquee() {
   return (
-    <div className="marquee relative overflow-hidden border-y border-gold/30 bg-ivory-deep/50 py-4">
+    <div className="marquee relative overflow-hidden border-y border-[color:var(--hairline)] bg-ivory-deep/50 py-4">
       <div className="marquee-track flex w-max">
         <Half />
         <Half hidden />

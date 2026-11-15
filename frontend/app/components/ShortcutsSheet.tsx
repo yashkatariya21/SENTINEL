@@ -35,7 +35,7 @@ export function ShortcutsSheet({ open, onClose, me }: { open: boolean; onClose: 
         role="dialog"
         aria-modal="true"
         aria-labelledby="shortcuts-title"
-        className="w-full max-w-md rounded-t-[3px] border border-gold/45 bg-ivory p-5 shadow-herald sm:rounded-[3px]"
+        className="w-full max-w-md rounded-t-[3px] border border-[color:var(--hairline)] bg-ivory p-5 shadow-herald sm:rounded-[3px]"
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-4">

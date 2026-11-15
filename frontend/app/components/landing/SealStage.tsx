@@ -21,24 +21,30 @@ export function SealStage() {
             {/* two arcs, so the legend can never collide with itself */}
             <path id="seal-arc-top" d="M200,200 m-158,0 a158,158 0 1,1 316,0" />
             <path id="seal-arc-bottom" d="M200,200 m-158,0 a158,158 0 1,0 316,0" />
+            {/* paper stock with a highlighter wash at the lit corner — no gold leaf */}
             <radialGradient id="seal-face" cx="42%" cy="34%" r="72%">
-              <stop offset="0%" stopColor="#F7EBC8" />
-              <stop offset="62%" stopColor="#E8D48B" />
-              <stop offset="100%" stopColor="#C9A227" />
+              <stop offset="0%" stopColor="#FFFFFF" />
+              <stop offset="58%" stopColor="#FCFCFD" />
+              <stop offset="100%" stopColor="#EEF0F3" />
             </radialGradient>
             <linearGradient id="seal-edge" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#F3E4AE" />
-              <stop offset="100%" stopColor="#8F7418" />
+              <stop offset="0%" stopColor="#D6DAE1" />
+              <stop offset="100%" stopColor="#9AA1AE" />
             </linearGradient>
+            <radialGradient id="seal-wash" cx="30%" cy="22%" r="70%">
+              <stop offset="0%" stopColor="#FFE066" stopOpacity="0.55" />
+              <stop offset="100%" stopColor="#FFE066" stopOpacity="0" />
+            </radialGradient>
           </defs>
 
           {/* the disc, with the milled edge of a struck seal */}
           <circle cx="200" cy="200" r="168" fill="url(#seal-edge)" />
           <circle cx="200" cy="200" r="158" fill="url(#seal-face)" />
-          <circle cx="200" cy="200" r="158" fill="none" stroke="#8F7418" strokeOpacity="0.45" strokeWidth="1" />
+          <circle cx="200" cy="200" r="158" fill="url(#seal-wash)" />
+          <circle cx="200" cy="200" r="158" fill="none" stroke="#4B5160" strokeOpacity="0.45" strokeWidth="1" />
 
           {/* milled ticks around the rim */}
-          <g stroke="#0B1437" strokeOpacity="0.28" strokeWidth="1.4">
+          <g stroke="#111318" strokeOpacity="0.3" strokeWidth="1.4">
             {Array.from({ length: 72 }, (_, i) => {
               const a = (i / 72) * Math.PI * 2;
               const r1 = 150;
@@ -56,7 +62,7 @@ export function SealStage() {
           </g>
 
           {/* the ring legend, split across the two halves of the circle */}
-          <g fontFamily="var(--font-jetbrains), monospace" fontSize="12.5" letterSpacing="2.6" fill="#0B1437" fillOpacity="0.8">
+          <g fontFamily="var(--font-plex-mono), ui-monospace, monospace" fontSize="12.5" letterSpacing="2.6" fill="#111318" fillOpacity="0.85">
             <text>
               <textPath href="#seal-arc-top" startOffset="50%" textAnchor="middle">
                 {RING_TOP}
@@ -69,13 +75,13 @@ export function SealStage() {
             </text>
           </g>
           {/* the two stops between the arcs */}
-          <g fill="#8F7418">
+          <g fill="#D92D20">
             <circle cx="42" cy="200" r="2.6" />
             <circle cx="358" cy="200" r="2.6" />
           </g>
 
           {/* the crest, engraved */}
-          <g transform="translate(200 200)" fill="none" stroke="#0B1437" strokeOpacity="0.85">
+          <g transform="translate(200 200)" fill="none" stroke="#111318" strokeOpacity="0.9">
             <circle r="96" strokeOpacity="0.25" />
             <path
               d="M0,-66 L50,-50 L50,-8 C50,26 28,48 0,60 C-28,48 -50,26 -50,-8 L-50,-50 Z"
@@ -85,13 +91,13 @@ export function SealStage() {
             <path d="M-96,0 h18 M78,0 h18" strokeWidth="1" strokeOpacity="0.4" />
           </g>
 
-          {/* the gold rule that draws once, then stays */}
+          {/* the ink rule that draws once, then stays */}
           <circle
             cx="200"
             cy="200"
             r="176"
             fill="none"
-            stroke="#8F7418"
+            stroke="#D92D20"
             strokeWidth="1.6"
             strokeDasharray="1106"
             strokeDashoffset="1106"
@@ -111,11 +117,11 @@ export function SealStage() {
 
       {/* Everything below the seal is a caption, not a claim. */}
       <div className="mt-6 text-center">
-        <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-gold-deep">
-          The seal of the Chancery
+        <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-[color:var(--ink-2)]">
+          The mark, struck
         </p>
         <p className="mx-auto mt-1.5 max-w-[30ch] text-2xs leading-relaxed text-ink-mute">
-          One seal, one charter. The same crest signs every report and every audit entry.
+          One mark, one gate. The same shield stands over every report and every audit entry.
         </p>
       </div>
 

@@ -1,6 +1,6 @@
 "use client";
 /**
- * The three-dimensional seal — the crest, extruded in gold, turning slowly on its axis.
+ * The three-dimensional seal — the mark, extruded in ink, turning slowly on its axis.
  *
  * Deliberately small: one extruded shape, one ring, three lights, no environment map,
  * no external asset, no post-processing. Everything is generated at runtime from the same
@@ -11,9 +11,11 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { useReducedMotion } from "@/lib/motion";
 
-const GOLD = "#C9A227";
-const GOLD_LIGHT = "#E8D48B";
-const NAVY = "#0B1437";
+/* Proof-desk props: a steel-ink seal with a highlighter rule and a red pen orbit.
+   Kept mid-tone so the object reads on both paper and proof black. */
+const INK = "#4B5160";
+const HIGHLIGHT = "#FFE066";
+const MARK = "#D92D20";
 
 /** The crest outline, in the same coordinates as the flat SVG, scaled to scene units. */
 function useShieldGeometry() {
@@ -49,8 +51,10 @@ function Shield({ reduced }: { reduced: boolean }) {
   useFrame((state, delta) => {
     if (!group.current) return;
     if (!reduced) {
-      group.current.rotation.y += delta * 0.28;
-      group.current.rotation.x = Math.sin(state.clock.elapsedTime * 0.35) * 0.06 - 0.05;
+      // an oscillation rather than a full turn: the face must stay readable, like a
+      // seal being tilted on a desk, not a coin spinning in a shop window.
+      group.current.rotation.y = Math.sin(state.clock.elapsedTime * 0.32) * 0.38;
+      group.current.rotation.x = Math.sin(state.clock.elapsedTime * 0.24) * 0.05 - 0.04;
     }
     if (ring.current && !reduced) {
       ring.current.rotation.z -= delta * 0.16;
@@ -63,11 +67,11 @@ function Shield({ reduced }: { reduced: boolean }) {
         {/* metalness stays low on purpose: a metallic material with no environment map
             renders as a dark silhouette, and this scene must not fetch an HDR file. */}
         <meshStandardMaterial
-          color={GOLD}
-          metalness={0.35}
-          roughness={0.32}
-          emissive={GOLD_LIGHT}
-          emissiveIntensity={0.16}
+          color={INK}
+          metalness={0.28}
+          roughness={0.36}
+          emissive="#111318"
+          emissiveIntensity={0.12}
         />
       </mesh>
 
@@ -75,18 +79,18 @@ function Shield({ reduced }: { reduced: boolean }) {
       {[-0.24, 0, 0.24].map((y, i) => (
         <mesh key={y} position={[0, y + 0.06, 0.11]}>
           <boxGeometry args={[i === 0 ? 0.42 : 0.3, 0.035, 0.02]} />
-          <meshStandardMaterial color={GOLD_LIGHT} metalness={0.6} roughness={0.4} />
+          <meshStandardMaterial color={HIGHLIGHT} metalness={0.1} roughness={0.55} emissive={HIGHLIGHT} emissiveIntensity={0.22} />
         </mesh>
       ))}
 
-      {/* the gold rule that orbits the crest */}
+      {/* the red pen rule that orbits the seal */}
       <mesh ref={ring} rotation={[Math.PI / 2.35, 0, 0]}>
         <torusGeometry args={[1.32, 0.008, 8, 96]} />
-        <meshStandardMaterial color={GOLD_LIGHT} metalness={0.85} roughness={0.3} />
+        <meshStandardMaterial color={MARK} metalness={0.2} roughness={0.42} />
       </mesh>
       <mesh rotation={[Math.PI / 1.9, 0.4, 0]}>
         <torusGeometry args={[1.52, 0.005, 6, 96]} />
-        <meshStandardMaterial color={GOLD} metalness={0.8} roughness={0.45} transparent opacity={0.6} />
+        <meshStandardMaterial color={HIGHLIGHT} metalness={0.15} roughness={0.5} transparent opacity={0.55} />
       </mesh>
     </group>
   );
@@ -108,11 +112,11 @@ export default function SealScene({ onReady }: { onReady: () => void }) {
       gl={{ alpha: true, antialias: true, powerPreference: "low-power" }}
       style={{ pointerEvents: "none" }}
     >
-      <ambientLight intensity={1.1} color="#FBF7EE" />
-      <hemisphereLight intensity={0.9} color="#FFF6DC" groundColor="#3D2468" />
-      <directionalLight position={[3, 4, 5]} intensity={2.6} color="#FFF6DC" />
-      <directionalLight position={[-4, -2, 2]} intensity={1.1} color="#C9D2F5" />
-      <pointLight position={[0, -3, 3.5]} intensity={1.6} color="#E8D48B" />
+      <ambientLight intensity={1.15} color="#FFFFFF" />
+      <hemisphereLight intensity={0.9} color="#FFFFFF" groundColor="#4B5160" />
+      <directionalLight position={[3, 4, 5]} intensity={2.4} color="#FFFFFF" />
+      <directionalLight position={[-4, -2, 2]} intensity={1.0} color="#D6DAE1" />
+      <pointLight position={[0, -3, 3.5]} intensity={1.4} color="#FFE066" />
       <Shield reduced={reduced} />
     </Canvas>
   );

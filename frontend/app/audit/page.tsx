@@ -3,7 +3,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useReducedMotion } from "@/lib/motion";
-import { Button, Card, EmptyState, SectionHeading, Skeleton, Tag } from "../components/ui";
+import { Button, EmptyState, SectionHeading, Skeleton, Tag } from "../components/ui";
+import { Icon } from "../components/Icon";
 
 interface Entry {
   id: string; action: string; actor: string; actor_role: string;
@@ -83,7 +84,7 @@ export default function AuditPage() {
     return (
       <div>
         <SectionHeading
-          title="Audit log"
+          title="Audit log" as="h1"
           subtitle="Append-only and hash-chained, so tampering is detectable."
         />
         <EmptyState
@@ -94,20 +95,21 @@ export default function AuditPage() {
     );
   }
 
-  if (error) return <Card className="p-6 text-sm text-critical" role="alert">{error}</Card>;
+  if (error) return <div className="rounded-[8px] border border-[color:var(--mark)] bg-[color:var(--mark-tint)] p-4 text-sm text-[color:var(--mark-text)]" role="alert">{error}</div>;
 
   return (
     <div>
       <SectionHeading
         title="Audit log"
+        as="h1"
         subtitle="Append-only and hash-chained: each entry commits to the one before it, so tampering is detectable."
         action={chain && (
           <span className="flex flex-wrap items-center gap-2">
-            <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs ${
-              chain.ok ? "border-confirmed/30 bg-confirmed-tint text-confirmed" : "border-critical/30 bg-critical-tint text-critical"}`}>
-              <span aria-hidden="true">{chain.ok ? "⛓" : "!"}</span>
+            <span className={`inline-flex items-center gap-1.5 rounded-[3px] border px-2.5 py-1 font-mono text-2xs uppercase tracking-[0.1em] ${
+              chain.ok ? "border-[color:var(--pass)] text-[color:var(--pass)]" : "border-[color:var(--mark)] text-[color:var(--mark-text)]"}`}>
+              <Icon name={chain.ok ? "check" : "alert"} size={13} />
               {chain.ok ? `Chain verified · ${chain.entries} entries` : `Chain broken at ${chain.broken_at}`}
-              {verifiedAt && <span className="font-mono text-[10px] opacity-70">at {verifiedAt}</span>}
+              {verifiedAt && <span className="text-[10px] opacity-70">at {verifiedAt}</span>}
             </span>
             <Button size="sm" variant="secondary" onClick={verifyNow} disabled={verifying}>
               {verifying ? "Walking the chain…" : "Verify now"}
@@ -116,21 +118,29 @@ export default function AuditPage() {
         )}
       />
 
-      <Card className="mb-4 p-4">
-        <label htmlFor="audit-filter" className="mb-1 block text-xs text-ink-mute">Filter</label>
-        <input id="audit-filter" type="search" value={filter} onChange={(e) => setFilter(e.target.value)}
-               placeholder="Action, actor, entity or detail"
-               className="w-full rounded-lg border border-ink/20 px-3 py-2 text-sm focus:border-navy-500 focus:outline-none focus:ring-2 focus:ring-navy-500/30" />
-      </Card>
+      <div className="mb-4 flex flex-wrap items-center gap-3 border-y border-[color:var(--hairline)] bg-[color:var(--paper)] px-3 py-2.5">
+        <label htmlFor="audit-filter" className="font-mono text-2xs uppercase tracking-[0.14em] text-[color:var(--ink-3)]">
+          Filter
+        </label>
+        <div className="relative min-w-[14rem] flex-1">
+          <span aria-hidden="true" className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-[color:var(--ink-3)]">
+            <Icon name="search" size={14} />
+          </span>
+          <input id="audit-filter" type="search" value={filter} onChange={(e) => setFilter(e.target.value)}
+                 placeholder="Action, actor, entity or detail"
+                 className="w-full rounded-[6px] border border-[color:var(--hairline-strong)] bg-[color:var(--paper)] py-1.5 pl-8 pr-3 text-xs text-[color:var(--ink)] placeholder:text-[color:var(--ink-3)] focus:outline-none focus:ring-2 focus:ring-[color:var(--ring)]" />
+        </div>
+        <p className="font-mono text-2xs uppercase tracking-[0.1em] text-[color:var(--ink-3)]">{visible.length} shown</p>
+      </div>
 
       {!entries && <Skeleton className="h-64 w-full" />}
       {entries && visible.length === 0 && <EmptyState title="No audit entries match" />}
 
       {visible.length > 0 && (
-        <Card className="overflow-x-auto">
+        <div className="overflow-x-auto rounded-[10px] border border-[color:var(--hairline)] bg-[color:var(--paper)]">
           <table className="w-full min-w-[760px] text-left text-sm">
             <caption className="sr-only">Audit log entries, newest first</caption>
-            <thead className="bg-paper text-xs text-ink-mute">
+            <thead className="sticky top-14 z-10 bg-[color:var(--paper-2)] font-mono text-[10px] uppercase tracking-[0.12em] text-[color:var(--ink-3)]">
               <tr>
                 <th scope="col" className="px-3 py-2 font-medium">When</th>
                 <th scope="col" className="px-3 py-2 font-medium">Actor</th>
@@ -144,26 +154,26 @@ export default function AuditPage() {
               {visible.map((e) => (
                 <tr
                   key={e.id}
-                  className={`border-t border-ink/5 align-top transition-colors duration-ui ${
-                    sweptTo >= 0 && visible.indexOf(e) <= sweptTo ? "bg-gold-tint/40" : ""
+                  className={`border-t border-[color:var(--hairline)] align-top transition-colors duration-200 ${
+                    sweptTo >= 0 && visible.indexOf(e) <= sweptTo ? "bg-[color:var(--highlight-tint)]" : "hover:bg-[color:var(--paper-2)]"
                   }`}
                 >
-                  <td className="whitespace-nowrap px-3 py-2 text-xs text-ink-mute">
+                  <td className="whitespace-nowrap px-3 py-2 font-mono text-[11px] tabular-nums text-[color:var(--ink-3)]">
                     {new Date(e.created_at).toLocaleString()}
                   </td>
                   <td className="px-3 py-2 text-xs">
-                    <span className="block text-ink">{e.actor}</span>
-                    <span className="text-ink-mute">{e.actor_role || "system"}</span>
+                    <span className="block font-medium text-[color:var(--ink)]">{e.actor}</span>
+                    <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-[color:var(--ink-3)]">{e.actor_role || "system"}</span>
                   </td>
                   <td className="px-3 py-2"><Tag tone="navy">{e.action}</Tag></td>
-                  <td className="px-3 py-2 text-xs text-ink-soft">{e.entity}</td>
-                  <td className="max-w-72 px-3 py-2 text-xs text-ink-soft">
+                  <td className="px-3 py-2 font-mono text-[11px] text-[color:var(--ink-2)]">{e.entity}</td>
+                  <td className="max-w-72 px-3 py-2 font-mono text-[11px] leading-relaxed text-[color:var(--ink-2)]">
                     <span className="line-clamp-2">{JSON.stringify(e.detail)}</span>
                   </td>
-                  <td className="whitespace-nowrap px-3 py-2 font-mono text-[10px] text-ink-mute">
+                  <td className="whitespace-nowrap px-3 py-2 font-mono text-[10px] text-[color:var(--ink-3)]">
                     <span
                       className={`inline-block h-1.5 w-1.5 rounded-full align-middle ${
-                        sweptTo >= 0 && visible.indexOf(e) <= sweptTo ? "bg-confirmed" : "bg-ink/25"
+                        sweptTo >= 0 && visible.indexOf(e) <= sweptTo ? "bg-[color:var(--pass)]" : "bg-[color:var(--hairline)]"
                       }`}
                       aria-hidden="true"
                     />{" "}
@@ -173,7 +183,7 @@ export default function AuditPage() {
               ))}
             </tbody>
           </table>
-        </Card>
+        </div>
       )}
     </div>
   );

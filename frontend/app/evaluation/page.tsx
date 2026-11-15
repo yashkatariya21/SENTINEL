@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { Button, Card, EmptyState, SectionHeading, Skeleton, Tag, useToast } from "../components/ui";
-import { Sentri } from "../components/brand/Sentri";
+import { DeskSentri } from "../components/Desk";
 import { Scene } from "../components/brand/Scenes";
 
 interface Row {
@@ -75,8 +75,8 @@ export default function EvaluationPage() {
     <div className="max-w-5xl">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="font-mono text-2xs uppercase tracking-[0.24em] text-gold-deep">Evaluation</p>
-          <h1 className="mt-1 font-display text-3xl font-semibold tracking-tight text-navy">
+          <p className="font-mono text-2xs uppercase tracking-[0.24em] text-[color:var(--ink-2)]">Evaluation</p>
+          <h1 className="mt-1 text-[1.9rem] font-semibold leading-tight tracking-[-0.03em] text-[color:var(--ink)]">
             What has been measured, and what has not
           </h1>
           <p className="mt-1 max-w-2xl text-sm leading-relaxed text-ink-soft">
@@ -88,9 +88,9 @@ export default function EvaluationPage() {
         <Button onClick={rerun} loading={busy}>Re-run benchmark</Button>
       </div>
 
-      <Card className="mt-5 border-gold/40 bg-gradient-parchment p-4">
+      <Card className="mt-5 border-[color:var(--hairline)] bg-gradient-parchment p-4">
         <div className="flex items-start gap-3">
-          <Sentri mood="thinking" size={52} decorative />
+          <DeskSentri mood="reading" size={52} />
           <p className="text-xs leading-relaxed text-ink-soft">
             <strong className="text-navy">Read this first.</strong> {data.provenance.warning}
           </p>
@@ -127,7 +127,7 @@ export default function EvaluationPage() {
               The LLM benchmark needs a hosted provider key. With none configured, this section stays empty on
               purpose — Sentinel does not print placeholder or expected scores. To produce these numbers:
             </p>
-            <pre className="mt-2 overflow-x-auto rounded bg-navy px-3 py-2 font-mono text-2xs text-gold-soft">
+            <pre className="mt-2 overflow-x-auto rounded bg-navy px-3 py-2 font-mono text-2xs text-[#FFE066]">
 {`export LLM_PROVIDER=openai LLM_API_KEY=... LLM_MODEL=gpt-4o-mini
 python -m eval.run_llm_eval            # writes eval/report_llm.{md,json}`}
             </pre>
@@ -214,15 +214,15 @@ function BenchmarkCard({
           ["F1", pct(overall.micro_f1)],
           ["FP rate", pct(overall.mean_false_positive_rate)],
         ].map(([label, value]) => (
-          <div key={label as string} className="rounded-md border border-ink/12 bg-ivory px-2 py-2">
-            <p className="font-display text-xl font-semibold text-navy">{value}</p>
-            <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-ink-mute">{label}</p>
+          <div key={label as string} className="border-l-[1.5px] border-[color:var(--hairline-strong)] bg-[color:var(--paper-2)] px-2 py-2">
+            <p className="font-mono text-xl font-semibold tabular-nums text-[color:var(--ink)]">{value}</p>
+            <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-[color:var(--ink-3)]">{label}</p>
           </div>
         ))}
       </div>
 
       {heldout && block.relaxed && (
-        <p className="mt-2 rounded-md border border-gold/40 bg-ivory-deep/60 px-2.5 py-1.5 text-2xs text-ink-soft">
+        <p className="mt-2 rounded-md border border-[color:var(--hairline)] bg-[color:var(--paper-2)] px-2.5 py-1.5 text-2xs text-[color:var(--ink-2)]">
           Relaxed (any reviewer, span covered): P {pct(block.relaxed.precision)} · R{" "}
           {pct(block.relaxed.recall)} · F1 {pct(block.relaxed.f1)} — the gap between the two rows is the
           “right problem, wrong lens” rate.
@@ -277,7 +277,7 @@ function LLMTable({ report }: { report: any }) {
     <div className="space-y-4">
       {Object.entries(sets).map(([setName, configs]: [string, any]) => (
         <div key={setName}>
-          <p className="font-mono text-2xs uppercase tracking-[0.16em] text-gold-deep">
+          <p className="font-mono text-2xs uppercase tracking-[0.16em] text-[color:var(--ink-2)]">
             {setName === "heldout" ? "held-out set" : "regression set"} · {report.model}
           </p>
           <table className="mt-1 w-full text-left text-xs">

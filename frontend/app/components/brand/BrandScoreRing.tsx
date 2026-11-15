@@ -1,5 +1,9 @@
 "use client";
-/** Gold ring gauge for the Brand Score. The number is always printed in text too. */
+/**
+ * Brand Score gauge — an ink arc on a hairline track, with tick marks at every tenth
+ * so the reading can be judged against the scale, not just against itself. The number
+ * is always printed in text too, because an arc alone is not a value.
+ */
 export function BrandScoreRing({ value, size = 96 }: { value: number; size?: number }) {
   const pct = Math.max(0, Math.min(100, value));
   const r = 40;
@@ -8,29 +12,57 @@ export function BrandScoreRing({ value, size = 96 }: { value: number; size?: num
 
   return (
     <div className="relative shrink-0" style={{ width: size, height: size }}>
-      <svg viewBox="0 0 100 100" width={size} height={size} role="img"
-           aria-label={`Brand Score ${value} out of 100`} focusable="false">
-        <defs>
-          <linearGradient id="ring-gold" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="#E8D48B" />
-            <stop offset="55%" stopColor="#C9A227" />
-            <stop offset="100%" stopColor="#8F7418" />
-          </linearGradient>
-        </defs>
-        <circle cx="50" cy="50" r={r} fill="none" stroke="#0B1437" strokeWidth="9" opacity="0.10" />
+      <svg
+        viewBox="0 0 100 100"
+        width={size}
+        height={size}
+        role="img"
+        aria-label={`Brand Score ${value} out of 100`}
+        focusable="false"
+      >
+        {/* the track */}
+        <circle cx="50" cy="50" r={r} fill="none" stroke="var(--hairline)" strokeWidth="8" />
+        {/* tenths, printed around the track like a dial */}
+        {Array.from({ length: 10 }).map((_, i) => {
+          const a = (i / 10) * 2 * Math.PI - Math.PI / 2;
+          return (
+            <line
+              key={i}
+              x1={50 + Math.cos(a) * 46}
+              y1={50 + Math.sin(a) * 46}
+              x2={50 + Math.cos(a) * 49}
+              y2={50 + Math.sin(a) * 49}
+              stroke="var(--hairline)"
+              strokeWidth="1.4"
+            />
+          );
+        })}
+        {/* the reading, in ink */}
         <circle
-          cx="50" cy="50" r={r} fill="none"
-          stroke="url(#ring-gold)" strokeWidth="9" strokeLinecap="round"
+          cx="50"
+          cy="50"
+          r={r}
+          fill="none"
+          stroke="var(--ink)"
+          strokeWidth="8"
           strokeDasharray={`${dash} ${circumference}`}
           transform="rotate(-90 50 50)"
-          className="transition-[stroke-dasharray] duration-700 ease-royal motion-reduce:transition-none"
+          className="transition-[stroke-dasharray] duration-700 ease-out motion-reduce:transition-none"
         />
-        <circle cx="50" cy="50" r="30" fill="none" stroke="#C9A227" strokeWidth="0.6" opacity="0.45" />
+        {/* the mark where it ends */}
+        <circle
+          cx={50 + Math.cos((pct / 100) * 2 * Math.PI - Math.PI / 2) * r}
+          cy={50 + Math.sin((pct / 100) * 2 * Math.PI - Math.PI / 2) * r}
+          r="2.6"
+          fill="var(--mark)"
+        />
       </svg>
       <div className="absolute inset-0 grid place-items-center text-center">
         <div>
-          <p className="font-display text-2xl font-semibold leading-none text-navy">{pct.toFixed(1)}</p>
-          <p className="font-mono text-[9px] uppercase tracking-[0.16em] text-ink-mute">of 100</p>
+          <p className="font-mono text-2xl font-semibold leading-none tabular-nums text-[color:var(--ink)]">
+            {pct.toFixed(1)}
+          </p>
+          <p className="mt-1 font-mono text-[9px] uppercase tracking-[0.16em] text-[color:var(--ink-3)]">of 100</p>
         </div>
       </div>
     </div>

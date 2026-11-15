@@ -9,8 +9,8 @@ export default function NotFound() {
   return (
     <div className="mx-auto max-w-xl py-10">
       <Card className="p-6 text-center">
-        {showCharacters && <Scene name="notfound" height={150} className="-mx-6 -mt-6 mb-4 rounded-none border-0 border-b border-gold/25" />}
-        <p className="font-mono text-2xs uppercase tracking-[0.24em] text-gold-deep">Error 404</p>
+        {showCharacters && <Scene name="notfound" height={150} className="-mx-6 -mt-6 mb-4 rounded-none border-0 border-b border-[color:var(--hairline)]" />}
+        <p className="font-mono text-2xs uppercase tracking-[0.24em] text-[color:var(--ink-2)]">Error 404</p>
         <h1 className="mt-1 font-display text-3xl font-semibold tracking-tight text-navy">
           There is no page at this address.
         </h1>

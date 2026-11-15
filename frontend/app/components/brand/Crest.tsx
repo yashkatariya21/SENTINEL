@@ -55,7 +55,7 @@ export function Crest({
       <text
         x="32" y="47"
         textAnchor="middle"
-        fontFamily="var(--font-cormorant), Georgia, serif"
+        fontFamily="var(--font-plex-mono), ui-monospace, monospace"
         fontSize="30" fontWeight="700" fill={c.line}
       >
         s
@@ -101,7 +101,7 @@ export function Monogram({ size = 32, tone = "gold" }: { size?: number; tone?: T
       {stars.map((s, i) => (
         <circle key={i} cx={s.x} cy={s.y} r={i % 3 === 0 ? 1.5 : 1} fill={c.accent} />
       ))}
-      <text x="32" y="42" textAnchor="middle" fontFamily="var(--font-cormorant), Georgia, serif"
+      <text x="32" y="42" textAnchor="middle" fontFamily="var(--font-plex-mono), ui-monospace, monospace"
             fontSize="26" fontWeight="700" fill={c.line}>
         S
       </text>
