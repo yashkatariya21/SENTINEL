@@ -9,6 +9,19 @@
 import { Icon } from "./Icon";
 
 /* ------------------------------------------------------------------ the mark */
+/**
+ * The mark: a shield around a gate.
+ *
+ * The shield is the crest — one object standing over every report and audit
+ * entry. Inside it, an arch over a threshold rule with the centre seam of a
+ * gate that opens: the product's actual promise ("held at the gate"), rather
+ * than the padlock it used to carry, which said "locked" and nothing more.
+ *
+ * Drawn as three strokes and a hairline so it stays legible at 20 px, which is
+ * the size it is most often seen at in the header; it scales without a second
+ * variant, and it is single-colour (`currentColor`) so the same path works on
+ * paper, on ink, and on the night stock.
+ */
 export function DeskMark({ size = 22, className = "" }: { size?: number; className?: string }) {
   return (
     <svg viewBox="0 0 24 24" width={size} height={size} className={className} aria-hidden="true" focusable="false">
@@ -19,8 +32,11 @@ export function DeskMark({ size = 22, className = "" }: { size?: number; classNa
         strokeWidth="1.7"
         strokeLinejoin="round"
       />
-      <rect x="9.1" y="10.4" width="5.8" height="4.6" rx="1" fill="currentColor" />
-      <path d="M10.3 10.4V9.2a1.7 1.7 0 0 1 3.4 0v1.2" fill="none" stroke="currentColor" strokeWidth="1.4" />
+      {/* the gate: an arch standing on its threshold */}
+      <path d="M8.2 15.1v-2.7a3.8 3.8 0 0 1 7.6 0v2.7" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M6.7 15.1h10.6" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      {/* the seam between the two leaves */}
+      <path d="M12 10.4v4.7" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeOpacity="0.55" />
     </svg>
   );
 }
