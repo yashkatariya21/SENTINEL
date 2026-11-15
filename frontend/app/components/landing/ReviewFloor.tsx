@@ -26,8 +26,8 @@ export function ReviewFloor() {
       <div className="relative aspect-square w-full">
         <svg viewBox={`0 0 ${SIZE} ${SIZE}`} className="absolute inset-0 h-full w-full" aria-hidden="true">
           {/* the room */}
-          <rect x="2" y="2" width="96" height="96" fill="none" stroke="currentColor" strokeWidth="0.3" className="text-gold/50" />
-          <rect x="6" y="6" width="88" height="88" fill="none" stroke="currentColor" strokeWidth="0.15" className="text-gold/25" />
+          <rect x="2" y="2" width="96" height="96" fill="none" stroke="currentColor" strokeWidth="0.3" className="text-[color:var(--ink-3)]" />
+          <rect x="6" y="6" width="88" height="88" fill="none" stroke="currentColor" strokeWidth="0.15" className="text-[color:var(--ink-3)]" />
           {/* floor grid */}
           {Array.from({ length: 9 }, (_, i) => (i + 1) * 10).map((v) => (
             <g key={v} className="text-ink/10">
@@ -36,7 +36,7 @@ export function ReviewFloor() {
             </g>
           ))}
           {/* the table */}
-          <ellipse cx={CENTRE.x} cy={CENTRE.y} rx="15" ry="9" fill="none" stroke="currentColor" strokeWidth="0.4" className="text-gold-deep/70" />
+          <ellipse cx={CENTRE.x} cy={CENTRE.y} rx="15" ry="9" fill="none" stroke="currentColor" strokeWidth="0.4" className="text-[color:var(--ink-2)]/70" />
           <ellipse cx={CENTRE.x} cy={CENTRE.y} rx="12.5" ry="7" fill="currentColor" className="text-ivory-deep/70" />
 
           {/* beams */}
@@ -53,7 +53,7 @@ export function ReviewFloor() {
                 strokeWidth={on ? 0.55 : 0.2}
                 strokeDasharray={on ? "none" : "1 1.6"}
                 className={`origin-center transition-opacity duration-ui ease-royal ${
-                  on ? "text-gold-deep opacity-100" : "text-gold/40 opacity-30"
+                  on ? "text-[color:var(--ink-2)] opacity-100" : "text-[color:var(--ink-3)] opacity-30"
                 }`}
               />
             );
@@ -63,11 +63,11 @@ export function ReviewFloor() {
         {/* the charter, on the table */}
         <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-center">
           <span aria-hidden="true" className="mx-auto block h-3.5 w-3.5">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="text-gold-deep">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="text-[color:var(--ink-2)]">
               <path d="M12 2 21 5v9c0 4.5-3.8 7.6-9 9-5.2-1.4-9-4.5-9-9V5l9-3Z" />
             </svg>
           </span>
-          <p className="mt-0.5 font-mono text-[7px] uppercase tracking-[0.18em] text-gold-deep">charter</p>
+          <p className="mt-0.5 font-mono text-[7px] uppercase tracking-[0.18em] text-[color:var(--ink-2)]">charter</p>
         </div>
 
         {/* the seats */}
@@ -88,8 +88,8 @@ export function ReviewFloor() {
               <span
                 className={`grid h-[68px] w-[68px] place-items-center rounded-full border transition duration-ui ease-royal group-focus-visible:ring-2 group-focus-visible:ring-gold group-focus-visible:ring-offset-2 group-focus-visible:ring-offset-paper ${
                   on
-                    ? "scale-105 border-gold-deep bg-navy text-gold-soft shadow-herald"
-                    : "border-gold/50 bg-ivory text-ink-soft group-hover:border-gold-deep"
+                    ? "scale-105 border-gold-deep bg-navy text-[#FFE066] shadow-herald"
+                    : "border-[color:var(--hairline)] bg-ivory text-ink-soft group-hover:border-[color:var(--ink)]-deep"
                 }`}
               >
                 <span className="font-crest text-[11px] font-semibold leading-none tracking-[0.06em]">
@@ -98,7 +98,7 @@ export function ReviewFloor() {
               </span>
               <span
                 className={`mt-1.5 block whitespace-nowrap font-mono text-[9px] uppercase tracking-[0.16em] transition-colors duration-micro ${
-                  on ? "text-gold-deep" : "text-ink-mute"
+                  on ? "text-[color:var(--ink-2)]" : "text-ink-mute"
                 }`}
               >
                 {r.role}
@@ -113,7 +113,7 @@ export function ReviewFloor() {
       <div
         id="floor-caption"
         aria-live="polite"
-        className="mt-4 border-t border-gold/40 pt-3 text-center"
+        className="mt-4 border-t border-[color:var(--hairline)] pt-3 text-center"
       >
         <p
           className={`font-display text-base italic text-navy ${
@@ -130,7 +130,7 @@ export function ReviewFloor() {
       </div>
 
       {/* ------------------------------------------------------- the readable list */}
-      <ul className="divide-y divide-gold/25 border-y border-gold/25">
+      <ul className="divide-y divide-[color:var(--hairline)] border-y border-[color:var(--hairline)]">
         {REVIEWERS.map((r, i) => (
           <li key={r.key}>
             <button
@@ -143,7 +143,7 @@ export function ReviewFloor() {
               }`}
             >
               <span className="flex min-w-0 items-baseline gap-3">
-                <span className="font-mono text-[10px] tabular-nums text-gold-deep">
+                <span className="font-mono text-[10px] tabular-nums text-[color:var(--ink-2)]">
                   {String(i + 1).padStart(2, "0")}
                 </span>
                 <span>

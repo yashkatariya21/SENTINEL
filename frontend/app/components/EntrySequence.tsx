@@ -83,7 +83,7 @@ export function EntrySequence() {
         }`}
       >
         <div className="flex h-full items-start justify-center pt-5">
-          <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-gold-soft/90">
+          <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-[color:var(--ink-3)]">
             {LINE.slice(0, typed)}
             <span className="ml-0.5 inline-block h-3 w-[7px] animate-blink bg-gold-soft/80 align-middle" />
           </p>
@@ -100,7 +100,7 @@ export function EntrySequence() {
       <button
         type="button"
         onClick={skip}
-        className="absolute right-5 top-5 rounded-[2px] border border-gold-soft/40 px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.2em] text-gold-soft/90 transition-colors duration-micro hover:border-gold hover:text-ivory focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold"
+        className="absolute right-5 top-5 rounded-[2px] border border-gold-soft/40 px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.2em] text-[color:var(--ink-3)] transition-colors duration-micro hover:border-[color:var(--ink)] hover:text-ivory focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold"
       >
         Skip
       </button>

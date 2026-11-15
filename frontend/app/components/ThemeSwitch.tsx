@@ -107,7 +107,7 @@ export function ThemeSwitch({ className = "", showLabel = false }: { className?:
       aria-checked={isNight}
       aria-label={isNight ? "Night shift is on. Switch to Day shift." : "Day shift is on. Switch to Night shift."}
       title={isNight ? "Night shift" : "Day shift"}
-      className={`group inline-flex items-center gap-2 rounded-[3px] border border-gold/45 bg-gradient-to-b from-[#d9bb62] via-gold to-[#a9861c] p-[3px] transition-colors duration-micro hover:border-gold ${className}`}
+      className={`group inline-flex items-center gap-2 rounded-[3px] border border-[color:var(--hairline)] bg-gradient-to-b from-[#d9bb62] via-gold to-[#a9861c] p-[3px] transition-colors duration-micro hover:border-[color:var(--ink)] ${className}`}
     >
       {/* engraved track */}
       <span className="relative flex h-[22px] w-[42px] items-center rounded-[2px] bg-navy/85 px-[3px] shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)]">

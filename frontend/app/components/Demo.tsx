@@ -87,7 +87,7 @@ export function DemoProgressPanel({
 
   return (
     <div
-      className="fixed inset-x-0 top-0 z-50 border-b border-gold/40 bg-navy px-4 py-3 text-ivory shadow-herald sm:px-6"
+      className="fixed inset-x-0 top-0 z-50 border-b border-[color:var(--hairline)] bg-navy px-4 py-3 text-ivory shadow-herald sm:px-6"
       role="status"
       aria-live="polite"
     >
@@ -194,10 +194,10 @@ export function DemoTour({ onClose }: { onClose: () => void }) {
 
   if (done) {
     return (
-      <div className="fixed inset-x-0 bottom-0 z-50 border-t border-gold/40 bg-navy px-4 py-3 text-ivory shadow-herald">
+      <div className="fixed inset-x-0 bottom-0 z-50 border-t border-[color:var(--hairline)] bg-navy px-4 py-3 text-ivory shadow-herald">
         <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-3">
           <p className="text-sm">
-            That is the loop: <span className="text-gold-soft">review → explain → human decides → the system learns</span>.
+            That is the loop: <span className="text-[#FFE066]">review → explain → human decides → the system learns</span>.
           </p>
           <div className="flex gap-2">
             <Button size="sm" variant="ghost" className="text-ivory hover:bg-ivory/10" onClick={() => { finish(); router.push("/analytics"); }}>
@@ -215,7 +215,7 @@ export function DemoTour({ onClose }: { onClose: () => void }) {
   const current = STEPS[step];
   return (
     <div className="fixed inset-x-0 bottom-0 z-50 px-3 pb-3 sm:px-6">
-      <Card className="mx-auto max-w-3xl border-gold/40 bg-navy text-ivory shadow-herald">
+      <Card className="mx-auto max-w-3xl border-[color:var(--hairline)] bg-navy text-ivory shadow-herald">
         <div className="flex items-start justify-between gap-4 p-4 sm:p-5">
           {showCharacters && (
             <span className="-mt-1 shrink-0" aria-hidden>
@@ -223,7 +223,7 @@ export function DemoTour({ onClose }: { onClose: () => void }) {
             </span>
           )}
           <div>
-            <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-gold-soft">
+            <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-[#FFE066]">
               Guided tour · step {step + 1} of {STEPS.length}
             </p>
             <h3 className="mt-1 font-display text-lg font-semibold">{current.title}</h3>

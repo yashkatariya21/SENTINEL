@@ -55,8 +55,8 @@ export function Seal({
 
 export function Ribbon({ children, tone = "navy" }: { children: React.ReactNode; tone?: "navy" | "gold" | "muted" }) {
   const tones = {
-    navy: "bg-navy text-ivory border-gold/40",
-    gold: "bg-gradient-gold text-navy border-gold-deep/50",
+    navy: "bg-navy text-ivory border-[color:var(--hairline)]",
+    gold: "bg-gradient-gold text-navy border-[color:var(--hairline)]",
     muted: "bg-ivory-deep text-ink-soft border-ink/15",
   } as const;
   return (

@@ -36,7 +36,7 @@ function DraftText({ quote }: { quote: string | null }) {
   return (
     <>
       {DEMO_DRAFT.slice(0, at)}
-      <mark className="relative bg-gold-tint/80 px-0.5 text-inherit decoration-gold-deep decoration-2 underline-offset-4">
+      <mark className="relative bg-gold-tint/80 px-0.5 text-inherit decoration-[color:var(--mark)] decoration-2 underline-offset-4">
         {quote}
       </mark>
       {DEMO_DRAFT.slice(at + quote.length)}
@@ -86,20 +86,20 @@ export function LiveDemo() {
   }, []);
 
   return (
-    <div className="overflow-hidden rounded-[3px] border border-gold/40 bg-ivory shadow-herald">
+    <div className="overflow-hidden rounded-[3px] border border-[color:var(--hairline)] bg-ivory shadow-herald">
       {/* window bar */}
-      <div className="flex items-center justify-between gap-3 border-b border-gold/30 bg-ivory-deep/70 px-4 py-2">
+      <div className="flex items-center justify-between gap-3 border-b border-[color:var(--hairline)] bg-ivory-deep/70 px-4 py-2">
         <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-ink-mute">
           Review report · draft
         </p>
-        <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-gold-deep">
+        <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-[color:var(--ink-2)]">
           {DEMO_FINDINGS.length} findings · 6 reviewers
         </p>
       </div>
 
       <div className="grid lg:grid-cols-[minmax(0,1fr)_320px]">
         {/* ---------------------------------------------------------- the draft */}
-        <div className="relative border-b border-gold/25 p-5 lg:border-b-0 lg:border-r">
+        <div className="relative border-b border-[color:var(--hairline)] p-5 lg:border-b-0 lg:border-r">
           <p className="eyebrow">The submission</p>
           <p className="mt-2 font-display text-[19px] leading-[1.55] text-ink">
             <DraftText quote={finding.quote} />
@@ -129,7 +129,7 @@ export function LiveDemo() {
             </div>
           </dl>
 
-          <p className="mt-5 rounded-[2px] border border-gold/30 bg-parchment/50 p-2.5 text-2xs leading-relaxed text-ink-soft">
+          <p className="mt-5 rounded-[2px] border border-[color:var(--hairline)] bg-parchment/50 p-2.5 text-2xs leading-relaxed text-ink-soft">
             This sample is fixed. It runs entirely in your browser, so it works with the server asleep —
             and it cannot touch a real submission.
           </p>
@@ -141,7 +141,7 @@ export function LiveDemo() {
             </p>
             <ul className="mt-2 grid gap-x-5 gap-y-1.5 sm:grid-cols-2">
               {DEMO_PASSES.map((pass) => (
-                <li key={pass.reviewer} className="flex items-baseline justify-between gap-2 border-b border-gold/20 pb-1 text-xs">
+                <li key={pass.reviewer} className="flex items-baseline justify-between gap-2 border-b border-[color:var(--hairline)] pb-1 text-xs">
                   <span className="flex min-w-0 items-baseline gap-1.5">
                     <span
                       aria-hidden="true"
@@ -170,7 +170,7 @@ export function LiveDemo() {
                 ["Request changes", "the finding goes back to the creator, with the quote attached"],
                 ["Override, with a reason", "a manager may waive it — that becomes a versioned, scoped exception"],
               ].map(([label, detail]) => (
-                <li key={label} className="flex gap-2 border-b border-gold/20 pb-1.5">
+                <li key={label} className="flex gap-2 border-b border-[color:var(--hairline)] pb-1.5">
                   <span className="w-[7.5rem] shrink-0 font-semibold text-ink">{label}</span>
                   <span className="text-ink-mute">{detail}</span>
                 </li>
@@ -220,7 +220,7 @@ export function LiveDemo() {
                       </span>
                       <span
                         className={`font-mono text-[9px] uppercase tracking-[0.12em] ${
-                          on ? "text-gold-soft/80" : "text-ink-mute"
+                          on ? "text-[color:var(--ink-3)]" : "text-ink-mute"
                         }`}
                       >
                         {SEVERITY_LABEL[f.severity]}
@@ -232,7 +232,7 @@ export function LiveDemo() {
           </ul>
 
           {/* the detail of the selected finding */}
-          <div className="mt-3 flex-1 rounded-[2px] border border-gold/30 bg-parchment/40 p-3">
+          <div className="mt-3 flex-1 rounded-[2px] border border-[color:var(--hairline)] bg-parchment/40 p-3">
             <div className="flex items-center justify-between gap-2">
               <span
                 className={`inline-flex items-center gap-1 rounded-[2px] border px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.12em] ${SEVERITY_TONE[finding.severity]}`}
@@ -247,8 +247,8 @@ export function LiveDemo() {
 
             <p className="mt-2 text-xs leading-relaxed text-ink">{finding.problem}</p>
 
-            <p className="mt-2 border-t border-gold/25 pt-2 text-[11px] leading-relaxed text-ink-mute">
-              <span className="font-mono uppercase tracking-[0.12em] text-gold-deep">Source · </span>
+            <p className="mt-2 border-t border-[color:var(--hairline)] pt-2 text-[11px] leading-relaxed text-ink-mute">
+              <span className="font-mono uppercase tracking-[0.12em] text-[color:var(--ink-2)]">Source · </span>
               {finding.source}
               {finding.page ? `, p.${finding.page}` : ""}
             </p>
@@ -274,18 +274,18 @@ export function LiveDemo() {
                 }}
                 onBlur={stop}
                 aria-describedby="preview-hint"
-                className="w-full select-none rounded-[2px] border border-gold-deep/60 bg-gold-tint/60 px-2 py-2 text-2xs font-semibold uppercase tracking-[0.14em] text-gold-deep transition-transform duration-micro ease-snap active:translate-y-[1px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold"
+                className="w-full select-none rounded-[2px] border border-[color:var(--hairline)] bg-gold-tint/60 px-2 py-2 text-2xs font-semibold uppercase tracking-[0.14em] text-[color:var(--ink-2)] transition-transform duration-micro ease-snap active:translate-y-[1px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold"
               >
                 {shown ? "Release to hide" : "Hold to preview"}
               </button>
 
               <div
                 className={`mt-2 overflow-hidden rounded-[2px] border border-dashed bg-ivory p-2 transition-opacity duration-micro ${
-                  shown ? "border-gold-deep/40 opacity-100" : "border-transparent opacity-0"
+                  shown ? "border-[color:var(--hairline)] opacity-100" : "border-transparent opacity-0"
                 }`}
                 aria-hidden={!shown}
               >
-                <p className="font-mono text-[9px] uppercase tracking-[0.16em] text-gold-deep">
+                <p className="font-mono text-[9px] uppercase tracking-[0.16em] text-[color:var(--ink-2)]">
                   {pinned ? "pinned preview" : "preview"} · not applied
                 </p>
                 <p className="mt-1 text-xs leading-relaxed text-ink">{finding.suggestion}</p>

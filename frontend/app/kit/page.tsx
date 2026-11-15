@@ -5,6 +5,7 @@ import { useAuth } from "@/lib/auth";
 import {
   Button, Card, EmptyState, Field, SectionHeading, Select, Skeleton, Tag, TextInput, useToast,
 } from "../components/ui";
+import { Figure, TabStrip } from "../components/Desk";
 
 interface Kit { id: string; name: string; version: number; status: string; documents: number; rules: number; terms: number; facts: number; assets: number }
 interface Doc { id: string; filename: string; mime: string; kind: string; version: number; pages: number; size_bytes: number; status: string; created_at: string; chunks: number }
@@ -100,22 +101,19 @@ export default function BrandKitPage() {
   return (
     <div>
       <SectionHeading
-        title="Brand Kit"
+        title="Brand Kit" as="h1"
         subtitle="The single source of truth the reviewers check against. Extracted rules, terms and facts stay in draft until an Admin confirms them."
         action={kit && <Tag tone={kit.status === "active" ? "navy" : "amber"}>{kit.status === "active" ? "Active kit" : kit.status}</Tag>}
       />
 
       {!kit ? <Skeleton className="h-40 w-full" /> : (
         <>
-          <div className="mb-4 grid gap-3 sm:grid-cols-5">
+          <div className="mb-4 grid grid-cols-2 divide-[color:var(--hairline)] border-y border-[color:var(--hairline)] bg-[color:var(--paper)] sm:grid-cols-5 sm:divide-x">
             {[
               ["Documents", kit.documents], ["Rules", kit.rules], ["Terms", kit.terms],
               ["Facts", kit.facts], ["Assets", kit.assets],
             ].map(([label, value]) => (
-              <Card key={label as string} className="p-4">
-                <p className="text-xs uppercase tracking-wide text-ink-mute">{label}</p>
-                <p className="mt-1 text-2xl font-semibold text-ink">{value as number}</p>
-              </Card>
+              <Figure key={label as string} value={String(value as number).padStart(2, "0")} label={label as string} />
             ))}
           </div>
 
@@ -125,21 +123,20 @@ export default function BrandKitPage() {
             </p>
           )}
 
-          <div className="mb-4 flex flex-wrap gap-1 rounded-lg border border-ink/10 bg-white p-1" role="tablist">
-            {([
-              ["documents", "Documents"],
-              ["proposals", `Proposals (${allProposals.length})`],
-              ["terms", "Terms"],
-              ["facts", "Approved facts"],
-              ["assets", "Colours, fonts, logo"],
-              ["health", "Readiness"],
-            ] as const).map(([key, label]) => (
-              <button key={key} role="tab" aria-selected={tab === key} onClick={() => setTab(key)}
-                      className={`rounded-md px-3 py-1.5 text-sm ${tab === key ? "bg-navy-700 text-white" : "text-ink-soft hover:bg-paper"}`}>
-                {label}
-              </button>
-            ))}
-          </div>
+          <TabStrip
+            className="mb-4"
+            label="Brand Kit sections"
+            value={tab}
+            onChange={(key) => setTab(key as typeof tab)}
+            tabs={[
+              { key: "documents", label: "Documents" },
+              { key: "proposals", label: "Proposals", count: allProposals.length },
+              { key: "terms", label: "Terms" },
+              { key: "facts", label: "Approved facts" },
+              { key: "assets", label: "Colours, fonts, logo" },
+              { key: "health", label: "Readiness" },
+            ]}
+          />
 
           {tab === "documents" && (
             <div className="grid gap-4 lg:grid-cols-[380px_1fr]">

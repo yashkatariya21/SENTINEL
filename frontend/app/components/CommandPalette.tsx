@@ -72,9 +72,9 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
       className="fixed inset-0 z-[70] flex items-start justify-center bg-navy/45 px-4 pt-[12vh] backdrop-blur-[2px]"
       shouldFilter
     >
-      <div className="w-full max-w-[560px] overflow-hidden rounded-[3px] border border-gold/45 bg-ivory shadow-herald">
-        <div className="flex items-center gap-2 border-b border-gold/25 px-3">
-          <span aria-hidden="true" className="font-mono text-[10px] uppercase tracking-[0.2em] text-gold-deep">
+      <div className="w-full max-w-[560px] overflow-hidden rounded-[3px] border border-[color:var(--hairline)] bg-ivory shadow-herald">
+        <div className="flex items-center gap-2 border-b border-[color:var(--hairline)] px-3">
+          <span aria-hidden="true" className="font-mono text-[10px] uppercase tracking-[0.2em] text-[color:var(--ink-2)]">
             ⌘K
           </span>
           <Command.Input
@@ -93,7 +93,7 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
 
           <Command.Group
             heading="Pages"
-            className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:font-mono [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.2em] [&_[cmdk-group-heading]]:text-gold-deep"
+            className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:font-mono [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.2em] [&_[cmdk-group-heading]]:text-[color:var(--ink-2)]"
           >
             {items.map((item) => (
               <PaletteRow
@@ -115,7 +115,7 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
           {rows.length > 0 && (
             <Command.Group
               heading="Submissions"
-              className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:font-mono [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.2em] [&_[cmdk-group-heading]]:text-gold-deep"
+              className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:font-mono [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.2em] [&_[cmdk-group-heading]]:text-[color:var(--ink-2)]"
             >
               {rows.map((row) => (
                 <PaletteRow
@@ -131,7 +131,7 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
 
           <Command.Group
             heading="Workspace"
-            className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:font-mono [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.2em] [&_[cmdk-group-heading]]:text-gold-deep"
+            className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:font-mono [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.2em] [&_[cmdk-group-heading]]:text-[color:var(--ink-2)]"
           >
             <PaletteRow
               value={`switch to ${theme === "dark" ? "day shift" : "night shift"} theme toggle`}
@@ -159,7 +159,7 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
           </Command.Group>
         </Command.List>
 
-        <div className="flex items-center justify-between border-t border-gold/25 bg-ivory-deep/60 px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-ink-mute">
+        <div className="flex items-center justify-between border-t border-[color:var(--hairline)] bg-ivory-deep/60 px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-ink-mute">
           <span>↑↓ move · ↵ open</span>
           <span>? for shortcuts</span>
         </div>

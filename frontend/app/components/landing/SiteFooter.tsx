@@ -1,6 +1,6 @@
 /** The close of the public page: wordmark, the doors, and a plain statement of scope. */
 import Link from "next/link";
-import { Wordmark } from "../brand/Crest";
+import { Wordmark } from "../Desk";
 
 const COLUMNS = [
   {
@@ -24,16 +24,16 @@ const COLUMNS = [
 
 export function SiteFooter() {
   return (
-    <footer className="bg-navy text-ivory">
+    <footer className="bg-[#111318] text-[#F4F5F7]">
       <div className="mx-auto max-w-[1240px] px-5 py-12 lg:px-8">
         <div className="grid gap-10 md:grid-cols-[minmax(0,1.4fr)_repeat(2,minmax(0,0.8fr))]">
           <div>
-            <Wordmark tone="gold" size={30} />
-            <p className="mt-3 max-w-[38ch] text-sm leading-relaxed text-ivory/70">
+            <Wordmark tone="paper" className="text-[#F4F5F7]" />
+            <p className="mt-3 max-w-[38ch] text-sm leading-relaxed text-[#C3CAD6]">
               Pre-publication brand governance for organisations that would rather be told before it
               ships than after.
             </p>
-            <p className="mt-4 max-w-[42ch] border-t border-gold/25 pt-3 text-[11px] leading-relaxed text-ivory/55">
+            <p className="mt-4 max-w-[42ch] border-t border-[#3A4149] pt-3 text-[11px] leading-relaxed text-[#9AA1AE]">
               Sentinel reviews and explains. It never publishes. Legal reviewer output is an AI risk
               perspective, not legal advice.
             </p>
@@ -41,7 +41,7 @@ export function SiteFooter() {
 
           {COLUMNS.map((column) => (
             <nav key={column.heading} aria-label={column.heading}>
-              <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-gold-soft/70">
+              <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#9AA1AE]">
                 {column.heading}
               </p>
               <ul className="mt-3 space-y-2">
@@ -49,7 +49,7 @@ export function SiteFooter() {
                   <li key={link.label}>
                     <Link
                       href={link.href}
-                      className="group inline-flex items-baseline gap-1.5 text-sm text-ivory/75 transition-colors duration-micro hover:text-ivory focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold"
+                      className="group inline-flex items-baseline gap-1.5 text-sm text-[#C3CAD6] transition-colors duration-micro hover:text-[#F4F5F7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FFE066]"
                     >
                       <span className="roll">
                         <span>{link.label}</span>
@@ -68,7 +68,7 @@ export function SiteFooter() {
           ))}
         </div>
 
-        <div className="mt-10 flex flex-wrap items-baseline justify-between gap-3 border-t border-gold/25 pt-4 font-mono text-[10px] uppercase tracking-[0.18em] text-ivory/50">
+        <div className="mt-10 flex flex-wrap items-baseline justify-between gap-3 border-t border-[#3A4149] pt-4 font-mono text-[10px] uppercase tracking-[0.18em] text-ivory/50">
           <span>Sentinel AI · the Chancery</span>
           <span>Built with a local engine — no paid APIs on this page</span>
         </div>

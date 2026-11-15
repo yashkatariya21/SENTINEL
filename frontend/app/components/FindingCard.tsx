@@ -59,8 +59,8 @@ export function FindingCard({
       onFocus={onActivate}
       className={`scroll-mt-24 rounded-lg border p-3.5 transition duration-200 ease-royal ${
         active
-          ? "border-gold bg-white shadow-card ring-2 ring-gold/30"
-          : "border-ink/12 bg-white/85 hover:border-gold/50"
+          ? "border-[color:var(--hairline-strong)] bg-white shadow-card ring-2 ring-gold/30"
+          : "border-ink/12 bg-white/85 hover:border-[color:var(--hairline)]"
       } ${decided ? "opacity-90" : ""}`}
     >
       {/* ------------------------------------------------ header with character */}
@@ -75,7 +75,7 @@ export function FindingCard({
             <LabelChip label={finding.label} />
           </div>
           {showCharacters && (
-            <p className="mt-1 text-2xs italic text-gold-deep">
+            <p className="mt-1 text-2xs italic text-[color:var(--ink-2)]">
               “{character.catchphrase}” — {character.name}
             </p>
           )}
@@ -102,9 +102,9 @@ export function FindingCard({
           <dd className="mt-1 leading-relaxed text-ink-soft">
             {finding.why}
             {finding.rule_quote && (
-              <blockquote className="mt-2 border-l-2 border-gold bg-ivory-deep/70 px-2.5 py-2">
+              <blockquote className="mt-2 border-l-2 border-[color:var(--hairline-strong)] bg-ivory-deep/70 px-2.5 py-2">
                 <p className="italic leading-relaxed">“{finding.rule_quote}”</p>
-                <p className="mt-1 font-mono text-2xs uppercase tracking-wide text-gold-deep">
+                <p className="mt-1 font-mono text-2xs uppercase tracking-wide text-[color:var(--ink-2)]">
                   {finding.rule_key ?? "term list"} · rule v{finding.rule_version ?? 1}
                   {finding.evidence?.section ? ` · ${finding.evidence.section}` : ""}
                 </p>
@@ -156,7 +156,7 @@ export function FindingCard({
       <button
         type="button"
         onClick={() => setMode("citation")}
-        className="mt-3 flex w-full items-center justify-between gap-2 rounded-md border border-ink/12 bg-ivory-deep/50 px-2.5 py-2 text-left transition hover:border-gold/60 focus-visible:ring-2 focus-visible:ring-gold"
+        className="mt-3 flex w-full items-center justify-between gap-2 rounded-md border border-ink/12 bg-ivory-deep/50 px-2.5 py-2 text-left transition hover:border-[color:var(--hairline)] focus-visible:ring-2 focus-visible:ring-gold"
       >
         <span className="min-w-0">
           <span className="block font-mono text-2xs uppercase tracking-[0.14em] text-ink-mute">Citation</span>
@@ -166,7 +166,7 @@ export function FindingCard({
               : "No approved source found"}
           </span>
         </span>
-        <span aria-hidden className="font-mono text-2xs text-gold-deep">
+        <span aria-hidden className="font-mono text-2xs text-[color:var(--ink-2)]">
           {finding.evidence ? "open ⧉" : "—"}
         </span>
       </button>
@@ -222,14 +222,14 @@ export function FindingCard({
           <div>
             <p className="font-mono text-2xs uppercase tracking-[0.14em] text-ink-mute">Source chunk</p>
             {finding.evidence ? (
-              <div className="mt-1 rounded-md border border-gold/40 bg-ivory p-2.5">
+              <div className="mt-1 rounded-md border border-[color:var(--hairline)] bg-ivory p-2.5">
                 <p className="text-ink-soft">
                   {finding.evidence.document}
                   {finding.evidence.page ? `, page ${finding.evidence.page}` : ""}
                   {finding.evidence.section ? ` · ${finding.evidence.section}` : ""}
                 </p>
                 {finding.evidence.snippet && (
-                  <p className="mt-1.5 border-l-2 border-gold pl-2 italic leading-relaxed text-ink">
+                  <p className="mt-1.5 border-l-2 border-[color:var(--hairline-strong)] pl-2 italic leading-relaxed text-ink">
                     “{finding.evidence.snippet}”
                   </p>
                 )}

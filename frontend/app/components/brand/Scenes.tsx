@@ -37,7 +37,7 @@ export function Scene({ name, height = 150, className = "" }: SceneProps) {
 
   return (
     <div
-      className={`relative flex items-end justify-center overflow-hidden rounded-lg border border-gold/25 bg-gradient-parchment ${className}`}
+      className={`relative flex items-end justify-center overflow-hidden rounded-lg border border-[color:var(--hairline)] bg-gradient-parchment ${className}`}
       style={{ height }}
       aria-hidden
     >

@@ -1,15 +1,17 @@
 "use client";
 /**
- * The status strip: a 28px instrument line along the bottom of the app.
+ * The desk line: a 28px instrument strip along the bottom.
  *
- * It is a trust device, not decoration — workspace, role, whether the API is answering,
- * which model and prompt version produced the findings, and the local time. The sound
- * toggle lives here because it is the one preference you might flip mid-session.
+ * Workspace, role, whether the API is answering, which engine produced the findings
+ * (provider, model, prompt version), the shift, and the time. It is a trust device, not
+ * decoration: a reader can see that the offline deterministic engine is the one writing
+ * these notes.
  */
 import { useEffect, useState } from "react";
 import { useApiHealth, useApiMeta } from "@/lib/meta";
 import { playSound, soundEnabled, setSoundEnabled } from "@/lib/sound";
 import { usePrefs } from "@/lib/prefs";
+import { Icon } from "./Icon";
 
 const HEALTH_LABEL = { ok: "API online", down: "API unreachable", unknown: "checking API" } as const;
 
@@ -25,13 +27,7 @@ function useClock(): string {
   return time;
 }
 
-export function StatusBar({
-  slug,
-  role,
-}: {
-  slug: string;
-  role: string;
-}) {
+export function StatusBar({ slug, role }: { slug: string; role: string }) {
   const health = useApiHealth();
   const meta = useApiMeta();
   const clock = useClock();
@@ -40,36 +36,30 @@ export function StatusBar({
 
   useEffect(() => setSound(soundEnabled()), []);
 
-  const dot =
-    health === "ok" ? "bg-confirmed" : health === "down" ? "bg-critical" : "bg-possible";
+  const dot = health === "ok" ? "bg-[#7BE0A8]" : health === "down" ? "bg-[#FF8A7A]" : "bg-[#9AA1AE]";
 
   return (
-    <div
-      role="contentinfo"
+    <footer
       aria-label="Workspace status"
-      className="fixed bottom-0 left-0 right-0 z-40 hidden h-[28px] items-center gap-4 border-t border-gold/25 bg-navy px-3 font-mono text-[10px] uppercase tracking-[0.14em] text-ivory/70 sm:flex lg:pl-[calc(252px+0.75rem)]"
+      className="fixed inset-x-0 bottom-0 z-30 hidden h-[28px] items-center gap-3 border-t border-[#2A2F38] bg-navy px-3 font-mono text-[10px] uppercase tracking-[0.14em] text-[#9AA1AE] sm:flex lg:pl-[calc(64px+0.75rem)]"
     >
-      <span className="flex items-center gap-1.5 text-ivory/85">
-        <span aria-hidden="true" className="inline-block h-[6px] w-[6px] rounded-full bg-gradient-gold" />
+      <span className="flex items-center gap-1.5 text-paper">
+        <span aria-hidden="true" className="inline-block h-[6px] w-[6px] bg-[#FFE066]" />
         {slug}
       </span>
-
-      <span className="text-ivory/60" aria-hidden="true">/</span>
+      <Separator />
       <span>{role}</span>
-
-      <span className="text-ivory/60" aria-hidden="true">/</span>
+      <Separator />
       <span className="flex items-center gap-1.5">
         <span aria-hidden="true" className={`inline-block h-[6px] w-[6px] rounded-full ${dot}`} />
         <span className="sr-only">Status: </span>
         {HEALTH_LABEL[health]}
       </span>
-
-      <span className="hidden md:inline text-ivory/45" aria-hidden="true">/</span>
-      <span className="hidden md:inline truncate">
+      <span className="hidden md:inline"><Separator /></span>
+      <span className="hidden truncate md:inline">
         {meta ? `${meta.ai.provider} · ${meta.ai.model}` : "engine unknown"}
       </span>
-
-      <span className="hidden lg:inline text-ivory/45" aria-hidden="true">/</span>
+      <span className="hidden lg:inline"><Separator /></span>
       <span className="hidden lg:inline">prompt {meta?.ai.prompt_version ?? "—"}</span>
 
       <span className="ml-auto flex items-center gap-3">
@@ -79,16 +69,22 @@ export function StatusBar({
             const next = !sound;
             setSound(next);
             setSoundEnabled(next);
-            if (next) playSound("key"); // an audible confirmation of the choice
+            if (next) playSound("key");
           }}
           aria-pressed={sound}
-          className="font-mono text-[10px] uppercase tracking-[0.14em] text-ivory/60 underline-offset-4 hover:text-ivory hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold"
+          className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-[#9AA1AE] hover:text-paper focus-visible:outline-none"
         >
+          <Icon name={sound ? "volume" : "volume-off"} size={13} />
           Sound {sound ? "on" : "off"}
         </button>
-        <span aria-hidden="true" className="text-ivory/60">{theme === "dark" ? "night shift" : "day shift"}</span>
-        <time className="tabular-nums text-ivory/85" suppressHydrationWarning>{clock}</time>
+        <span aria-hidden="true" className="text-[#3A4149]">/</span>
+        <span>{theme === "dark" ? "night shift" : "day shift"}</span>
+        <time className="tabular-nums text-paper" suppressHydrationWarning>{clock}</time>
       </span>
-    </div>
+    </footer>
   );
+}
+
+function Separator() {
+  return <span aria-hidden="true" className="text-[#3A4149]">/</span>;
 }

@@ -79,11 +79,11 @@ export function DocumentView({
   return (
     <div className="relative overflow-hidden rounded-lg border border-ink/12 bg-ivory shadow-card">
       {/* letterhead */}
-      <div className="flex items-start justify-between gap-4 border-b border-gold/30 bg-gradient-parchment px-6 py-4">
+      <div className="flex items-start justify-between gap-4 border-b border-[color:var(--hairline)] bg-gradient-parchment px-6 py-4">
         <div className="flex items-start gap-3">
           <Crest size={34} tone="gold" decorative />
           <div>
-            <p className="font-mono text-2xs uppercase tracking-[0.22em] text-gold-deep">
+            <p className="font-mono text-2xs uppercase tracking-[0.22em] text-[color:var(--ink-2)]">
               Sentinel AI · Review record
             </p>
             <h2 className="mt-0.5 font-display text-lg font-semibold leading-tight text-navy">
@@ -155,8 +155,8 @@ export function DocumentView({
 
       {/* applied-changes ledger */}
       {changed.length > 0 && (
-        <div className="border-t border-gold/30 bg-ivory-deep/60 px-6 py-3">
-          <p className="font-mono text-2xs uppercase tracking-[0.18em] text-gold-deep">
+        <div className="border-t border-[color:var(--hairline)] bg-ivory-deep/60 px-6 py-3">
+          <p className="font-mono text-2xs uppercase tracking-[0.18em] text-[color:var(--ink-2)]">
             Applied in preview · {changed.length}
           </p>
           <ul className="mt-1.5 space-y-1">
@@ -172,7 +172,7 @@ export function DocumentView({
                   <button
                     type="button"
                     onClick={() => onUndo(fid)}
-                    className="ml-auto rounded px-1.5 py-0.5 font-semibold text-gold-deep underline-offset-2 hover:underline focus-visible:ring-2 focus-visible:ring-gold"
+                    className="ml-auto rounded px-1.5 py-0.5 font-semibold text-[color:var(--ink-2)] underline-offset-2 hover:underline focus-visible:ring-2 focus-visible:ring-gold"
                   >
                     Undo
                   </button>

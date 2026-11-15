@@ -57,3 +57,12 @@ backend/sentinel.db*
 frontend/tsconfig.tsbuildinfo
 # --- stray package archives ----------------------------------------------
 *.whl
+
+# --- local screenshot / audit scratch (never committed) --------------------
+/shots/
+/shot.py
+/shot2.py
+/shot3.py
+/interact.py
+/axe_all.py
+/export/

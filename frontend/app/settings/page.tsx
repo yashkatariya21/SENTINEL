@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePrefs } from "@/lib/prefs";
 import { useAuth } from "@/lib/auth";
 import { Card, SectionHeading } from "../components/ui";
-import { Sentri } from "../components/brand/Sentri";
+import { DeskSentri } from "../components/Desk";
 import { ReviewerAvatar } from "../components/brand/ReviewerAvatar";
 import { CHARACTER_LIST, personaFor } from "../components/brand/characters";
 import { Ribbon } from "../components/brand/Seal";
@@ -15,7 +15,7 @@ export default function SettingsPage() {
 
   return (
     <div className="max-w-4xl">
-      <p className="font-mono text-2xs uppercase tracking-[0.24em] text-gold-deep">Settings</p>
+      <p className="font-mono text-2xs uppercase tracking-[0.24em] text-[color:var(--ink-2)]">Settings</p>
       <h1 className="mt-1 font-display text-3xl font-semibold tracking-tight text-navy">
         Your workspace preferences
       </h1>
@@ -26,7 +26,7 @@ export default function SettingsPage() {
       <Card className="mt-5 p-5">
         <SectionHeading title="Characters" subtitle="The committee cast and Sentri, the owl" />
         <div className="flex items-start gap-4">
-          <Sentri mood={showCharacters ? "welcome" : "sleeping"} size={78} decorative />
+          <DeskSentri mood={showCharacters ? "reading" : "idle"} size={78} />
           <div className="min-w-0 flex-1">
             <label className="flex cursor-pointer items-start gap-3">
               <input
@@ -62,7 +62,7 @@ export default function SettingsPage() {
           <button
             type="button"
             onClick={toggleTheme}
-            className="min-h-[44px] rounded-md border border-navy/20 bg-white px-4 text-sm font-semibold text-navy transition hover:border-gold focus-visible:ring-2 focus-visible:ring-gold focus-visible:ring-offset-2"
+            className="min-h-[44px] rounded-md border border-navy/20 bg-white px-4 text-sm font-semibold text-navy transition hover:border-[color:var(--ink)] focus-visible:ring-2 focus-visible:ring-gold focus-visible:ring-offset-2"
           >
             {theme === "light" ? "Switch to dark" : "Switch to light"}
           </button>
@@ -97,10 +97,10 @@ export default function SettingsPage() {
       <Card className="mt-4 p-5">
         <SectionHeading title="Brand" subtitle="The system behind the visuals" />
         <div className="flex flex-wrap gap-3 text-sm">
-          <Link href="/brand" className="rounded-md border border-ink/12 bg-white px-3 py-2 text-navy-700 hover:border-gold">
+          <Link href="/brand" className="rounded-md border border-ink/12 bg-white px-3 py-2 text-navy-700 hover:border-[color:var(--ink)]">
             Brand system →
           </Link>
-          <Link href="/brand/characters" className="rounded-md border border-ink/12 bg-white px-3 py-2 text-navy-700 hover:border-gold">
+          <Link href="/brand/characters" className="rounded-md border border-ink/12 bg-white px-3 py-2 text-navy-700 hover:border-[color:var(--ink)]">
             Meet the committee →
           </Link>
         </div>

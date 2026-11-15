@@ -33,7 +33,7 @@ export function TeamModal({ open, onClose }: { open: boolean; onClose: () => voi
               <ReviewerAvatar reviewer={c.key} size={34} />
               <div className="min-w-0">
                 <p className="text-xs font-semibold text-ink">{c.name}</p>
-                <p className="font-mono text-2xs uppercase tracking-[0.12em] text-gold-deep">{c.role}</p>
+                <p className="font-mono text-2xs uppercase tracking-[0.12em] text-[color:var(--ink-2)]">{c.role}</p>
                 <p className="mt-0.5 text-2xs italic text-ink-soft">“{c.catchphrase}”</p>
               </div>
             </li>

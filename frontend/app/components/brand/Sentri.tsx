@@ -210,14 +210,14 @@ export function SentriSays({
   return (
     <div className={`flex items-start gap-3 ${className}`}>
       <Sentri mood={mood} size={52} decorative />
-      <div className="relative rounded-lg border border-gold/40 bg-ivory px-3 py-2 text-xs leading-relaxed text-ink shadow-card">
-        <span aria-hidden className="absolute -left-1.5 top-4 h-2.5 w-2.5 rotate-45 border-b border-l border-gold/40 bg-ivory" />
+      <div className="relative rounded-lg border border-[color:var(--hairline)] bg-ivory px-3 py-2 text-xs leading-relaxed text-ink shadow-card">
+        <span aria-hidden className="absolute -left-1.5 top-4 h-2.5 w-2.5 rotate-45 border-b border-l border-[color:var(--hairline)] bg-ivory" />
         <p>{shown}</p>
         {onDismiss && (
           <button
             type="button"
             onClick={onDismiss}
-            className="mt-1 text-2xs font-semibold uppercase tracking-wide text-gold-deep underline-offset-2 hover:underline focus-visible:ring-2 focus-visible:ring-gold"
+            className="mt-1 text-2xs font-semibold uppercase tracking-wide text-[color:var(--ink-2)] underline-offset-2 hover:underline focus-visible:ring-2 focus-visible:ring-gold"
           >
             Dismiss
           </button>

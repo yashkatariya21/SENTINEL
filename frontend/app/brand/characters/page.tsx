@@ -3,14 +3,14 @@ import Link from "next/link";
 import { Card, SectionHeading, Tag, Button } from "../../components/ui";
 import { ReviewerAvatar } from "../../components/brand/ReviewerAvatar";
 import { CHARACTER_LIST, PERSONAS } from "../../components/brand/characters";
-import { Sentri } from "../../components/brand/Sentri";
+import { DeskSentri } from "../../components/Desk";
 import { Ribbon } from "../../components/brand/Seal";
 import { readableOn } from "@/lib/contrast";
 
 export default function CharactersPage() {
   return (
     <div className="max-w-5xl">
-      <p className="font-mono text-2xs uppercase tracking-[0.24em] text-gold-deep">The cast</p>
+      <p className="font-mono text-2xs uppercase tracking-[0.24em] text-[color:var(--ink-2)]">The cast</p>
       <h1 className="mt-1 font-display text-4xl font-semibold tracking-tight text-navy">
         Six reviewers, one owl, and the people who decide.
       </h1>
@@ -30,7 +30,7 @@ export default function CharactersPage() {
                 <ReviewerAvatar reviewer={c.key} size={62} />
                 <div className="min-w-0">
                   <h2 className="font-display text-lg font-semibold leading-tight text-navy">{c.name}</h2>
-                  <p className="font-mono text-2xs uppercase tracking-[0.14em] text-gold-deep">{c.role}</p>
+                  <p className="font-mono text-2xs uppercase tracking-[0.14em] text-[color:var(--ink-2)]">{c.role}</p>
                   <p className="mt-1 text-xs italic leading-relaxed text-ink-soft">“{c.catchphrase}”</p>
                 </div>
               </div>
@@ -50,8 +50,7 @@ export default function CharactersPage() {
       <Card className="mt-5 overflow-hidden">
         <div className="grid gap-5 p-5 sm:grid-cols-[auto_minmax(0,1fr)]">
           <div className="flex items-end justify-center gap-2">
-            <Sentri mood="welcome" size={92} />
-            <Sentri mood="thinking" size={68} decorative />
+            <DeskSentri mood="reading" size={110} />
           </div>
           <div>
             <SectionHeading title="Sentri" subtitle="The owl on the shoulder of the process" />
@@ -60,12 +59,16 @@ export default function CharactersPage() {
               queue is finally clear — always with a sentence a screen reader can read.
             </p>
             <ul className="mt-3 grid grid-cols-2 gap-1.5 text-xs text-ink-soft sm:grid-cols-4">
-              {["welcome", "thinking", "scanning", "alert", "celebrating", "sleeping", "confused"].map((m) => (
+              {(["idle", "reading", "done"] as const).map((m) => (
                 <li key={m} className="flex items-center gap-1.5">
-                  <Sentri mood={m as any} size={26} decorative />
+                  <DeskSentri mood={m} size={34} />
                   <span className="font-mono text-2xs">{m}</span>
                 </li>
               ))}
+              <li className="col-span-2 flex items-center gap-1.5 text-[11px] text-[color:var(--ink-3)] sm:col-span-4">
+                Three moods only: at rest, reading, finished. There is no celebrating owl — the product does not
+                celebrate a decision it did not make.
+              </li>
             </ul>
           </div>
         </div>
@@ -86,7 +89,7 @@ export default function CharactersPage() {
               </span>
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold text-ink">{p.name}</p>
-                <p className="font-mono text-2xs uppercase tracking-[0.12em] text-gold-deep">{p.role}</p>
+                <p className="font-mono text-2xs uppercase tracking-[0.12em] text-[color:var(--ink-2)]">{p.role}</p>
               </div>
             </Card>
           </li>
