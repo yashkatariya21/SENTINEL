@@ -115,6 +115,67 @@ so it survives 20 px in the header; single-colour `currentColor`, so one path
 serves paper, ink and night stock. The engraved crest inside the hero seal and
 the raised detail on the 3D shield were re-cut to the same gate.
 
+## 1a.4 A note from the maker
+
+The close of `#limits` used to carry a visible placeholder — a mono red flag
+reading `// TODO — founder's note pending` — which is the one thing a public page
+must never show. It is now a note in the maker's own voice: an eyebrow
+(*A note from the maker*), three paragraphs of Source Serif at a 62-character
+measure, a caption naming the demo workspace, and a marginal colophon at the
+right edge holding the gate mark, `01 — why this exists` and the byline. The
+colophon is what keeps the white space to the right of a reading measure from
+looking unfinished; below `lg` it stacks under the note, and nothing is
+duplicated.
+
+It invents nothing. No name is signed, no quotation is borrowed, no metric is
+claimed; the byline is the role, not a person, and the caption says plainly that
+Northwind Analytics is fictional. The point it makes is the product's own limit
+stated as a preference: the review stops where the judgement begins.
+
+Measured on the field actually behind the text (day `rgb(245,238,225)`, night
+`rgb(15,17,20)` — sampled with the type hidden):
+
+| token | used for | day | night |
+|---|---|---|---|
+| `--ink` | the three paragraphs | 16.10 | 17.16 |
+| `--ink-3` | eyebrow, caption, colophon | 6.29 | 8.65 |
+
+Both sit well above the worst pixel recorded in §1a.1 and §1b.1, so the note
+cannot be the first thing to fail when a glow moves.
+
+## 1a.5 The order of the door — brief, then sign-in, then desk
+
+The public link now opens on the brief. The order is enforced in one place,
+`lib/auth.tsx`, and nowhere else:
+
+1. The guard runs on every authenticated route. An anonymous visitor is asked for
+   nothing first: the path they wanted is written to
+   `sessionStorage['sentinel.next']` and they are sent to `/welcome`.
+2. `/welcome` is the pitch; its closing call to action points at `/login`, and the
+   header's *Open the workspace* points there too.
+3. After `login`, `setup` or `loginAs`, the destination is `takeNext() ?? "/"`.
+
+`takeNext()` accepts only a string that starts with `/` and not `//`, and removes
+the key as it reads it, so the remembered path is used once and cannot become a
+redirect to somewhere else. `PUBLIC_ROUTES = ["/login", "/welcome"]` keeps the
+sign-in reachable directly and both pages statically prerendered — the intended
+path lives in `sessionStorage` rather than in search params precisely so a query
+string never forces either page to become dynamic. `/` is still the
+authenticated overview; it is the guard, not a redirect, that gives an anonymous
+visitor the brief first.
+
+Headless journey (`journey.py`, chromium, console captured):
+
+| step | expected | got | console |
+|---|---|---|---|
+| open `/` signed out | `/welcome` | `/welcome` | — |
+| press the brief's CTA | `/login` | `/login` | — |
+| sign in as Ananya | `/` | `/` | — |
+| cold deep link `/content/515d8f21…` | `/welcome`, path remembered | `/welcome`, remembered `True` | — |
+| sign in from there | back to the deep link | `/content/515d8f21…` | `[]` |
+
+No API, data, route or permission changed: this is client-side routing only.
+
 ## 1b. The night shift — a dark room with three lights in it
 
 The day shift is a desk. The night shift is the same desk in a dark room, lit from
@@ -277,4 +338,10 @@ network or the reader's settings say no.
   (rest → 300,700 → 1300,200), grid drift `0px 48px` after an 800 px scroll, ruler marker
   moves with it; under `reduced_motion="reduce"` the lamp is `display:none`, the glyph
   animation is `none` and the lean transform is `none`
+- the order of the door: `/` → `/welcome`, CTA → `/login`, sign in → `/`, and a cold
+  deep link → `/welcome` → sign in → the deep link it asked for; `sessionStorage` key
+  consumed once; no console errors (`journey.py`)
+- axe-core re-run after the flow and the maker's note: **0 violations across the same 32
+  page × theme combinations**; mobile sweep at 390 px still reports `OVERFLOW: []` on all
+  14 pages
 - no console errors in any capture run

@@ -8,7 +8,7 @@ import { Marquee } from "../components/landing/Marquee";
 import { Reveal } from "../components/landing/Reveal";
 import { SealStage } from "../components/landing/SealStage";
 import { EntrySequence } from "../components/EntrySequence";
-import { DeskSentri, GateStrip } from "../components/Desk";
+import { DeskMark, DeskSentri, GateStrip } from "../components/Desk";
 import { Icon } from "../components/Icon";
 import { FACTS, MOVEMENTS, REVIEWERS } from "@/lib/landing";
 import { DeskBackground } from "@/app/components/DeskBackground";
@@ -303,20 +303,55 @@ export default function WelcomePage() {
               </div>
             </Reveal>
 
-            {/* the founder note: not written for us, so it is marked, not invented */}
+            {/* A note from the maker. Written in the maker's own voice: no name
+                attached, no borrowed aphorism, no numbers it has not measured.
+                Put your name in the byline and it is yours. */}
             <Reveal delay={90}>
-              <figure className="mt-10 border-l-2 border-[color:var(--mark)] pl-5">
+              <figure className="mt-12 grid gap-8 border-t border-[color:var(--hairline)] pt-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:gap-16">
+                <div>
                 <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-[color:var(--ink-3)]">
-                  {"// TODO — founder’s note pending"}
+                  A note from the maker
                 </p>
-                <blockquote className="mt-2 max-w-[56ch] font-doc text-lg italic leading-relaxed text-[color:var(--ink)]">
-                  A note from the person who built this is meant to sit here. It has not been supplied, so
-                  this page will not invent one — no borrowed aphorism, no name attached to words nobody
-                  wrote.
+
+                <blockquote className="mt-4 max-w-[62ch] font-doc text-[1.15rem] leading-[1.72] text-[color:var(--ink)] sm:text-[1.3rem]">
+                  <p>
+                    Most copy does not fail loudly. It ships with one claim nobody could source, one
+                    phrase the style guide dropped years ago, one number that was true last quarter.
+                    The review that would have caught it usually has no time to happen.
+                  </p>
+                  <p className="mt-4">
+                    Sentinel is that review, kept honest. It reads the way a careful colleague reads —
+                    pointing at the exact line, naming the rule, showing where the rule came from — and
+                    then it stops, because the judgement is not the software’s to make.
+                  </p>
+                  <p className="mt-4">
+                    Nothing here publishes, rewrites, or changes a rule on its own. What it does is make
+                    the decision cheap: everything on the table, in one place, with the evidence
+                    attached — so the person who signs it off can say yes or no with{" "}
+                    <span className="em-italic">reasons</span>, not instinct.
+                  </p>
                 </blockquote>
-                <figcaption className="mt-2 text-xs text-[color:var(--ink-3)]">
-                  Placeholder, visible on purpose. Replace with the founder’s own words before launch.
+
+                <figcaption className="mt-6 flex flex-wrap items-center gap-3 text-xs text-[color:var(--ink-3)]">
+                  <span aria-hidden="true" className="h-px w-8 bg-[color:var(--hairline-strong)]" />
+                  <span>Demo workspace: Northwind Analytics, a fictional brand.</span>
                 </figcaption>
+                </div>
+
+                {/* Marginal colophon: carries the mark, keeps the right of the
+                    measure from reading as unfinished, and stacks under the note
+                    at narrow widths. */}
+                <div className="flex items-start gap-3 self-start lg:justify-self-end lg:pt-1">
+                  <DeskMark size={22} className="mt-0.5 shrink-0 text-[color:var(--ink-3)]" />
+                  <div className="lg:text-right">
+                    <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-[color:var(--ink-3)]">
+                      01 — why this exists
+                    </p>
+                    <p className="mt-1.5 text-xs leading-relaxed text-[color:var(--ink-3)]">
+                      The person who built this desk.
+                    </p>
+                  </div>
+                </div>
               </figure>
             </Reveal>
           </div>

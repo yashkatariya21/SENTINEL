@@ -16,6 +16,40 @@ interface AuthState {
 
 const AuthContext = createContext<AuthState>({} as AuthState);
 
+/** The two public pages: the brief, and the sign-in. */
+const PUBLIC_ROUTES = ["/login", "/welcome"];
+
+/** Where a visitor was trying to go before we asked them in.
+ *
+ *  Kept in sessionStorage rather than the URL so neither public page has to be
+ *  rendered dynamically: the brief stays static, and a deep link into the desk
+ *  still survives one round trip through the sign-in. Only same-site paths are
+ *  ever stored or honoured.
+ */
+const NEXT_KEY = "sentinel.next";
+
+function rememberNext(path: string) {
+  try {
+    if (path && path !== "/" && !path.startsWith("/welcome") && !path.startsWith("/login")) {
+      window.sessionStorage.setItem(NEXT_KEY, path);
+    }
+  } catch {
+    /* private mode: deep links simply land on the overview */
+  }
+}
+
+function takeNext(): string | null {
+  try {
+    const next = window.sessionStorage.getItem(NEXT_KEY);
+    window.sessionStorage.removeItem(NEXT_KEY);
+    // a path, never a scheme or a protocol-relative URL
+    if (next && next.startsWith("/") && !next.startsWith("//")) return next;
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [me, setMe] = useState<Me | null>(null);
   const [loading, setLoading] = useState(true);
@@ -41,22 +75,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     refresh();
   }, [refresh]);
 
+  /* An anonymous visitor meets the brief before the sign-in form: opening the
+     link (or following any deep link) lands on /welcome, whose call to action
+     is /login. The attempted page is remembered and honoured after sign-in. */
   useEffect(() => {
-    if (!loading && !me && pathname !== "/login" && pathname !== "/welcome") router.replace("/login");
+    if (loading || me) return;
+    if (PUBLIC_ROUTES.includes(pathname)) return;
+    rememberNext(pathname);
+    router.replace("/welcome");
   }, [loading, me, pathname, router]);
 
   const login = useCallback(async (email: string, password: string) => {
     const data = await api.post<{ access_token: string }>("/auth/login", { email, password });
     setToken(data.access_token);
     await refresh();
-    router.push("/");
+    router.push(takeNext() ?? "/");
   }, [refresh, router]);
 
   const setup = useCallback(async (payload: Record<string, unknown>) => {
     const data = await api.post<{ access_token: string }>("/auth/workspace", payload);
     setToken(data.access_token);
     await refresh();
-    router.push("/");
+    router.push(takeNext() ?? "/");
   }, [refresh, router]);
 
   /** Demo role switch: the server mints a token for a demo-workspace user.
@@ -71,7 +111,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     );
     setToken(data.access_token);
     await refresh();
-    router.push("/");
+    router.push(takeNext() ?? "/");
   }, [refresh, router]);
 
   const logout = useCallback(() => {
