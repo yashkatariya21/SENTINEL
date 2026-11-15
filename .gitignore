@@ -80,3 +80,5 @@ frontend/tsconfig.tsbuildinfo
 /lightstable.py
 /abtest.py
 /themeflash.py
+/journey.py
+/pwlibs.sh
