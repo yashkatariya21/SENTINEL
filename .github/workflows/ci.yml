@@ -90,6 +90,22 @@ jobs:
           python -m seed.seed || true
           python -m eval.run_eval
 
+      # The screen falls back to a copy of the report baked into the app, because a
+      # serverless deploy does not ship `eval/`. That copy is committed, so it can go
+      # stale: this compares it with the run above (measurements, not clocks).
+      - name: Bundled evaluation copy matches the run
+        working-directory: backend
+        run: python -m eval.snapshot --check
+
+      # Every published figure is rebuilt from the runs above (and from pytest's own
+      # collection) and compared with README/QUICKSTART/docs. A stale count fails here.
+      - name: Docs must agree with the measured runs
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql+psycopg://sentinel:sentinel@localhost:5432/sentinel_test
+          SECRET_KEY: ci-only-not-a-real-secret-key-0123456789
+        run: python -m eval.doc_facts
+
       - name: LLM benchmark must refuse to invent numbers without a key
         working-directory: backend
         run: |
@@ -138,7 +154,7 @@ jobs:
       - name: No secrets, no local data, no vendored builds
         run: |
           fail=0
-          for pattern in 'backend/sentinel.db*' 'backend/storage/' 'frontend/.next/' 'node_modules/' '*.zip' 'backend/.eval-cache'; do
+          for pattern in 'backend/sentinel.db*' 'backend/storage/' 'frontend/.next/' 'node_modules/' '*.zip' 'backend/.eval-cache' 'backend/eval/report_llm.json'; do
             if git ls-files | grep -qE "^${pattern%/}|${pattern}"; then
               echo "::error::tracked artefact matching $pattern"
               fail=1
@@ -155,6 +171,11 @@ jobs:
             echo "::error::demo password hard-coded in source"
             exit 1
           fi
+      # The blind set is scored once, by hand, for the final report. If CI ever runs it —
+      # or a default evaluation path starts including it — the number stops being blind.
+      - name: Held-out discipline (scored once, never in CI)
+        run: python scripts/check_heldout_discipline.py
+
       - name: No placeholder evaluation numbers in docs
         run: |
           if grep -rniE "faithful proxy for a one-shot LLM" README.md docs/ backend/eval/*.md; then

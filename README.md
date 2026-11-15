@@ -14,8 +14,8 @@ system learns from manager decisions.
 | Data | PostgreSQL 16 + pgvector (SQLite fallback for local/demo) |
 | Auth | JWT (local HS256) or Supabase/Clerk JWKS verification |
 | AI | Provider-agnostic adapter: offline deterministic engine (default) or hosted LLM + embeddings, **server-side only** |
-| Parsing | PyMuPDF, python-docx, optional OCR (pytesseract) |
-| Tests | 66 pytest cases (`pytest -q`), a rule-engine regression benchmark, a held-out adversarial set and an LLM evaluation harness |
+| Parsing | PyMuPDF, python-docx, Pillow, OCR (pytesseract + tesseract) — the container ships it |
+| Tests | 209 pytest cases (`pytest -q`) — reconciled against the docs by `python -m eval.doc_facts` — plus a rule-engine regression benchmark, a held-out adversarial set and an LLM evaluation harness |
 
 ---
 
@@ -131,11 +131,12 @@ an **Approver**.
 upload / paste
       │
       ▼
-1. Extract            PyMuPDF · python-docx · Pillow (+OCR when enabled) → text blocks + image metadata
+1. Extract            PyMuPDF · python-docx · Pillow · OCR (word boxes) → text blocks + image metadata
                       prompt-injection scan (content is data, never instructions)
       ▼
 2. Deterministic      approved/banned terms · colour values · alt text · WCAG contrast · image size
-   checks (first)     → Confirmed findings, each tied to a rule ID, no model involved
+   checks (first)     measured pixels: palette ΔE, contrast inside OCR boxes, aspect ratio, logo hash
+                      → Confirmed findings, each tied to a rule and, where measurable, to a box
       ▼
 3. Retrieve           org-scoped rules, terms, approved facts + brand-kit chunks (pgvector, 300–500 token
                       chunks with overlap; lexical fallback on SQLite)
@@ -233,9 +234,44 @@ Both paths share the same prompt contract, the same strict output schema, and th
 the UI is identical. Keys exist only in the backend environment; the browser never sees them and the
 frontend talks to Next.js, which proxies `/v1` to FastAPI.
 
+### Using a free model (no paid key)
+
+Any OpenAI-compatible endpoint works — Ollama, llama.cpp, vLLM, LM Studio, or a free-tier
+gateway. Nothing here needs a credit card:
+
+```bash
+# 1. run a local model, e.g. Ollama
+ollama pull llama3.1:8b && ollama serve        # http://localhost:11434
+
+# 2. point Sentinel at it (backend environment; never in the repo, never in the browser)
+export LLM_PROVIDER=openai_compatible
+export LLM_BASE_URL=http://localhost:11434/v1
+export LLM_API_KEY=ollama        # any non-empty string; local servers ignore it
+export LLM_MODEL=llama3.1:8b
+export LLM_REPEAT_RUNS=1         # one pass by default: a local model is slow
+export EMBEDDING_MODE=offline    # keeps the deterministic hashed embeddings
+
+cd backend && uvicorn app.main:app --reload --port 8000
+```
+
+What happens when the model misbehaves — by design, not by luck:
+
+| Situation | Behaviour |
+|---|---|
+| Invalid JSON | one retry, then the finding is discarded and logged. A bad model never crashes a run |
+| `MAX_CALLS` budget reached, or repeated 429 | back off, raise `ProviderLimitReached`, fall back to `LocalEngine`, and record the fallback in `analysis_runs.metrics` |
+| Free or unknown model | cost reported as **0.00** with the basis named (`unpriced`), never `null` |
+| Content marked confidential | no external call at all; the review runs offline and says so |
+
+Then measure it, don't assume it:
+
+```bash
+cd backend && python -m eval.run_llm_eval --configs full_context --samples heldout
+# writes eval/report_llm.json + .md: P/R/F1, FP rate, p50/p95, calls used, exact model name
+```
+
 > **Ask before adding a paid service.** This build intentionally ships with `local` so nothing is charged.
-> To use a hosted model, set `LLM_PROVIDER`, `LLM_MODEL`, `EMBEDDING_MODEL` and `LLM_API_KEY` in the
-> backend environment (and, on Postgres, keep `vector(1536)` alignment with your embedding model).
+> On Postgres, keep `vector(1536)` alignment with whichever embedding model you choose.
 
 Provider transparency: `/v1/provider`, `/v1/meta` and every finding expose provider + model + prompt version.
 
@@ -245,9 +281,16 @@ Provider transparency: `/v1/provider`, `/v1/meta` and every finding expose provi
 
 ```bash
 cd backend
-pytest -q                 # 66 passed
-python -m eval.run_eval   # precision / recall / F1 / FP-rate per reviewer vs. single-prompt baseline
+pytest -q                      # 209 passed
+python -m eval.run_eval        # precision / recall / F1 / FP-rate per reviewer vs. single-prompt baseline
+python -m eval.run_llm_eval    # needs a key; refuses to print numbers without one
+python -m eval.doc_facts       # fails if this README or docs/ disagree with those runs
 ```
+
+`eval.doc_facts` exists because a number in a document is a claim. It rebuilds every
+published figure from `eval/report.json`, `eval/heldout.json` and pytest's own collection,
+then checks that the exact lines are present — so a stale count fails CI instead of
+surviving in a review. What it deliberately does not check is prose.
 
 *Deterministic checks* are unit tested: WCAG contrast maths (21:1 black/white, amber-on-white fails AA),
 word-boundary term matching (`cheaper` is not `cheap`), unconfirmed terms ignored, alt-text presence,
@@ -280,8 +323,22 @@ rules and never used for tuning:
 
 | Held-out set (20 samples) | Precision | Recall | F1 |
 |---|---|---|---|
-| strict (correct reviewer *and* span) | 0.29 | 0.26 | 0.27 |
-| relaxed (any reviewer covering the span) | 0.52 | 0.48 | 0.50 |
+| strict (correct reviewer *and* span) | 0.38 | 0.52 | 0.44 |
+| relaxed (any reviewer covering the span) | 0.47 | 0.65 | 0.55 |
+
+Mean sample-level false-positive rate on that held-out set: **0.07**.
+
+Precision by confidence band, on the labelled set — the measurement behind "a higher band
+is more trustworthy":
+
+| Band | low | medium | high |
+|---|---|---|---|
+| Precision (matched / predicted) | 0.92 (11/12) | 1.00 (24/24) | 1.00 (14/14) |
+
+Precision never falls as the band rises (monotonic), but medium and high are **tied**, so
+"high is more accurate than medium" is **not established** at this sample size. On the
+held-out set the ordering does not hold at all. The band is a defensible sort order, not a
+calibrated probability — and the app says so next to the number.
 
 **LLM quality is not measured in this build**: `python -m eval.run_llm_eval` needs a provider key, and with
 none it exits with a clear message instead of inventing numbers. When a key is present it measures three
@@ -359,9 +416,29 @@ migration.
 
 **Local production-like stack**: `docker compose up --build` (Postgres+pgvector, API, web).
 
-**Deploying for a demo?** → [`docs/DEPLOY-VERCEL.md`](docs/DEPLOY-VERCEL.md). Fastest reliable path for a
-submitted link: `render.demo.yaml` blueprint (API + Postgres with pgvector) plus the frontend on Vercel with
-`API_URL` set to the Render URL. Both-on-Vercel also works.
+### The live demo
+
+**Live URL: not published.** This repository has no deployed demo yet, so no address is printed here —
+inventing one would be the exact thing this project refuses to do. When a deployment exists, put it in
+this line, and the render demo URL in `docs/DEMO.md`.
+
+Fastest reliable path (≈10 minutes, free tier):
+
+1. **Render → New → Blueprint**, pick this repo, set the blueprint path to **`render.demo.yaml`**
+   (not `render.yaml` — that is the hardened production blueprint and it turns the demo off).
+   It creates the Docker API and a Postgres 16 with pgvector. Wait for `https://<service>.onrender.com/health`
+   to say `"database": "postgres+pgvector", "demo_mode": true`.
+2. **Vercel → New Project**, root directory `frontend`, environment variable
+   `API_URL=https://<service>.onrender.com` — set **before** the build, because the `/v1` rewrite is
+   compiled in.
+3. Open the Vercel URL, sign in as `karan@northwind.example` via the “View as” switcher.
+
+Caveats worth knowing before sharing a link: the Render free plan sleeps after ~15 minutes (first request
+takes ~50 s), and `render.demo.yaml` runs with `SENTINEL_ENV=development` + `DEMO_MODE=1` so anyone can
+`POST /v1/demo/reset`. That is fine for disposable demo data and never for real data.
+
+Full walkthrough, including the both-on-Vercel route and its gotchas:
+[`docs/DEPLOY-VERCEL.md`](docs/DEPLOY-VERCEL.md).
 
 **Both halves on Vercel?** → [`docs/DEPLOY-VERCEL.md`](docs/DEPLOY-VERCEL.md). Short version: the
 backend needs `backend/vercel.json` + `api/index.py` (both included), a **PostgreSQL with pgvector**
@@ -388,11 +465,14 @@ backend/
     audit.py           hash-chained append-only audit log
     storage.py         MIME/size validation, local or S3
     llm/               base adapter, local engine, hosted provider, factory
-    services/          extraction, deterministic checks, retrieval, pipeline, workflows, analytics, regression
-    routers/           auth, brand_kit, content, overrides, analytics
-  seed/                Northwind Analytics brand kit + 53 labelled samples
-  eval/                metrics, baseline, run_eval, report.md
-  tests/               deterministic + permission tests
+    services/          extraction (+OCR word boxes), image_analysis, deterministic checks,
+                       retrieval, pipeline, workflows, analytics, regression,
+                       guideline_diff, guideline_changes, phash
+    routers/           auth, brand_kit, content, overrides, analytics, guidelines
+  seed/                brand kit + 53 labelled samples + 25 blind samples (never tuned on)
+  eval/                metrics, baseline, run_eval, run_llm_eval, doc_facts, report.md
+  tests/               deterministic, permissions, free-model, generalisation,
+                       guideline changes, image evidence, docs-vs-runs
   migrations/rls.sql    RLS, append-only audit, no-self-approval trigger, pgvector index
 frontend/
   app/                 login, overview, content, report, approval, kit, rules, learn, analytics, audit
@@ -410,13 +490,24 @@ docs/                  architecture, API reference, security & responsible AI, e
   swaps in real semantic judgement behind the same contract (and should be re-evaluated with
   `eval.run_eval` before you trust its numbers).
 * The single-prompt baseline is a proxy for a one-shot LLM, not a benchmark of any specific model.
-* OCR is optional and off by default (needs the `tesseract` binary); scanned PDFs without a text layer
-  produce an “no extractable text” block.
-* `LLM_REPEAT_RUNS` defaults to 3: agreement scoring costs three passes per reviewer. Lower it for latency,
-  accepting weaker confidence separation.
+* OCR needs the `tesseract` binary. The Docker image installs it and sets `OCR_ENABLED=1`; a bare pip
+  install has it off, and then image findings that depend on reading text report **"not measured"**
+  rather than guessing. Scanned PDFs are rasterised (PyMuPDF, 200 dpi) and read; a page that already has
+  a text layer is never re-OCR'd.
+* Contrast inside a picture is *estimated* from the darkest and lightest decile of each OCR word box,
+  because an image declares no foreground/background pair. The two sampled colours are printed with the
+  ratio so a person can check the reasoning.
+* Logo similarity is a 64-bit perceptual hash, PNG only, and is always labelled **Possible** — two
+  different marks can hash within a few bits of each other. It never becomes a Confirmed finding.
+* `LLM_REPEAT_RUNS` defaults to 1 (a free local model is slow); agreement scoring only separates
+  confidence when it is raised.
 * SQLite mode exists for local/demo only — it has no RLS and scores embeddings in-process. Use Postgres in
   any shared environment.
-* Documents are versioned per upload (new upload = new version), not diffed at the section level.
+* A new guideline version is diffed against the one it replaces (sections by title, then `difflib`
+  ratio), but a *rename* is reported as added + removed with a similarity hint — never asserted as a
+  rename. Rules drawn from an unrelated earlier document are deliberately not flagged.
+* Image measurement runs at upload. An image that arrived before this feature, or one whose bytes could
+  not be decoded, carries no measurement — and therefore produces no pixel finding.
 
 ---
 
@@ -431,3 +522,10 @@ docs/                  architecture, API reference, security & responsible AI, e
 7. Visual + Accessibility reviewers
 8. Analytics + audit views
 9. Tests, labelled evaluation, deployment configuration
+
+**Round 3**, in the order it was actually done, each step behind a green suite:
+
+10. **A** — free-model adapter, cost contract, limit/back-off fallback, the evaluation harness
+11. **C** — guideline diffing, the rule review queue, keep / edit / retire, pinned regression baseline
+12. **B** — OCR with word boxes, pixel measurements, `visual_evidence`, the served original, logo hash
+13. **D** — the docs-vs-runs checker, CI guards, `CHANGELOG.md`, deployment instructions

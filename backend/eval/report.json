@@ -1,0 +1,1514 @@
+{
+  "candidate": {
+    "per_reviewer": {
+      "brand_voice": {
+        "tp": 8,
+        "fp": 0,
+        "fn": 0,
+        "predicted": 8,
+        "labelled": 8,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "false_positive_rate": 0.0,
+        "clean_samples": 45,
+        "missed": []
+      },
+      "terminology": {
+        "tp": 7,
+        "fp": 0,
+        "fn": 0,
+        "predicted": 7,
+        "labelled": 7,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "false_positive_rate": 0.0,
+        "clean_samples": 46,
+        "missed": []
+      },
+      "fact_checker": {
+        "tp": 12,
+        "fp": 1,
+        "fn": 1,
+        "predicted": 13,
+        "labelled": 13,
+        "precision": 0.923,
+        "recall": 0.923,
+        "f1": 0.923,
+        "false_positive_rate": 0.025,
+        "clean_samples": 40,
+        "missed": [
+          {
+            "sample": "F02",
+            "type": "unsupported_claim",
+            "span": "Join 3.2 million customers who plan their quarter with us."
+          }
+        ]
+      },
+      "visual": {
+        "tp": 5,
+        "fp": 0,
+        "fn": 0,
+        "predicted": 5,
+        "labelled": 5,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "false_positive_rate": 0.0,
+        "clean_samples": 48,
+        "missed": []
+      },
+      "accessibility": {
+        "tp": 8,
+        "fp": 0,
+        "fn": 0,
+        "predicted": 8,
+        "labelled": 8,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "false_positive_rate": 0.0,
+        "clean_samples": 45,
+        "missed": []
+      },
+      "legal": {
+        "tp": 9,
+        "fp": 0,
+        "fn": 0,
+        "predicted": 9,
+        "labelled": 9,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "false_positive_rate": 0.0,
+        "clean_samples": 45,
+        "missed": []
+      }
+    },
+    "overall": {
+      "samples": 53,
+      "micro_precision": 0.98,
+      "micro_recall": 0.98,
+      "micro_f1": 0.98,
+      "macro_precision": 0.987,
+      "macro_recall": 0.987,
+      "mean_false_positive_rate": 0.004,
+      "predicted": 50,
+      "labelled": 50
+    }
+  },
+  "predictions": [
+    {
+      "id": "C01",
+      "text": "Forecast planning that fits how your team already works. Northwind Forecast Cloud brings demand, supply and finance into one weekly rhythm. 87% of customers renew within 12 months.",
+      "labels": [],
+      "predictions": []
+    },
+    {
+      "id": "C02",
+      "text": "Three signals that your forecast is drifting. Demand plans fail quietly. A spread that widens week after week is the first sign. A second sign is a pipeline that no longer matches last quarter's wins. The third is a team that stops trusting the number. Northwind Forecast Cloud surfaces all three in one view, so the conversation moves from blame to the next decision.",
+      "labels": [],
+      "predictions": []
+    },
+    {
+      "id": "C03",
+      "text": "Hello Priya, thank you for joining the planning roundtable last week. We have attached the notes and the two templates we discussed. If anything is unclear, reply to this email and a planner will reply.",
+      "labels": [],
+      "predictions": []
+    },
+    {
+      "id": "C04",
+      "text": "Plan the quarter with confidence. Northwind Forecast Cloud connects demand, supply and finance in one weekly rhythm. Book a walkthrough with our team.",
+      "labels": [],
+      "predictions": []
+    },
+    {
+      "id": "C05",
+      "text": "A field note from a warehouse in Leeds: the morning count takes twenty minutes instead of ninety. That is what better planning looks like. #supplychain #forecasting #planning",
+      "labels": [],
+      "predictions": []
+    },
+    {
+      "id": "C06",
+      "text": "Onboarding takes fourteen days on average. Week one is data connection. Week two is the first forecast review with your planner. Customers usually run both in parallel with their existing process.",
+      "labels": [],
+      "predictions": []
+    },
+    {
+      "id": "C07",
+      "text": "Support responds within four hours on business days. Our team is in Lisbon and Chennai, so there is usually someone awake. Reply to this email and we will route your question to the right planner.",
+      "labels": [],
+      "predictions": []
+    },
+    {
+      "id": "C08",
+      "text": "Your forecast should survive contact with the warehouse. Northwind Forecast Cloud shows demand, supply and finance together, every week. See the product tour.",
+      "labels": [],
+      "predictions": []
+    },
+    {
+      "id": "T01",
+      "text": "Our cheap starter plan makes weekly planning possible for small teams.",
+      "labels": [
+        {
+          "reviewer": "terminology",
+          "type": "banned_term",
+          "start": 4,
+          "end": 9
+        }
+      ],
+      "predictions": [
+        {
+          "reviewer": "terminology",
+          "start": 4,
+          "end": 9,
+          "confidence": 1.0,
+          "confidence_band": "high",
+          "label": "confirmed"
+        }
+      ]
+    },
+    {
+      "id": "T02",
+      "text": "Utilize the planner view to compare two scenarios side by side.",
+      "labels": [
+        {
+          "reviewer": "terminology",
+          "type": "banned_term",
+          "start": 0,
+          "end": 7
+        }
+      ],
+      "predictions": [
+        {
+          "reviewer": "terminology",
+          "start": 0,
+          "end": 7,
+          "confidence": 1.0,
+          "confidence_band": "high",
+          "label": "confirmed"
+        }
+      ]
+    },
+    {
+      "id": "T03",
+      "text": "Leverage the weekly rhythm to cut planning meetings in half.",
+      "labels": [
+        {
+          "reviewer": "terminology",
+          "type": "banned_term",
+          "start": 0,
+          "end": 8
+        }
+      ],
+      "predictions": [
+        {
+          "reviewer": "terminology",
+          "start": 0,
+          "end": 8,
+          "confidence": 1.0,
+          "confidence_band": "high",
+          "label": "confirmed"
+        }
+      ]
+    },
+    {
+      "id": "T04",
+      "text": "Prior to the workshop, connect your ERP export in the data room.",
+      "labels": [
+        {
+          "reviewer": "terminology",
+          "type": "banned_term",
+          "start": 0,
+          "end": 8
+        }
+      ],
+      "predictions": [
+        {
+          "reviewer": "terminology",
+          "start": 0,
+          "end": 8,
+          "confidence": 1.0,
+          "confidence_band": "high",
+          "label": "confirmed"
+        }
+      ]
+    },
+    {
+      "id": "T05",
+      "text": "We bring synergy between planning and finance teams.",
+      "labels": [
+        {
+          "reviewer": "terminology",
+          "type": "banned_term",
+          "start": 9,
+          "end": 16
+        }
+      ],
+      "predictions": [
+        {
+          "reviewer": "terminology",
+          "start": 9,
+          "end": 16,
+          "confidence": 1.0,
+          "confidence_band": "high",
+          "label": "confirmed"
+        }
+      ]
+    },
+    {
+      "id": "T06",
+      "text": "Teams utilize Northwind Forecast Cloud for the weekly review.",
+      "labels": [
+        {
+          "reviewer": "terminology",
+          "type": "banned_term",
+          "start": 6,
+          "end": 13
+        }
+      ],
+      "predictions": [
+        {
+          "reviewer": "terminology",
+          "start": 6,
+          "end": 13,
+          "confidence": 1.0,
+          "confidence_band": "high",
+          "label": "confirmed"
+        }
+      ]
+    },
+    {
+      "id": "T07",
+      "text": "ForecastCloud connects your demand and supply plans.",
+      "labels": [
+        {
+          "reviewer": "terminology",
+          "type": "product_name",
+          "start": 0,
+          "end": 13
+        }
+      ],
+      "predictions": [
+        {
+          "reviewer": "terminology",
+          "start": 0,
+          "end": 13,
+          "confidence": 1.0,
+          "confidence_band": "high",
+          "label": "confirmed"
+        }
+      ]
+    },
+    {
+      "id": "V01",
+      "text": "Our revolutionary planning engine turns messy spreadsheets into a weekly rhythm.",
+      "labels": [
+        {
+          "reviewer": "brand_voice",
+          "type": "hype",
+          "start": 4,
+          "end": 17
+        }
+      ],
+      "predictions": [
+        {
+          "reviewer": "brand_voice",
+          "start": 4,
+          "end": 17,
+          "confidence": 0.712,
+          "confidence_band": "medium",
+          "label": "confirmed"
+        }
+      ]
+    },
+    {
+      "id": "V02",
+      "text": "World-class planners deserve tools that match their craft, and that is what we build.",
+      "labels": [
+        {
+          "reviewer": "brand_voice",
+          "type": "hype",
+          "start": 0,
+          "end": 11
+        }
+      ],
+      "predictions": [
+        {
+          "reviewer": "brand_voice",
+          "start": 0,
+          "end": 11,
+          "confidence": 0.712,
+          "confidence_band": "medium",
+          "label": "confirmed"
+        }
+      ]
+    },
+    {
+      "id": "V03",
+      "text": "A game-changing approach to demand planning for mid-market teams.",
+      "labels": [
+        {
+          "reviewer": "brand_voice",
+          "type": "hype",
+          "start": 2,
+          "end": 15
+        }
+      ],
+      "predictions": [
+        {
+          "reviewer": "brand_voice",
+          "start": 2,
+          "end": 15,
+          "confidence": 0.712,
+          "confidence_band": "medium",
+          "label": "confirmed"
+        }
+      ]
+    },
+    {
+      "id": "V04",
+      "text": "A seamless way to move from spreadsheet to forecast in one week.",
+      "labels": [
+        {
+          "reviewer": "brand_voice",
+          "type": "hype",
+          "start": 2,
+          "end": 10
+        }
+      ],
+      "predictions": [
+        {
+          "reviewer": "brand_voice",
+          "start": 2,
+          "end": 10,
+          "confidence": 0.712,
+          "confidence_band": "medium",
+          "label": "confirmed"
+        }
+      ]
+    },
+    {
+      "id": "V05",
+      "text": "Unleash your weekly planning with one connected view.",
+      "labels": [
+        {
+          "reviewer": "brand_voice",
+          "type": "hype",
+          "start": 0,
+          "end": 7
+        }
+      ],
+      "predictions": [
+        {
+          "reviewer": "brand_voice",
+          "start": 0,
+          "end": 7,
+          "confidence": 0.712,
+          "confidence_band": "medium",
+          "label": "confirmed"
+        }
+      ]
+    },
+    {
+      "id": "V06",
+      "text": "The result is an amazing planning rhythm that finance and operations share.",
+      "labels": [
+        {
+          "reviewer": "brand_voice",
+          "type": "hype",
+          "start": 17,
+          "end": 24
+        }
+      ],
+      "predictions": [
+        {
+          "reviewer": "brand_voice",
+          "start": 17,
+          "end": 24,
+          "confidence": 0.712,
+          "confidence_band": "medium",
+          "label": "confirmed"
+        }
+      ]
+    },
+    {
+      "id": "V07",
+      "text": "Cutting-edge forecasting for teams that ship on time.",
+      "labels": [
+        {
+          "reviewer": "brand_voice",
+          "type": "hype",
+          "start": 0,
+          "end": 12
+        }
+      ],
+      "predictions": [
+        {
+          "reviewer": "brand_voice",
+          "start": 0,
+          "end": 12,
+          "confidence": 0.712,
+          "confidence_band": "medium",
+          "label": "confirmed"
+        }
+      ]
+    },
+    {
+      "id": "V08",
+      "text": "Our industry-leading accuracy comes from a decade of warehouse data.",
+      "labels": [
+        {
+          "reviewer": "brand_voice",
+          "type": "hype",
+          "start": 4,
+          "end": 20
+        },
+        {
+          "reviewer": "fact_checker",
+          "type": "unsupported_claim",
+          "start": 0,
+          "end": 68
+        }
+      ],
+      "predictions": [
+        {
+          "reviewer": "fact_checker",
+          "start": 0,
+          "end": 68,
+          "confidence": 0.272,
+          "confidence_band": "low",
+          "label": "possible"
+        },
+        {
+          "reviewer": "brand_voice",
+          "start": 4,
+          "end": 20,
+          "confidence": 0.712,
+          "confidence_band": "medium",
+          "label": "confirmed"
+        }
+      ]
+    },
+    {
+      "id": "L01",
+      "text": "Guaranteed results in ninety days or your money back.",
+      "labels": [
+        {
+          "reviewer": "legal",
+          "type": "guarantee",
+          "start": 0,
+          "end": 18
+        },
+        {
+          "reviewer": "fact_checker",
+          "type": "unsupported_claim",
+          "start": 0,
+          "end": 53
+        }
+      ],
+      "predictions": [
+        {
+          "reviewer": "legal",
+          "start": 0,
+          "end": 18,
+          "confidence": 0.748,
+          "confidence_band": "medium",
+          "label": "confirmed"
+        },
+        {
+          "reviewer": "fact_checker",
+          "start": 0,
+          "end": 53,
+          "confidence": 0.272,
+          "confidence_band": "low",
+          "label": "possible"
+        }
+      ]
+    },
+    {
+      "id": "L02",
+      "text": "100% safe for regulated environments.",
+      "labels": [
+        {
+          "reviewer": "legal",
+          "type": "absolute_safety",
+          "start": 0,
+          "end": 9
+        },
+        {
+          "reviewer": "fact_checker",
+          "type": "unsupported_claim",
+          "start": 0,
+          "end": 37
+        }
+      ],
+      "predictions": [
+        {
+          "reviewer": "legal",
+          "start": 0,
+          "end": 9,
+          "confidence": 0.748,
+          "confidence_band": "medium",
+          "label": "confirmed"
+        },
+        {
+          "reviewer": "fact_checker",
+          "start": 0,
+          "end": 37,
+          "confidence": 0.279,
+          "confidence_band": "low",
+          "label": "possible"
+        }
+      ]
+    },
+    {
+      "id": "L03",
+      "text": "We are the best company for supply-chain forecasting in Europe.",
+      "labels": [
+        {
+          "reviewer": "legal",
+          "type": "superiority",
+          "start": 11,
+          "end": 23
+        },
+        {
+          "reviewer": "fact_checker",
+          "type": "unsupported_claim",
+          "start": 0,
+          "end": 63
+        }
+      ],
+      "predictions": [
+        {
+          "reviewer": "legal",
+          "start": 11,
+          "end": 23,
+          "confidence": 0.748,
+          "confidence_band": "medium",
+          "label": "confirmed"
+        },
+        {
+          "reviewer": "fact_checker",
+          "start": 0,
+          "end": 63,
+          "confidence": 0.272,
+          "confidence_band": "low",
+          "label": "possible"
+        }
+      ]
+    },
+    {
+      "id": "L04",
+      "text": "This offer is risk-free and you can cancel any time.",
+      "labels": [
+        {
+          "reviewer": "legal",
+          "type": "risk",
+          "start": 14,
+          "end": 23
+        },
+        {
+          "reviewer": "fact_checker",
+          "type": "unsupported_claim",
+          "start": 0,
+          "end": 52
+        }
+      ],
+      "predictions": [
+        {
+          "reviewer": "legal",
+          "start": 14,
+          "end": 23,
+          "confidence": 0.748,
+          "confidence_band": "medium",
+          "label": "confirmed"
+        },
+        {
+          "reviewer": "fact_checker",
+          "start": 0,
+          "end": 52,
+          "confidence": 0.272,
+          "confidence_band": "low",
+          "label": "possible"
+        }
+      ]
+    },
+    {
+      "id": "L05",
+      "text": "No hidden fees, and instant approval for most applications.",
+      "labels": [
+        {
+          "reviewer": "legal",
+          "type": "fees",
+          "start": 0,
+          "end": 14
+        },
+        {
+          "reviewer": "legal",
+          "type": "fees",
+          "start": 20,
+          "end": 36
+        },
+        {
+          "reviewer": "fact_checker",
+          "type": "unsupported_claim",
+          "start": 0,
+          "end": 59
+        }
+      ],
+      "predictions": [
+        {
+          "reviewer": "fact_checker",
+          "start": 0,
+          "end": 59,
+          "confidence": 0.272,
+          "confidence_band": "low",
+          "label": "possible"
+        },
+        {
+          "reviewer": "legal",
+          "start": 0,
+          "end": 14,
+          "confidence": 0.66,
+          "confidence_band": "medium",
+          "label": "possible"
+        },
+        {
+          "reviewer": "legal",
+          "start": 20,
+          "end": 36,
+          "confidence": 0.66,
+          "confidence_band": "medium",
+          "label": "possible"
+        }
+      ]
+    },
+    {
+      "id": "L06",
+      "text": "Approved by industry analysts and regulators alike.",
+      "labels": [
+        {
+          "reviewer": "legal",
+          "type": "endorsement",
+          "start": 0,
+          "end": 11
+        }
+      ],
+      "predictions": [
+        {
+          "reviewer": "legal",
+          "start": 0,
+          "end": 11,
+          "confidence": 0.66,
+          "confidence_band": "medium",
+          "label": "possible"
+        }
+      ]
+    },
+    {
+      "id": "L07",
+      "text": "Number one for forecasting accuracy across mid-market teams.",
+      "labels": [
+        {
+          "reviewer": "legal",
+          "type": "superiority",
+          "start": 0,
+          "end": 10
+        },
+        {
+          "reviewer": "fact_checker",
+          "type": "unsupported_claim",
+          "start": 0,
+          "end": 60
+        }
+      ],
+      "predictions": [
+        {
+          "reviewer": "legal",
+          "start": 0,
+          "end": 10,
+          "confidence": 0.748,
+          "confidence_band": "medium",
+          "label": "confirmed"
+        },
+        {
+          "reviewer": "fact_checker",
+          "start": 0,
+          "end": 60,
+          "confidence": 0.272,
+          "confidence_band": "low",
+          "label": "possible"
+        }
+      ]
+    },
+    {
+      "id": "L08",
+      "text": "Clinically proven to reduce planning stress.",
+      "labels": [
+        {
+          "reviewer": "legal",
+          "type": "health_claim",
+          "start": 0,
+          "end": 17
+        }
+      ],
+      "predictions": [
+        {
+          "reviewer": "legal",
+          "start": 0,
+          "end": 17,
+          "confidence": 0.748,
+          "confidence_band": "medium",
+          "label": "confirmed"
+        }
+      ]
+    },
+    {
+      "id": "F01",
+      "text": "98% of customers renew within 12 months, which is why planning teams stay.",
+      "labels": [
+        {
+          "reviewer": "fact_checker",
+          "type": "contradicted_fact",
+          "start": 0,
+          "end": 74
+        }
+      ],
+      "predictions": [
+        {
+          "reviewer": "fact_checker",
+          "start": 0,
+          "end": 74,
+          "confidence": 0.279,
+          "confidence_band": "low",
+          "label": "possible"
+        }
+      ]
+    },
+    {
+      "id": "F02",
+      "text": "Join 3.2 million customers who plan their quarter with us.",
+      "labels": [
+        {
+          "reviewer": "fact_checker",
+          "type": "unsupported_claim",
+          "start": 0,
+          "end": 58
+        }
+      ],
+      "predictions": []
+    },
+    {
+      "id": "F03",
+      "text": "The starter plan is just \u00a318 per month for the first year.",
+      "labels": [
+        {
+          "reviewer": "fact_checker",
+          "type": "contradicted_fact",
+          "start": 0,
+          "end": 58
+        }
+      ],
+      "predictions": [
+        {
+          "reviewer": "fact_checker",
+          "start": 0,
+          "end": 58,
+          "confidence": 0.765,
+          "confidence_band": "high",
+          "label": "confirmed"
+        }
+      ]
+    },
+    {
+      "id": "F04",
+      "text": "Teams save 9 hours a week with automated forecast reviews.",
+      "labels": [
+        {
+          "reviewer": "fact_checker",
+          "type": "unsupported_claim",
+          "start": 0,
+          "end": 58
+        }
+      ],
+      "predictions": [
+        {
+          "reviewer": "fact_checker",
+          "start": 0,
+          "end": 58,
+          "confidence": 0.272,
+          "confidence_band": "low",
+          "label": "possible"
+        }
+      ]
+    },
+    {
+      "id": "F05",
+      "text": "Support responds within 4 hours on business days.",
+      "labels": [],
+      "predictions": []
+    },
+    {
+      "id": "F06",
+      "text": "Our uptime is 99.9% across every region.",
+      "labels": [
+        {
+          "reviewer": "fact_checker",
+          "type": "contradicted_fact",
+          "start": 0,
+          "end": 40
+        }
+      ],
+      "predictions": [
+        {
+          "reviewer": "fact_checker",
+          "start": 0,
+          "end": 40,
+          "confidence": 0.272,
+          "confidence_band": "low",
+          "label": "possible"
+        }
+      ]
+    },
+    {
+      "id": "F07",
+      "text": "We serve 12,000 customers across 30 countries.",
+      "labels": [],
+      "predictions": []
+    },
+    {
+      "id": "F08",
+      "text": "Planners report 42% faster cycles after one week.",
+      "labels": [
+        {
+          "reviewer": "fact_checker",
+          "type": "unsupported_claim",
+          "start": 0,
+          "end": 49
+        }
+      ],
+      "predictions": [
+        {
+          "reviewer": "fact_checker",
+          "start": 0,
+          "end": 49,
+          "confidence": 0.272,
+          "confidence_band": "low",
+          "label": "possible"
+        }
+      ]
+    },
+    {
+      "id": "A01",
+      "text": "Set the footer in 12pt Inter so it stays compact.",
+      "labels": [
+        {
+          "reviewer": "accessibility",
+          "type": "small_text",
+          "start": 18,
+          "end": 22
+        }
+      ],
+      "predictions": [
+        {
+          "reviewer": "accessibility",
+          "start": 18,
+          "end": 22,
+          "confidence": 0.965,
+          "confidence_band": "high",
+          "label": "confirmed"
+        }
+      ]
+    },
+    {
+      "id": "A02",
+      "text": "Legal terms may appear at 10px on the final frame.",
+      "labels": [
+        {
+          "reviewer": "accessibility",
+          "type": "small_text",
+          "start": 26,
+          "end": 30
+        }
+      ],
+      "predictions": [
+        {
+          "reviewer": "accessibility",
+          "start": 26,
+          "end": 30,
+          "confidence": 0.965,
+          "confidence_band": "high",
+          "label": "confirmed"
+        }
+      ]
+    },
+    {
+      "id": "A03",
+      "text": "For the pricing sheet click here to open the PDF.",
+      "labels": [
+        {
+          "reviewer": "accessibility",
+          "type": "link_text",
+          "start": 22,
+          "end": 32
+        }
+      ],
+      "predictions": [
+        {
+          "reviewer": "accessibility",
+          "start": 22,
+          "end": 32,
+          "confidence": 0.73,
+          "confidence_band": "medium",
+          "label": "confirmed"
+        }
+      ]
+    },
+    {
+      "id": "A04",
+      "text": "DOWNLOAD THE COMPLETE BUYER GUIDE TODAY",
+      "labels": [
+        {
+          "reviewer": "accessibility",
+          "type": "all_caps",
+          "start": 0,
+          "end": 39
+        }
+      ],
+      "predictions": [
+        {
+          "reviewer": "accessibility",
+          "start": 0,
+          "end": 39,
+          "confidence": 0.912,
+          "confidence_band": "high",
+          "label": "confirmed"
+        }
+      ]
+    },
+    {
+      "id": "A05",
+      "text": "Select the red button at the bottom to confirm.",
+      "labels": [
+        {
+          "reviewer": "accessibility",
+          "type": "colour_only",
+          "start": 11,
+          "end": 21
+        }
+      ],
+      "predictions": [
+        {
+          "reviewer": "accessibility",
+          "start": 7,
+          "end": 21,
+          "confidence": 0.73,
+          "confidence_band": "medium",
+          "label": "confirmed"
+        }
+      ]
+    },
+    {
+      "id": "A06",
+      "text": "Read here for the full methodology note.",
+      "labels": [
+        {
+          "reviewer": "accessibility",
+          "type": "link_text",
+          "start": 0,
+          "end": 9
+        }
+      ],
+      "predictions": [
+        {
+          "reviewer": "accessibility",
+          "start": 0,
+          "end": 9,
+          "confidence": 0.73,
+          "confidence_band": "medium",
+          "label": "confirmed"
+        }
+      ]
+    },
+    {
+      "id": "A07",
+      "text": "Learn more.",
+      "labels": [
+        {
+          "reviewer": "accessibility",
+          "type": "link_text",
+          "start": 0,
+          "end": 10
+        }
+      ],
+      "predictions": [
+        {
+          "reviewer": "accessibility",
+          "start": 0,
+          "end": 10,
+          "confidence": 0.73,
+          "confidence_band": "medium",
+          "label": "confirmed"
+        }
+      ]
+    },
+    {
+      "id": "A08",
+      "text": "The summary box uses green text to flag late shipments.",
+      "labels": [
+        {
+          "reviewer": "accessibility",
+          "type": "colour_only",
+          "start": 21,
+          "end": 31
+        }
+      ],
+      "predictions": [
+        {
+          "reviewer": "accessibility",
+          "start": 21,
+          "end": 31,
+          "confidence": 0.73,
+          "confidence_band": "medium",
+          "label": "confirmed"
+        }
+      ]
+    },
+    {
+      "id": "S01",
+      "text": "Use #FF00FF for the campaign highlight bar.",
+      "labels": [
+        {
+          "reviewer": "visual",
+          "type": "off_palette",
+          "start": 4,
+          "end": 11
+        }
+      ],
+      "predictions": [
+        {
+          "reviewer": "visual",
+          "start": 4,
+          "end": 11,
+          "confidence": 0.965,
+          "confidence_band": "high",
+          "label": "confirmed"
+        }
+      ]
+    },
+    {
+      "id": "S02",
+      "text": "The background gradient runs from #0B3D91 to #00FF00 in the hero.",
+      "labels": [
+        {
+          "reviewer": "visual",
+          "type": "off_palette",
+          "start": 45,
+          "end": 52
+        }
+      ],
+      "predictions": [
+        {
+          "reviewer": "visual",
+          "start": 45,
+          "end": 52,
+          "confidence": 0.965,
+          "confidence_band": "high",
+          "label": "confirmed"
+        }
+      ]
+    },
+    {
+      "id": "S03",
+      "text": "Place the old logo in the top-left corner of every page.",
+      "labels": [
+        {
+          "reviewer": "visual",
+          "type": "logo_version",
+          "start": 10,
+          "end": 18
+        }
+      ],
+      "predictions": [
+        {
+          "reviewer": "fact_checker",
+          "start": 0,
+          "end": 56,
+          "confidence": 0.272,
+          "confidence_band": "low",
+          "label": "possible"
+        },
+        {
+          "reviewer": "visual",
+          "start": 10,
+          "end": 18,
+          "confidence": 0.712,
+          "confidence_band": "medium",
+          "label": "confirmed"
+        }
+      ]
+    },
+    {
+      "id": "S04",
+      "text": "The legacy logo still appears in the footer template.",
+      "labels": [
+        {
+          "reviewer": "visual",
+          "type": "logo_version",
+          "start": 4,
+          "end": 15
+        }
+      ],
+      "predictions": [
+        {
+          "reviewer": "visual",
+          "start": 4,
+          "end": 15,
+          "confidence": 0.712,
+          "confidence_band": "medium",
+          "label": "confirmed"
+        }
+      ]
+    },
+    {
+      "id": "S05",
+      "text": "Hero uses #F2A900 as the accent colour behind the headline.",
+      "labels": [],
+      "predictions": []
+    },
+    {
+      "id": "S06",
+      "text": "Set the call-to-action bar to #123456 to match the partner brand.",
+      "labels": [
+        {
+          "reviewer": "visual",
+          "type": "off_palette",
+          "start": 30,
+          "end": 37
+        }
+      ],
+      "predictions": [
+        {
+          "reviewer": "visual",
+          "start": 30,
+          "end": 37,
+          "confidence": 0.965,
+          "confidence_band": "high",
+          "label": "confirmed"
+        }
+      ]
+    }
+  ],
+  "baseline": {
+    "per_reviewer": {
+      "brand_voice": {
+        "tp": 8,
+        "fp": 0,
+        "fn": 0,
+        "predicted": 8,
+        "labelled": 8,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "false_positive_rate": 0.0,
+        "clean_samples": 45,
+        "missed": []
+      },
+      "terminology": {
+        "tp": 5,
+        "fp": 0,
+        "fn": 2,
+        "predicted": 5,
+        "labelled": 7,
+        "precision": 1.0,
+        "recall": 0.714,
+        "f1": 0.833,
+        "false_positive_rate": 0.0,
+        "clean_samples": 46,
+        "missed": [
+          {
+            "sample": "T01",
+            "type": "banned_term",
+            "span": "cheap"
+          },
+          {
+            "sample": "T07",
+            "type": "product_name",
+            "span": "ForecastCloud"
+          }
+        ]
+      },
+      "fact_checker": {
+        "tp": 7,
+        "fp": 11,
+        "fn": 6,
+        "predicted": 18,
+        "labelled": 13,
+        "precision": 0.389,
+        "recall": 0.538,
+        "f1": 0.452,
+        "false_positive_rate": 0.225,
+        "clean_samples": 40,
+        "missed": [
+          {
+            "sample": "V08",
+            "type": "unsupported_claim",
+            "span": "Our industry-leading accuracy comes from a decade of warehouse data."
+          },
+          {
+            "sample": "L01",
+            "type": "unsupported_claim",
+            "span": "Guaranteed results in ninety days or your money back."
+          },
+          {
+            "sample": "L03",
+            "type": "unsupported_claim",
+            "span": "We are the best company for supply-chain forecasting in Europe."
+          },
+          {
+            "sample": "L04",
+            "type": "unsupported_claim",
+            "span": "This offer is risk-free and you can cancel any time."
+          },
+          {
+            "sample": "L05",
+            "type": "unsupported_claim",
+            "span": "No hidden fees, and instant approval for most applications."
+          },
+          {
+            "sample": "L07",
+            "type": "unsupported_claim",
+            "span": "Number one for forecasting accuracy across mid-market teams."
+          }
+        ]
+      },
+      "visual": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 5,
+        "predicted": 0,
+        "labelled": 5,
+        "precision": 1.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "false_positive_rate": 0.0,
+        "clean_samples": 48,
+        "missed": [
+          {
+            "sample": "S01",
+            "type": "off_palette",
+            "span": "#FF00FF"
+          },
+          {
+            "sample": "S02",
+            "type": "off_palette",
+            "span": "#00FF00"
+          },
+          {
+            "sample": "S03",
+            "type": "logo_version",
+            "span": "old logo"
+          },
+          {
+            "sample": "S04",
+            "type": "logo_version",
+            "span": "legacy logo"
+          },
+          {
+            "sample": "S06",
+            "type": "off_palette",
+            "span": "#123456"
+          }
+        ]
+      },
+      "accessibility": {
+        "tp": 6,
+        "fp": 0,
+        "fn": 2,
+        "predicted": 6,
+        "labelled": 8,
+        "precision": 1.0,
+        "recall": 0.75,
+        "f1": 0.857,
+        "false_positive_rate": 0.0,
+        "clean_samples": 45,
+        "missed": [
+          {
+            "sample": "A04",
+            "type": "all_caps",
+            "span": "DOWNLOAD THE COMPLETE BUYER GUIDE TODAY"
+          },
+          {
+            "sample": "A08",
+            "type": "colour_only",
+            "span": "green text"
+          }
+        ]
+      },
+      "legal": {
+        "tp": 9,
+        "fp": 1,
+        "fn": 0,
+        "predicted": 10,
+        "labelled": 9,
+        "precision": 0.9,
+        "recall": 1.0,
+        "f1": 0.947,
+        "false_positive_rate": 0.0,
+        "clean_samples": 45,
+        "missed": []
+      }
+    },
+    "overall": {
+      "samples": 53,
+      "micro_precision": 0.745,
+      "micro_recall": 0.7,
+      "micro_f1": 0.722,
+      "macro_precision": 0.881,
+      "macro_recall": 0.667,
+      "mean_false_positive_rate": 0.037,
+      "predicted": 47,
+      "labelled": 50
+    }
+  },
+  "comparison": {
+    "rows": [
+      {
+        "reviewer": "brand_voice",
+        "precision": 1.0,
+        "baseline_precision": 1.0,
+        "recall": 1.0,
+        "baseline_recall": 1.0,
+        "f1": 1.0,
+        "baseline_f1": 1.0,
+        "false_positive_rate": 0.0,
+        "baseline_false_positive_rate": 0.0,
+        "delta_f1": 0.0,
+        "delta_precision": 0.0,
+        "delta_recall": 0.0
+      },
+      {
+        "reviewer": "terminology",
+        "precision": 1.0,
+        "baseline_precision": 1.0,
+        "recall": 1.0,
+        "baseline_recall": 0.714,
+        "f1": 1.0,
+        "baseline_f1": 0.833,
+        "false_positive_rate": 0.0,
+        "baseline_false_positive_rate": 0.0,
+        "delta_f1": 0.167,
+        "delta_precision": 0.0,
+        "delta_recall": 0.286
+      },
+      {
+        "reviewer": "fact_checker",
+        "precision": 0.923,
+        "baseline_precision": 0.389,
+        "recall": 0.923,
+        "baseline_recall": 0.538,
+        "f1": 0.923,
+        "baseline_f1": 0.452,
+        "false_positive_rate": 0.025,
+        "baseline_false_positive_rate": 0.225,
+        "delta_f1": 0.471,
+        "delta_precision": 0.534,
+        "delta_recall": 0.385
+      },
+      {
+        "reviewer": "visual",
+        "precision": 1.0,
+        "baseline_precision": 1.0,
+        "recall": 1.0,
+        "baseline_recall": 0.0,
+        "f1": 1.0,
+        "baseline_f1": 0.0,
+        "false_positive_rate": 0.0,
+        "baseline_false_positive_rate": 0.0,
+        "delta_f1": 1.0,
+        "delta_precision": 0.0,
+        "delta_recall": 1.0
+      },
+      {
+        "reviewer": "accessibility",
+        "precision": 1.0,
+        "baseline_precision": 1.0,
+        "recall": 1.0,
+        "baseline_recall": 0.75,
+        "f1": 1.0,
+        "baseline_f1": 0.857,
+        "false_positive_rate": 0.0,
+        "baseline_false_positive_rate": 0.0,
+        "delta_f1": 0.143,
+        "delta_precision": 0.0,
+        "delta_recall": 0.25
+      },
+      {
+        "reviewer": "legal",
+        "precision": 1.0,
+        "baseline_precision": 0.9,
+        "recall": 1.0,
+        "baseline_recall": 1.0,
+        "f1": 1.0,
+        "baseline_f1": 0.947,
+        "false_positive_rate": 0.0,
+        "baseline_false_positive_rate": 0.0,
+        "delta_f1": 0.053,
+        "delta_precision": 0.1,
+        "delta_recall": 0.0
+      }
+    ],
+    "regressions": [],
+    "candidate_overall": {
+      "samples": 53,
+      "micro_precision": 0.98,
+      "micro_recall": 0.98,
+      "micro_f1": 0.98,
+      "macro_precision": 0.987,
+      "macro_recall": 0.987,
+      "mean_false_positive_rate": 0.004,
+      "predicted": 50,
+      "labelled": 50
+    },
+    "baseline_overall": {
+      "samples": 53,
+      "micro_precision": 0.745,
+      "micro_recall": 0.7,
+      "micro_f1": 0.722,
+      "macro_precision": 0.881,
+      "macro_recall": 0.667,
+      "mean_false_positive_rate": 0.037,
+      "predicted": 47,
+      "labelled": 50
+    }
+  },
+  "confidence_bands": {
+    "low": {
+      "predicted": 12,
+      "matched": 11,
+      "precision": 0.917
+    },
+    "medium": {
+      "predicted": 24,
+      "matched": 24,
+      "precision": 1.0
+    },
+    "high": {
+      "predicted": 14,
+      "matched": 14,
+      "precision": 1.0
+    },
+    "monotonic": true,
+    "strictly_rising": false,
+    "comparable": true,
+    "note": "Precision never falls as the band rises, but medium and high are tied, so the difference between them is not established at this sample size. The band is a defensible sort order; it is not a calibrated probability."
+  },
+  "samples": 53,
+  "generated_at": "2026-11-15T11:34:10+00:00",
+  "provider": "local",
+  "model": "sentinel-local-1",
+  "embedding_mode": "offline",
+  "repeat_runs": 3
+}

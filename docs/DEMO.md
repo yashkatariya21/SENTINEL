@@ -115,7 +115,11 @@ monthly report, and the provider line.
 
 | Question | Answer |
 |---|---|
-| “Is this a real LLM?” | By default no — it runs the built-in deterministic engine so the demo costs nothing and the regression benchmark is reproducible. Flip `LLM_PROVIDER=openai` (or `anthropic`) and the same contracts call a hosted model. The honest generalisation number is the held-out set (0.27 strict / 0.50 relaxed F1); LLM quality is only reported by `eval/run_llm_eval.py`, which needs a key and refuses to print numbers without one. |
+> **Deployment status:** no live demo URL is published from this repository yet. Run it locally
+> (see the README) or follow [`DEPLOY-VERCEL.md`](DEPLOY-VERCEL.md); when a deployment exists,
+> its address belongs here and in the README, not guessed.
+
+| “Is this a real LLM?” | By default no — it runs the built-in deterministic engine so the demo costs nothing and the regression benchmark is reproducible. Flip `LLM_PROVIDER=openai` (or `anthropic`) and the same contracts call a hosted model. The honest generalisation number is the held-out set (0.44 strict / 0.55 relaxed F1); LLM quality is only reported by `eval/run_llm_eval.py`, which needs a key and refuses to print numbers without one. |
 | “How fast and how expensive?” | Every run records measured wall time and, where a model was called, provider-reported tokens and an estimated cost. They appear under the report's provenance strip and on `/analytics` → *Cost and latency*. The offline engine shows zero tokens because it makes no calls, not because it was not measured. |
 | “Can I take this to a meeting?” | **Export PDF** on the report generates the review record server-side: every finding with its rule quote, citation, confidence and decision, plus the disclaimer on every page. |
 | “What stops it inventing a citation?” | Citations must resolve to a retrieved chunk that shares content words (or the claimed number) with the span, otherwise the UI says “No approved source found”. |

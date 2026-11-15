@@ -272,5 +272,5 @@ Stated plainly, because the alternative is finding out during a demo:
 * **CI has never run on GitHub Actions.** `.github/workflows/ci.yml` exists and is valid
   YAML, but no run has been observed — do not quote a green badge you have not seen.
 * **LLM quality is not measured.** `/evaluation` reports rule-engine numbers (0.98 micro F1 on
-  the regression set; 0.29 strict / 0.50 relaxed on the held-out set) and states that the
+  the regression set; 0.38 strict / 0.47 relaxed precision on the held-out set) and states that the
   hosted-model evaluation has not been run. Keep that framing.
