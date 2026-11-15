@@ -141,6 +141,7 @@ class DocumentOut(BaseModel):
     replaces_document_id: Optional[str] = None
     change_id: Optional[str] = None
     review_tasks: int = 0
+    superseded_by: Optional[str] = None      # the version that replaced this one
 
 
 class ConfirmIn(BaseModel):

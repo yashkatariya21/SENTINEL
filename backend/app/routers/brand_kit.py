@@ -207,19 +207,74 @@ async def upload_document(
     return out
 
 
+# Words that say which *version* of a document a file is, not which document it is.
+# "guidelines-4.2.pdf" and "guidelines-5.0.pdf" are the same document twice; the
+# numbers and the v/rev/final noise are exactly what changes between them.
+_VERSION_NOISE = re.compile(
+    r"(?:\b(?:v|ver|version|rev|revision|draft|final|copy|update|updated|revised|new|old|"
+    r"release|edition|reissue|amended|consolidated|latest)\b)?"
+    r"\s*[(\[]?\d+(?:[._-]\d+)*[)\]]?", re.I)
+_EXTENSION = re.compile(r"\.[A-Za-z0-9]{1,5}$")
+
+
+def _document_family(filename: str) -> set[str]:
+    """The words that identify the document, with the version markers removed."""
+    stem = _EXTENSION.sub("", (filename or "").lower())
+    stem = _VERSION_NOISE.sub(" ", stem)
+    stem = re.sub(r"[^a-z0-9]+", " ", stem)
+    words = set()
+    for word in stem.split():
+        if len(word) > 3 and word.endswith("s"):     # guideline / guidelines
+            word = word[:-1]
+        if len(word) > 1:
+            words.add(word)
+    return words
+
+
+def _same_document(a: str, b: str) -> bool:
+    """Do two filenames name the same document, in two versions of it?
+
+    The test is deliberately strict: once the version markers are gone, the two names
+    must be *the same name*. `brand-guidelines` and `brand-guidelines-2026` are one
+    document; `brand-guidelines` and `brand-guidelines-addendum` are two, and so are
+    `policy` and `policy-checklist`, because those extra words describe a different
+    document rather than a later edition of this one. When the answer is no, the upload
+    is filed as its own document and is never diffed against a stranger — and a person
+    can still name the version it replaces explicitly on the upload form.
+    """
+    left, right = _document_family(a), _document_family(b)
+    return bool(left) and left == right
+
+
 def _predecessor(db: Session, principal: Principal, kit: BrandKit, *, kind: str, filename: str,
                  replaces_document_id: str | None) -> Document | None:
-    """The document this upload supersedes, if any."""
+    """The document this upload supersedes, if any.
+
+    Three ways to find it, strongest first: an explicit `replaces_document_id`; the
+    same kind and filename in this kit (a re-upload); then the newest document of the
+    same kind whose *name* is the same document under a different version marker. The
+    third one matters: a guideline called `guidelines-4.2.pdf` is normally replaced by
+    `guidelines-5.0.pdf`, and before this the new version was filed as version 1 of a
+    new document with nothing to compare against.
+    """
     if replaces_document_id:
         return get_owned(db, Document, replaces_document_id, principal)
-    return db.execute(
+
+    candidates = db.execute(
         select(Document).where(Document.org_id == principal.org_id,
                                Document.brand_kit_id == kit.id,
                                Document.kind == kind,
-                               Document.filename == filename,
-                               Document.status != "deleted")
+                               Document.status == "extracted")
         .order_by(Document.version.desc(), Document.created_at.desc())
-    ).scalars().first()
+    ).scalars().all()
+
+    for doc in candidates:                      # exact filename: a straight re-upload
+        if doc.filename == filename:
+            return doc
+    for doc in candidates:                      # same document, new version marker
+        if _same_document(doc.filename, filename):
+            return doc
+    return None
 
 
 def _document_text(db: Session, doc: Document) -> str:
@@ -330,9 +385,14 @@ def list_documents(principal: Principal = Depends(current_user), db: Session = D
     out = []
     for doc in docs:
         chunks = db.execute(select(Chunk).where(Chunk.document_id == doc.id)).scalars().all()
+        meta = doc.meta or {}
         out.append(DocumentOut(id=doc.id, filename=doc.filename, mime=doc.mime, kind=doc.kind,
                                version=doc.version, pages=doc.pages, size_bytes=doc.size_bytes,
-                               status=doc.status, created_at=doc.created_at, chunks=len(chunks)))
+                               status=doc.status, created_at=doc.created_at, chunks=len(chunks),
+                               # The lineage is what tells a reviewer whether this row is
+                               # the current version or one that has been replaced.
+                               replaces_document_id=meta.get("replaces_document_id"),
+                               superseded_by=meta.get("superseded_by")))
     return out
 
 

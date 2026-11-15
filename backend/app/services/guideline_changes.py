@@ -21,9 +21,30 @@ from .guideline_diff import SectionChange, normalise_title, summarise
 log = logging.getLogger("sentinel.guidelines")
 
 
-def _rule_versions_on(db: Session, *, org_id: str, document: Document,
+def _lineage(document: Document) -> set[str]:
+    """Every document id in the chain the given version belongs to.
+
+    A guideline is replaced again and again; a rule proposed from v1 is still standing
+    on v1's text when v4 arrives. Comparing only against the immediately previous
+    document loses every rule older than one generation, so the whole chain recorded at
+    upload (`meta["lineage"]`) counts as "the document this rule came from".
+    """
+    ids = {document.id}
+    for item in (document.meta or {}).get("lineage") or []:
+        if isinstance(item, dict) and item.get("document_id"):
+            ids.add(item["document_id"])
+    return ids
+
+
+def _rule_versions_on(db: Session, *, org_id: str, document_ids: set[str],
                       section_titles: set[str]) -> list[tuple[Rule, RuleVersion]]:
-    """Active rule versions whose source section is one of `section_titles`."""
+    """Active rule versions whose source section is one of `section_titles`.
+
+    A version belongs here when it was drawn from *any* document in this guideline's
+    lineage, or when it names no document at all (rules proposed before documents were
+    recorded keep working; they are matched on the section title alone, which is the
+    only evidence we have for them).
+    """
     rows = db.execute(
         select(Rule, RuleVersion)
         .join(RuleVersion, RuleVersion.rule_id == Rule.id)
@@ -35,8 +56,9 @@ def _rule_versions_on(db: Session, *, org_id: str, document: Document,
     out = []
     for rule, version in rows:
         section = normalise_title(version.source_section or "")
-        from_same_document = version.source_document_id in (document.id, None)
-        if section and section in wanted and from_same_document:
+        from_same_lineage = version.source_document_id in document_ids or \
+            version.source_document_id is None
+        if section and section in wanted and from_same_lineage:
             out.append((rule, version))
     return out
 
@@ -58,9 +80,10 @@ def record_change(db: Session, *, org_id: str, principal, previous: Document, cu
 
     # Only sections that moved can invalidate a rule. An added section cannot.
     affected = [s for s in sections if s.status in ("changed", "removed")]
+    lineage = _lineage(previous)
     for section in affected:
         titles = {t for t in (section.title, section.previous_title) if t}
-        for rule, version in _rule_versions_on(db, org_id=org_id, document=previous,
+        for rule, version in _rule_versions_on(db, org_id=org_id, document_ids=lineage,
                                                section_titles=titles):
             existing = db.execute(
                 select(RuleReviewTask).where(RuleReviewTask.org_id == org_id,

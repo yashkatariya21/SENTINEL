@@ -5,7 +5,7 @@ interchangeably.
 
 | What | Command | Needs a key? | Question it answers |
 |---|---|---|---|
-| Behaviour tests | `cd backend && pytest -q` (that is 241 tests) | no | Do the deterministic rules, permissions and tenancy boundaries hold? |
+| Behaviour tests | `cd backend && pytest -q` (that is 247 tests) | no | Do the deterministic rules, permissions and tenancy boundaries hold? |
 | **Pipeline regression benchmark (rule-based engine)** | `python -m eval.run_eval` | no | Did a rule or code change break the engine's behaviour on the tuning set? |
 | **Held-out adversarial set** | `python -m eval.run_eval` (same run) | no | Does the engine generalise to copy it was not tuned on? |
 | **LLM evaluation** | `python -m eval.run_llm_eval` | **yes** | How well do three prompt configurations perform, at what latency and cost? |

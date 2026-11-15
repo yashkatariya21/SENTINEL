@@ -124,25 +124,38 @@ class SectionChange:
 CHANGED_THRESHOLD = 0.985   # below this, a same-titled section's text really moved
 
 
+def _occurrence_keys(sections: list[Section]) -> list[tuple[str, Section]]:
+    """(match key, section) with a counter for repeated titles.
+
+    Guidelines really do repeat a heading — "Legal" in the marketing part and "Legal"
+    in the product part, two "Tone" sections. Keyed on the title alone, the second copy
+    could only ever be compared with the first, so its edits were paired with the wrong
+    text (or missed entirely). Numbering the repeats compares each copy with its own
+    counterpart, in document order.
+    """
+    seen: dict[str, int] = {}
+    pairs: list[tuple[str, Section]] = []
+    for section in sections:
+        count = seen.get(section.key, 0)
+        seen[section.key] = count + 1
+        pairs.append((f"{section.key}#{count}", section))
+    return pairs
+
+
 def diff_sections(old: list[Section], new: list[Section]) -> list[SectionChange]:
     """added / removed / changed / unchanged, matched on the normalised title first."""
-    old_by_key: dict[str, Section] = {}
-    for section in old:
-        old_by_key.setdefault(section.key, section)
-    new_by_key: dict[str, Section] = {}
-    for section in new:
-        new_by_key.setdefault(section.key, section)
+    old_by_key = dict(_occurrence_keys(old))
 
     changes: list[SectionChange] = []
     matched_old: set[str] = set()
 
-    for section in new:
-        previous = old_by_key.get(section.key)
+    for key, section in _occurrence_keys(new):
+        previous = old_by_key.get(key)
         if previous is None:
             changes.append(SectionChange(status="added", title=section.title, body=section.body,
                                          similarity=0.0))
             continue
-        matched_old.add(section.key)
+        matched_old.add(key)
         score = similarity(previous.body, section.body)
         status = "unchanged" if score >= CHANGED_THRESHOLD else "changed"
         notes = []
@@ -152,8 +165,8 @@ def diff_sections(old: list[Section], new: list[Section]) -> list[SectionChange]
                                      previous_title=previous.title, similarity=score,
                                      body=section.body, previous_body=previous.body, notes=notes))
 
-    for section in old:
-        if section.key in matched_old:
+    for key, section in _occurrence_keys(old):
+        if key in matched_old:
             continue
         # Was it renamed rather than deleted? Say so, but keep the status honest.
         best, best_score = None, 0.0
