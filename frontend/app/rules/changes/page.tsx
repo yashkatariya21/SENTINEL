@@ -106,7 +106,7 @@ export default function GuidelineChangesPage() {
       {changes && changes.length === 0 && (
         <EmptyState
           title="No guideline changes yet"
-          body="Upload a new version of a guideline in the Brand Kit — give it the same kind and filename, or name the document it replaces. The comparison appears here."
+          body="Upload the new version in the Brand Kit under the same document type. Sentinel matches it to the version it replaces by filename, and you can name that version explicitly on the upload form. The section-by-section comparison appears here."
         />
       )}
 
@@ -203,7 +203,15 @@ export default function GuidelineChangesPage() {
                         </span>{" "}
                         {task.rule_body || task.previous_body || "—"}
                       </p>
-                      {task.current_body && (
+                      {task.change_status === "removed" ? (
+                        <p className="mt-1 text-xs leading-relaxed text-[color:var(--ink-2)]">
+                          <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-[color:var(--ink-3)]">
+                            Section no longer in the guideline:
+                          </span>{" "}
+                          “{task.section_title}” does not appear in the new version at all, so this
+                          rule now stands on text that has been withdrawn.
+                        </p>
+                      ) : task.current_body && (
                         <p className="mt-1 text-xs leading-relaxed text-[color:var(--ink-2)]">
                           <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-[color:var(--ink-3)]">
                             Guideline now says:

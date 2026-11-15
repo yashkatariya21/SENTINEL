@@ -6,6 +6,37 @@ documents' figures stop agreeing with those runs.
 
 ---
 
+## Guideline changes: three ways the comparison broke its own promise
+
+The page makes three claims. Each of them was false on a real re-issued guideline,
+and each is now covered by a test that failed before the fix.
+
+| Claim on the page | What actually happened | Fix |
+|---|---|---|
+| "compares it with the version it replaces" | the replaced version was only found by **exact filename**, so a guideline re-issued as `guidelines-5.0.pdf` instead of `guidelines-4.2.pdf` was filed as **version 1 of a new document**, never compared, and no rule was ever flagged | `_predecessor()` matches the document *family*: the filename with version markers (`v`, `rev`, `draft`, `2026`, `4.2`, …) removed, singularised, must be the same name. An addendum, a checklist or a privacy policy is a different document and is never diffed against the guideline. There is still an explicit **Replaces** control on the upload form for a rename the heuristic cannot see |
+| "rules that came from a section that changed or vanished are flagged" | a rule was only compared with the **immediately previous** document, so a rule drawn from v1 was invisible the second time that section was edited (v3) — silently, with a green "settled" tag | `_lineage()` walks `meta["lineage"]`; a rule is matched when it came from **any** document in this guideline's chain, or names none (older rules), and the section title matches |
+| "section by section" | sections were keyed on the normalised title alone, so two sections called "Tone" — or "Legal" in two parts of a guide — could only ever be compared with the first copy: the untouched one was reported as changed and quoted the other's text back at the reviewer | repeats are numbered in document order (`_occurrence_keys`), so each copy is compared with its own counterpart; a vanished second copy is now reported as `removed` instead of being swallowed |
+
+Also corrected on the review sheet: a task for a **removed** section said "Guideline now
+says:" over the old text. It now says the section no longer appears in the new version.
+
+- **Upload screen**: a new version reports what the comparison found
+  ("*v5 → v6 was compared section by section. 1 rule came from a section that changed or
+  vanished and awaits a decision. Nothing has been altered.*") with a link to the
+  comparison; document rows show `v3` and whether they replace, or were replaced by, a
+  later version; and a **Replaces** select names the version being replaced when the
+  filename changed. Before this the only feedback was "Ingested …, check the Proposals tab".
+- `GET /documents` now returns `replaces_document_id` and `superseded_by`, so the lineage
+  is visible without opening the change ledger.
+- Six tests added (`tests/test_guideline_changes.py`), five of which fail against the
+  previous code; the sixth guards the strict matching against over-reach. Suite:
+  **247 collected, 242 passed, 5 skipped**. Verified end to end against the live API:
+  v1 → v2 → v3 under three different filenames, a rule from v1 flagged at v3, a removed
+  section flagged at v4, and the rule still `active` with `current_version` unchanged
+  until a person decides.
+
+---
+
 ## A new workspace that works, and a public site around it
 
 ### Fixed — the reported bug

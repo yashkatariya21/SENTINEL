@@ -265,6 +265,165 @@ def test_confirming_proposals_then_uploading_a_new_version_creates_reviewable_ta
 
 
 # --------------------------------------------------------------------------- #
+# C1b — a repeated heading is compared with its own counterpart
+# --------------------------------------------------------------------------- #
+def test_a_repeated_heading_is_compared_with_its_own_section():
+    """Two "Tone" sections must not be swapped.
+
+    Keyed on the title alone the second copy could only be compared with the first, so
+    the first copy's edit was reported twice and the section that did not move was
+    flagged — with the wrong text quoted back at the reviewer.
+    """
+    v1 = ("1. Tone\n\nWrite plainly (repeat).\n\n"
+          "2. Tone\n\nNever use hype (repeat).\n\n"
+          "3. Legal\n\nGuarantees need proof (repeat).\n")
+    v2 = ("1. Tone\n\nWrite plainly and warmly (repeat).\n\n"
+          "2. Tone\n\nNever use hype (repeat).\n\n"
+          "3. Legal\n\nGuarantees need proof (repeat).\n")
+
+    changes = diff_documents(v1, v2)
+    assert [c.status for c in changes] == ["changed", "unchanged", "unchanged"]
+    changed = changes[0]
+    assert changed.previous_body.startswith("Write plainly")
+    assert changed.body.startswith("Write plainly and warmly")
+
+
+def test_a_second_copy_of_a_section_can_change_on_its_own():
+    v1 = ("1. Tone\n\nWrite plainly (second).\n\n"
+          "2. Tone\n\nNever use hype (second).\n")
+    v2 = ("1. Tone\n\nWrite plainly (second).\n\n"
+          "2. Tone\n\nNever use hype or superlatives (second).\n")
+
+    changes = diff_documents(v1, v2)
+    assert [c.status for c in changes] == ["unchanged", "changed"]
+    assert changes[1].previous_body.startswith("Never use hype (second)")
+    assert changes[1].body.startswith("Never use hype or superlatives")
+
+
+# --------------------------------------------------------------------------- #
+# C0b — which document a new version replaces
+# --------------------------------------------------------------------------- #
+def test_a_new_version_under_a_new_filename_is_still_the_version_it_replaces(client, auth):
+    """`guidelines-4.2.txt` being replaced by `guidelines-5.0.txt` is the normal case.
+
+    Before this, a changed filename meant the upload was filed as version 1 of a brand
+    new document, nothing was compared, and no rule was ever flagged for the guideline
+    that had just been re-issued.
+    """
+    headers = auth("meera@northwind.example")
+    v1, v2 = policies("renamed")
+    first = _upload(client, headers, v1, filename="guidelines-4.2-renamed.txt").json()
+    assert first["version"] == 1
+    assert _confirm_all(client, headers) >= 1
+
+    second = _upload(client, headers, v2, filename="guidelines-5.0-renamed.txt")
+    assert second.status_code == 201, second.text
+    body = second.json()
+    assert body["replaces_document_id"] == first["id"], "a new version must name the one it replaces"
+    assert body["version"] == 2
+    assert body["change_id"], "and must be compared section by section"
+    assert body["review_tasks"] >= 1
+
+    relation = client.get("/v1/documents", headers=headers).json()
+    new_doc = next(d for d in relation if d["id"] == body["id"])
+    old_doc = next(d for d in relation if d["id"] == first["id"])
+    assert new_doc["replaces_document_id"] == first["id"]
+    assert old_doc["superseded_by"] == body["id"]
+
+
+def test_an_unrelated_document_is_never_treated_as_a_new_version(client, auth):
+    """A privacy policy is not a version of the brand guideline, however it is uploaded."""
+    headers = auth("meera@northwind.example")
+    v1, _ = policies("unrelated")
+    guideline = _upload(client, headers, v1, filename="brand-guidelines-unrelated.txt").json()
+
+    other = _upload(client, headers, "1. Retention\n\nKeep invoices for seven years.\n",
+                    filename="privacy-policy-unrelated.txt", kind="legal").json()
+    assert other["version"] == 1, "an unrelated document starts its own line"
+    assert other["replaces_document_id"] is None
+    assert other["change_id"] is None
+
+    same_kind = _upload(client, headers, "1. Launch\n\nNever announce before launch.\n",
+                        filename="launch-checklist-unrelated.txt").json()
+    assert same_kind["replaces_document_id"] is None, (
+        "sharing a document type is not sharing a document")
+    assert guideline["id"] != same_kind["id"]
+
+
+def test_the_document_family_ignores_version_markers_but_not_the_subject():
+    from app.routers.brand_kit import _same_document
+
+    assert _same_document("guidelines-4.2.pdf", "guidelines-5.0.pdf")
+    assert _same_document("Brand Guidelines.pdf", "brand_guidelines_2026.pdf")
+    assert _same_document("tone-of-voice-v2.docx", "tone of voice v3.docx")
+    assert not _same_document("brand-guidelines.pdf", "privacy-policy.pdf")
+    assert not _same_document("brand-guidelines.pdf", "brand-guidelines-addendum.pdf"), (
+        "an addendum is filed next to the guideline, it does not replace it")
+    assert not _same_document("policy.pdf", "policy-checklist.pdf")
+    assert not _same_document("1.txt", "2.txt"), "version-only names carry no subject at all"
+
+
+# --------------------------------------------------------------------------- #
+# C2b — a rule is flagged for as long as its section keeps moving
+# --------------------------------------------------------------------------- #
+def test_a_rule_from_the_first_version_is_still_flagged_by_the_fourth(client, auth):
+    """Lineage, not just the immediately previous document.
+
+    A rule proposed from v1 stands on v1's text forever. When v3 edits that same
+    section, the rule has to be flagged even though the *previous* document (v2) never
+    touched it — otherwise a guideline that is re-issued twice silently leaves its
+    oldest rules unexamined.
+    """
+    headers = auth("ananya@northwind.example")  # admin
+    tag = "lineage"
+    v1 = (f"1. Terminology - {tag}\n\n"
+          f"Never write utilize in customer copy ({tag}).\n")
+    v2 = (f"1. Terminology - {tag}\n\n"
+          f"Never write utilize in customer copy ({tag}).\n\n"
+          f"2. Legal - {tag}\n\n"
+          f"Never promise a guarantee ({tag}).\n")
+    v3 = (f"1. Terminology - {tag}\n\n"
+          f"Never write utilize or leverage in customer copy ({tag}).\n\n"
+          f"2. Legal - {tag}\n\n"
+          f"Never promise a guarantee ({tag}).\n")
+    name = f"policy-generations-{tag}.txt"
+
+    first = _upload(client, headers, v1, filename=name).json()
+    assert _confirm_all(client, headers) >= 1, "the v1 guideline must propose a rule"
+    second = _upload(client, headers, v2, filename=name).json()
+    third = _upload(client, headers, v3, filename=name).json()
+    assert second["version"] == 2 and third["version"] == 3
+
+    rules = client.get("/v1/rules", headers=headers).json()
+    terminology = [r for r in rules if (r.get("body") or "").endswith(f"({tag}).")
+                   and "utilize" in (r.get("body") or "")]
+    assert terminology, "the rule proposed from v1 must exist"
+    rule = terminology[0]
+
+    from app.db import session_scope
+    from app.models import Rule, RuleVersion
+    with session_scope() as db:
+        stored = db.query(RuleVersion).filter(RuleVersion.rule_id == rule["id"]).order_by(
+            RuleVersion.version.desc()).first()
+        assert stored.source_document_id == first["id"], (
+            "the proposal records the version it was drawn from")
+
+    tasks = client.get("/v1/rule-review-tasks?status_filter=all", headers=headers).json()
+    on_third = [t for t in tasks if t["guideline_change_id"] == third["change_id"]
+                and t["rule_id"] == rule["id"]]
+    assert on_third, ("a rule drawn from v1 must be flagged when v3 edits that section; "
+                      f"change {third['change_id']} opened {len(tasks)} task(s) overall")
+    assert on_third[0]["change_status"] == "changed"
+    assert on_third[0]["section_title"].endswith(tag)
+
+    # still nothing altered by the diff itself
+    after = next(r for r in client.get("/v1/rules", headers=headers).json() if r["id"] == rule["id"])
+    assert after["active"] is True
+    assert after["body"] == rule["body"]
+    assert after["current_version"] == rule["current_version"]
+
+
+# --------------------------------------------------------------------------- #
 # C2 — the three decisions
 # --------------------------------------------------------------------------- #
 def _open_task(client, headers, change_id: str) -> dict:

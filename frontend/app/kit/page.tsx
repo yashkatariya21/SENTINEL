@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { api, readableError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -8,7 +9,9 @@ import {
 import { Figure, TabStrip } from "../components/Desk";
 
 interface Kit { id: string; name: string; version: number; status: string; documents: number; rules: number; terms: number; facts: number; assets: number }
-interface Doc { id: string; filename: string; mime: string; kind: string; version: number; pages: number; size_bytes: number; status: string; created_at: string; chunks: number }
+interface Doc { id: string; filename: string; mime: string; kind: string; version: number; pages: number; size_bytes: number; status: string; created_at: string; chunks: number; replaces_document_id?: string | null; superseded_by?: string | null; change_id?: string | null; review_tasks?: number }
+/** What an upload that replaced a version did to the rules drawn from it. */
+interface DiffNote { filename: string; version: number; previousVersion: number; changeId: string; tasks: number }
 interface Term { id: string; kind: string; value: string; replacement: string | null; severity: string; note: string | null; status: string }
 interface Fact { id: string; statement: string; value: string | null; topic: string | null; status: string; source_document: string | null; source_page: number | null }
 interface Asset { id: string; kind: string; name: string; value: string; version: string | null; status: string; meta: any }
@@ -28,6 +31,8 @@ export default function BrandKitPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [uploading, setUploading] = useState(false);
   const [docKind, setDocKind] = useState("guideline");
+  const [replacesId, setReplacesId] = useState("");
+  const [lastDiff, setLastDiff] = useState<DiffNote | null>(null);
   const [newTerm, setNewTerm] = useState({ kind: "banned", value: "", replacement: "" });
   const [newFact, setNewFact] = useState({ statement: "", topic: "" });
   const [loaded, setLoaded] = useState(false);
@@ -109,8 +114,22 @@ export default function BrandKitPage() {
       form.append("file", file);
       form.append("kind", docKind);
       form.append("brand_kit_id", kit.id);
+      if (replacesId) form.append("replaces_document_id", replacesId);
       const doc = await api.upload<Doc>("/documents", form);
-      push(`Ingested ${doc.filename}: ${doc.chunks ?? 0} chunks embedded. Check the Proposals tab.`, "ok");
+      setReplacesId("");
+      if (doc.change_id) {
+        // The upload replaced a version: say what the comparison found and where the
+        // decisions are made. Nothing about the rules has changed — only a task exists.
+        const previous = docs.find((d) => d.id === doc.replaces_document_id);
+        setLastDiff({
+          filename: doc.filename, version: doc.version,
+          previousVersion: previous?.version ?? doc.version - 1,
+          changeId: doc.change_id, tasks: doc.review_tasks ?? 0,
+        });
+        // The notice above the tabs already says this in full; a toast would repeat it.
+      } else {
+        push(`Ingested ${doc.filename}: ${doc.chunks ?? 0} chunks embedded. Check the Proposals tab.`, "ok");
+      }
       if (input) input.value = "";
       setTab("proposals");
       await load();
@@ -211,6 +230,28 @@ export default function BrandKitPage() {
             </div>
           )}
 
+          {lastDiff && (
+            <div role="status" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-[10px] border-l-[2.5px] border-[color:var(--warn)] bg-[color:var(--paper-2)] p-4">
+              <div className="min-w-0">
+                <p className="font-mono text-2xs uppercase tracking-[0.16em] text-[color:var(--ink-3)]">
+                  New version compared
+                </p>
+                <p className="mt-1 max-w-[68ch] text-sm leading-relaxed text-[color:var(--ink-2)]">
+                  <strong className="text-[color:var(--ink)]">{lastDiff.filename}</strong> v{lastDiff.previousVersion} → v{lastDiff.version} was
+                  compared section by section. {lastDiff.tasks > 0
+                    ? <>{lastDiff.tasks} rule{lastDiff.tasks === 1 ? "" : "s"} came from a section that changed or vanished and await{lastDiff.tasks === 1 ? "s" : ""} a decision. Nothing has been altered.</>
+                    : <>No rule cited a section that changed, so nothing needs a decision.</>}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Link href="/rules/changes" className="rounded-[4px] border border-[color:var(--hairline-strong)] px-2.5 py-1 font-mono text-2xs uppercase tracking-[0.12em] text-[color:var(--ink)] transition-colors hover:border-[color:var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]">
+                  Open the comparison
+                </Link>
+                <button type="button" onClick={() => setLastDiff(null)} aria-label="Dismiss" className="font-mono text-2xs uppercase tracking-[0.12em] text-[color:var(--ink-3)] hover:text-[color:var(--ink)]">Dismiss</button>
+              </div>
+            </div>
+          )}
+
           <TabStrip
             className="mb-4"
             label="Brand Kit sections"
@@ -242,6 +283,18 @@ export default function BrandKitPage() {
                       <option value="other">Other</option>
                     </Select>
                   </Field>
+                  <Field label="Replaces" htmlFor="doc-replaces"
+                         hint="Optional. A new version is normally matched by its filename; name it here when the name changed too. The two are then compared section by section.">
+                    <Select id="doc-replaces" value={replacesId} onChange={(e) => setReplacesId(e.target.value)}
+                            disabled={!writable}>
+                      <option value="">Detect from the filename</option>
+                      {docs
+                        .filter((d) => d.kind === docKind && !d.superseded_by)
+                        .map((d) => (
+                          <option key={d.id} value={d.id}>{d.filename} · v{d.version}</option>
+                        ))}
+                    </Select>
+                  </Field>
                   <Field label="File" htmlFor="doc-file" hint="Max 20MB. Type and size are validated before storage.">
                     <input id="doc-file" type="file" disabled={!writable}
                            accept=".pdf,.docx,.txt,.png,.jpg,.jpeg,.webp"
@@ -262,8 +315,13 @@ export default function BrandKitPage() {
                         <div className="min-w-0">
                           <p className="truncate text-sm font-medium text-ink">{doc.filename}</p>
                           <p className="text-xs text-ink-mute">
-                            {doc.kind} · {doc.pages || "—"} page(s) · {doc.chunks} chunks · {(doc.size_bytes / 1024).toFixed(0)}KB · {doc.status}
+                            {doc.kind} · v{doc.version} · {doc.pages || "—"} page(s) · {doc.chunks} chunks · {(doc.size_bytes / 1024).toFixed(0)}KB · {doc.status}
                           </p>
+                          {(doc.superseded_by || doc.replaces_document_id) && (
+                            <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.08em] text-[color:var(--ink-3)]">
+                              {doc.superseded_by ? "Replaced by a later version" : "Replaces the previous version"}
+                            </p>
+                          )}
                         </div>
                         <Button size="sm" variant="danger" disabled={!writable}
                                 onClick={async () => {
