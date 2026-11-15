@@ -23,8 +23,8 @@ Marks and notes are two ends of one link: pressing either brings the other into 
 
 A flat fill was the one thing the first pass got wrong, so the paper is now a surface.
 `app/components/DeskBackground.tsx` paints eight fixed, `aria-hidden`,
-pointer-transparent layers under every page — the app shell, `/login` and the brief at `/`
-all share it:
+pointer-transparent layers under every page — the app shell, `/login` and `/welcome` all
+share it:
 
 | layer | what it is | interaction |
 |---|---|---|
@@ -145,55 +145,36 @@ cannot be the first thing to fail when a glow moves.
 
 ## 1a.5 The order of the door — brief, then sign-in, then desk
 
-The public link opens on the brief. The order is enforced in one place,
-`lib/routes.ts` (the list) plus `lib/auth.tsx` (the gate), and nowhere else:
+The public link now opens on the brief. The order is enforced in one place,
+`lib/auth.tsx`, and nowhere else:
 
-1. `PUBLIC_ROUTES = ["/", "/login", "/welcome", "/about", "/trust"]`. The root is the
-   brief and is public. `isPublicRoute()` treats `/` as exact and everything else as a
-   prefix — a naive prefix test for `"/"` matches every path and switches the gate off,
-   which is the bug this function exists to prevent.
-2. The desk starts at `/desk`. The overview used to be `/` and `/welcome` was the
-   brief, so opening the link gave a client-side bounce: a browser holding an old
-   session opened straight on the dashboard, and everyone else saw a flash of the
-   dashboard first. Now `/` renders the brief on the server for everybody, and
-   `/desk` is behind the gate. `/welcome` permanently redirects to `/`
-   (`next.config.js`), so old links and bookmarks still work.
-3. The guard runs on every non-public route. The path the visitor wanted goes to
-   `sessionStorage['sentinel.next']` and they are sent to `/`. After `login`, `setup`
-   or `loginAs` the destination is `takeNext() ?? "/desk"`.
-4. A 401 on a public page no longer navigates: `lib/api.ts` clears the dead token and
-   leaves the reader where they are. On a desk route it still sends them to `/login`.
-   Before this, an expired token in the browser could throw a visitor off the front
-   door onto the sign-in form.
+1. The guard runs on every authenticated route. An anonymous visitor is asked for
+   nothing first: the path they wanted is written to
+   `sessionStorage['sentinel.next']` and they are sent to `/welcome`.
+2. `/welcome` is the pitch; its closing call to action points at `/login`, and the
+   header's *Open the workspace* points there too.
+3. After `login`, `setup` or `loginAs`, the destination is `takeNext() ?? "/"`.
 
-`takeNext()` accepts only a string that starts with `/` and not `//`, and removes the
-key as it reads it, so the remembered path is used once and cannot become a redirect
-to somewhere else. The intended path lives in `sessionStorage` rather than in search
-params so that a query string never forces a public page to become dynamic.
+`takeNext()` accepts only a string that starts with `/` and not `//`, and removes
+the key as it reads it, so the remembered path is used once and cannot become a
+redirect to somewhere else. `PUBLIC_ROUTES = ["/login", "/welcome"]` keeps the
+sign-in reachable directly and both pages statically prerendered — the intended
+path lives in `sessionStorage` rather than in search params precisely so a query
+string never forces either page to become dynamic. `/` is still the
+authenticated overview; it is the guard, not a redirect, that gives an anonymous
+visitor the brief first.
 
-The walkthrough (`app/components/Walkthrough.tsx`, list in `lib/tour.ts`) is the same
-eleven rooms in both places it appears: as a section on the brief, where each room is
-a link that remembers itself and lands there after sign-in, and as a box on the
-overview, where a room is ticked only once this browser has opened it
-(`localStorage['sentinel.walkthrough.visited']`, written by the shell on every desk
-page).
-
-Headless journey (chromium, console captured):
+Headless journey (`journey.py`, chromium, console captured):
 
 | step | expected | got | console |
 |---|---|---|---|
-| open `/` signed out | the brief | `/`, "Read before it ships." | — |
-| open `/` **with a valid session** | the brief, not the dashboard | `/` | — |
-| open `/` with a stale token | the brief (token dropped, no navigation) | `/` | one 401, expected |
-| open the old `/welcome` | permanent redirect | `/` (200) | — |
-| click "Brand Kit" in the walkthrough, signed out | `/login`, room remembered | `/login`, `sentinel.next = /kit` | — |
-| sign in from there | the room that was clicked | `/kit` | — |
-| cold deep link to `/content/{id}` | the brief, path remembered | `/`, remembered | — |
-| sign in from there | back to the deep link | `/content/{id}` | `[]` |
-| overview walkthrough | 11 rooms, only opened ones ticked | 4 of 11 after opening 4 | — |
-| dismiss the box, reload | stays dismissed, restorable | hidden, "Show the walkthrough" | — |
+| open `/` signed out | `/welcome` | `/welcome` | — |
+| press the brief's CTA | `/login` | `/login` | — |
+| sign in as Ananya | `/` | `/` | — |
+| cold deep link `/content/515d8f21…` | `/welcome`, path remembered | `/welcome`, remembered `True` | — |
+| sign in from there | back to the deep link | `/content/515d8f21…` | `[]` |
 
-Navigation only: no API, data, route handler or permission changed.
+No API, data, route or permission changed: this is client-side routing only.
 
 ## 1b. The night shift — a dark room with three lights in it
 
@@ -212,7 +193,7 @@ read on top of the light.
 | aurora teal | top-left | `rgba(15,74,85,.38)` at 20 % 0 % | `rgba(15,74,85,.13)` at 44 % 0 % |
 | base | the room | `#07090d` | `#07090d` |
 
-`/` (the brief) and `/login` pass `variant="public"` to `DeskBackground`; everything else gets
+`/welcome` and `/login` pass `variant="public"` to `DeskBackground`; everything else gets
 the edge recipe. Cards stay opaque `--paper` / `--paper-2`, and the only decoration on
 top of a glow is the seal's orbit ring (night shift only, contained inside the stage box
 so it cannot reach the headline).
@@ -357,9 +338,9 @@ network or the reader's settings say no.
   (rest → 300,700 → 1300,200), grid drift `0px 48px` after an 800 px scroll, ruler marker
   moves with it; under `reduced_motion="reduce"` the lamp is `display:none`, the glyph
   animation is `none` and the lean transform is `none`
-- the order of the door: `/` → the brief (for everyone, signed in or not) → `/login` →
-  the room clicked or `/desk`, and a cold deep link → the brief → sign in → the deep
-  link it asked for; `sessionStorage` key consumed once; no console errors
+- the order of the door: `/` → `/welcome`, CTA → `/login`, sign in → `/`, and a cold
+  deep link → `/welcome` → sign in → the deep link it asked for; `sessionStorage` key
+  consumed once; no console errors (`journey.py`)
 - axe-core re-run after the flow and the maker's note: **0 violations across the same 32
   page × theme combinations**; mobile sweep at 390 px still reports `OVERFLOW: []` on all
   14 pages

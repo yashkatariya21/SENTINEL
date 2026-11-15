@@ -20,7 +20,7 @@ const REPO_URL = process.env.NEXT_PUBLIC_REPO_URL || "";
 type Link = { href: string; label: string; external?: boolean; note?: string };
 
 const PRODUCT: Link[] = [
-  { href: "/#committee", label: "How it works" },
+  { href: "/welcome#committee", label: "How it works" },
   { href: "/evaluation", label: "Evaluation" },
   { href: "/rules", label: "Rules and learning" },
   { href: "/login", label: "Open the workspace" },
@@ -98,7 +98,7 @@ export function SiteFooter() {
         {/* a hairline under the wordmark row, the way a sheet is ruled before it is written on */}
         <div className="mb-6 flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2 border-b border-[color:var(--hairline)] pb-3">
           <Link
-            href="/"
+            href="/welcome"
             className="flex items-center gap-2 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]"
           >
             <DeskMark size={18} className="text-[color:var(--ink)]" />

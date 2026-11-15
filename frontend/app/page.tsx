@@ -1,426 +1,569 @@
-import type { Metadata } from "next";
+"use client";
 import Link from "next/link";
-import { SiteHeader } from "./components/landing/SiteHeader";
-import { SiteFooter } from "./components/landing/SiteFooter";
-import { ReviewFloor } from "./components/landing/ReviewFloor";
-import { LiveDemo } from "./components/landing/LiveDemo";
-import { Marquee } from "./components/landing/Marquee";
-import { Reveal } from "./components/landing/Reveal";
-import { SealStage } from "./components/landing/SealStage";
-import { EntrySequence } from "./components/EntrySequence";
-import { DeskMark, DeskSentri, GateStrip } from "./components/Desk";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { api, ContentItem, Finding, isNoBrandKit, readableError } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
+import {
+  Button, Card, EmptyState, Field, SectionHeading, Skeleton, StatusPill, Tag, TextArea, useToast,
+} from "./components/ui";
+import { LoadDemoButton } from "./components/Demo";
+import { BrandScoreRing } from "./components/brand/BrandScoreRing";
+import { DeskSentri, Figure } from "./components/Desk";
 import { Icon } from "./components/Icon";
-import { FACTS, MOVEMENTS, REVIEWERS } from "@/lib/landing";
-import { DeskBackground } from "@/app/components/DeskBackground";
-import { Walkthrough } from "./components/Walkthrough";
 
-export const metadata: Metadata = {
-  title: "Sentinel AI — read before it ships",
-  description:
-    "Six specialist reviewers read every draft against your Brand Kit. Every finding quotes the rule, shows its source, and waits for a person. It never publishes.",
-  robots: { index: true, follow: true },
-};
+/** What `GET /brand-kits/{id}/health` reports, narrowed to what the checklist needs. */
+interface Readiness {
+  hasKit: boolean;
+  checks: { item: string; ok: boolean }[];
+  counts: { rules: number };
+}
 
-/** the eyebrow that opens each movement: a number, a rule, a word */
-function Marker({ n, children }: { n: string; children: React.ReactNode }) {
+const CHECKLIST_KEY = "sentinel.overview.checklist";
+
+interface Summary {
+  brand_score: number;
+  formula: string;
+  submissions: number;
+  findings_by_severity: Record<string, number>;
+  findings_by_reviewer: Record<string, number>;
+  most_common_mistakes: { rule_key: string; count: number; example_issue: string }[];
+  average_approval_hours: number | null;
+  brand_health_trend: { week_start: string; brand_score: number | null; submissions: number }[];
+  provider: { provider: string; model: string; prompt_version: string };
+}
+
+/**
+ * The getting-started checklist.
+ *
+ * Shown only while there is something to start: no kit, no confirmed rules, no draft, or
+ * no decision yet. Every tick comes from the readiness endpoint or from data the overview
+ * already loaded, so a completed step is never claimed before it happened. Dismissible,
+ * and the dismissal is remembered on this machine — a reader who knows the product should
+ * not have to sweep it away on every visit.
+ */
+function GettingStarted({
+  readiness, hasDraft, decisionMade, onDismiss,
+}: {
+  readiness: Readiness;
+  hasDraft: boolean;
+  decisionMade: boolean;
+  onDismiss: () => void;
+}) {
+  const rulesConfirmed = (readiness.counts?.rules ?? 0) > 0;
+  const steps = [
+    {
+      key: "kit",
+      label: "Set up a Brand Kit",
+      body: readiness.hasKit
+        ? "A kit exists. Load the sample standards, or upload your own guideline."
+        : "There is no kit yet, so nothing can be checked against your standards.",
+      done: readiness.hasKit,
+      href: "/kit",
+      cta: "Open the Brand Kit",
+    },
+    {
+      key: "rules",
+      label: "Confirm some rules",
+      body: "Extracted rules stay in draft until an Admin confirms them. Until one is confirmed, a review is limited to built-in checks.",
+      done: rulesConfirmed,
+      href: "/kit",
+      cta: "Confirm rules",
+    },
+    {
+      key: "draft",
+      label: "Send the first draft",
+      body: "Paste text or upload a DOCX, PDF or image. Six reviewers read it against the kit.",
+      done: hasDraft,
+      href: "/new",
+      cta: "Review new content",
+    },
+    {
+      key: "decision",
+      label: "Make the first decision",
+      body: "Accept, edit, dismiss or escalate a finding. That decision is what the learning loop remembers.",
+      done: decisionMade,
+      href: hasDraft ? "/content" : "/new",
+      cta: hasDraft ? "Open the queue" : "Start with a draft",
+    },
+  ];
+  const remaining = steps.filter((step) => !step.done).length;
+  if (remaining === 0) return null;
+
   return (
-    <p className="flex items-center gap-2.5 font-mono text-2xs uppercase tracking-[0.2em] text-[color:var(--ink-3)]">
-      <span className="tabular-nums text-[color:var(--ink)]">{n}</span>
-      <span aria-hidden="true" className="h-px w-8 bg-[color:var(--hairline-strong)]" />
-      {children}
-    </p>
+    <section
+      aria-labelledby="getting-started-title"
+      className="mb-6 rounded-[10px] border-[1.5px] border-[color:var(--hairline-strong)] bg-[color:var(--paper)]"
+    >
+      <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-[color:var(--hairline)] px-4 py-2.5">
+        <div className="min-w-0">
+          <p className="font-mono text-2xs uppercase tracking-[0.16em] text-[color:var(--ink-3)]">
+            Getting started · {steps.length - remaining} of {steps.length} done
+          </p>
+          <h2 id="getting-started-title" className="mt-0.5 text-sm font-semibold text-[color:var(--ink)]">
+            Four steps from an empty workspace to a decided review
+          </h2>
+        </div>
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="rounded-[4px] px-2 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-[color:var(--ink-3)] transition-colors hover:text-[color:var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]"
+        >
+          Dismiss
+        </button>
+      </div>
+      <ol className="divide-y divide-[color:var(--hairline)]">
+        {steps.map((step, i) => (
+          <li key={step.key} className="flex items-start gap-3 px-4 py-2.5">
+            <span
+              aria-hidden="true"
+              className={`mt-0.5 grid h-5 w-5 flex-none place-items-center rounded-full border font-mono text-[10px] tabular-nums ${
+                step.done
+                  ? "border-[color:var(--pass-graphic)] bg-[color:var(--pass-tint)] text-[color:var(--pass)]"
+                  : "border-[color:var(--hairline-strong)] text-[color:var(--ink-3)]"
+              }`}
+            >
+              {step.done ? "✓" : i + 1}
+            </span>
+            {/* Below `sm` the action stacks under the sentence instead of competing with
+                it for width: a 390px screen gives the button ~110px, which left the copy
+                about six characters wide and wrapped it one word to a line. */}
+            <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
+              <div className="min-w-0">
+                <p className={`text-sm font-medium ${step.done ? "text-[color:var(--ink-3)] line-through decoration-[color:var(--pass-graphic)]" : "text-[color:var(--ink)]"}`}>
+                  {step.label}
+                  <span className="sr-only">{step.done ? " — done" : " — not done yet"}</span>
+                </p>
+                {!step.done && (
+                  <p className="mt-0.5 text-xs leading-relaxed text-[color:var(--ink-2)]">{step.body}</p>
+                )}
+              </div>
+              {!step.done && (
+                <Link
+                  href={step.href}
+                  className="flex-none self-start whitespace-nowrap rounded-[5px] border border-[color:var(--hairline-strong)] px-2 py-1 font-mono text-[10px] uppercase tracking-[0.1em] text-[color:var(--ink)] transition-colors hover:bg-[color:var(--ink)] hover:text-[color:var(--paper)] sm:mt-0.5"
+                >
+                  {step.cta}
+                </Link>
+              )}
+            </div>
+          </li>
+        ))}
+      </ol>
+    </section>
   );
 }
 
-export default function WelcomePage() {
-  return (
-    <div className="relative min-h-screen bg-[color:var(--canvas)] text-[color:var(--ink)]">
-      <DeskBackground variant="public" />
-      <EntrySequence />
-      <SiteHeader />
+export default function OverviewPage() {
+  const { me, can } = useAuth();
+  const router = useRouter();
+  const { push } = useToast();
+  const [draft, setDraft] = useState("");
+  const [trying, setTrying] = useState(false);
+  const [items, setItems] = useState<ContentItem[] | null>(null);
+  const [summary, setSummary] = useState<Summary | null>(null);
+  const [error, setError] = useState("");
+  const [readiness, setReadiness] = useState<Readiness | null>(null);
+  const [decisionMade, setDecisionMade] = useState(false);
+  const [checklistHidden, setChecklistHidden] = useState(true);
 
-      <main id="main">
-        {/* ================================================================ hero */}
-        <section className="relative isolate overflow-hidden border-b border-[color:var(--hairline)]">
-          {/* the desk grid, ruled faintly behind the sheet */}
-          <svg aria-hidden="true" className="pointer-events-none absolute inset-0 h-full w-full opacity-[0.5]">
+  useEffect(() => {
+    api.get<ContentItem[]>("/content").then(setItems).catch((e) => setError(readableError(e)));
+    if (can("can_read_analytics")) {
+      api.get<Summary>("/analytics/summary").then(setSummary).catch(() => setSummary(null));
+    }
+  }, [can]);
+
+  /* The getting-started checklist is driven by the readiness endpoint the Brand Kit page
+     already uses (`GET /brand-kits/{id}/health`), plus two facts the overview has anyway:
+     whether anything has been written, and whether any finding has been decided. Nothing
+     here is inferred from a spinner or a guess. */
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const kits = await api.get<{ id: string; status: string }[]>("/brand-kits");
+        const kit = kits.find((k) => k.status === "active") ?? kits[0];
+        if (!alive) return;
+        if (!kit) {
+          setReadiness({ hasKit: false, checks: [], counts: { rules: 0 } });
+          return;
+        }
+        const health = await api.get<{
+          checks: { item: string; ok: boolean }[];
+          counts: { rules: number };
+        }>(`/brand-kits/${kit.id}/health`);
+        if (alive) setReadiness({ hasKit: true, checks: health.checks, counts: health.counts });
+      } catch {
+        if (alive) setReadiness(null);
+      }
+    })();
+    api
+      .get<Finding[]>("/findings")
+      .then((rows) => alive && setDecisionMade(rows.some((f) => f.decision_status !== "open")))
+      .catch(() => undefined);
+    try {
+      setChecklistHidden(window.localStorage.getItem(CHECKLIST_KEY) === "hidden");
+    } catch {
+      setChecklistHidden(false);
+    }
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const pending = (items || []).filter((i) => i.status === "in_review");
+  const mine = (items || []).filter((i) => i.owner_id === me?.user.id);
+  const firstName = me?.user.name.split(" ")[0];
+
+  const today = new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
+
+  return (
+    <div>
+      {/* ------------------------------------------------------ the desk head */}
+      <div className="mb-6 border-b-[1.5px] border-[color:var(--hairline-strong)] pb-5">
+        <p className="font-mono text-2xs uppercase tracking-[0.24em] text-[color:var(--ink-3)]">
+          {today} <span className="mx-2 text-[color:var(--hairline)]">/</span> {me?.organisation.name} · desk overview
+        </p>
+        <div className="mt-2 flex flex-wrap items-end justify-between gap-4">
+          <div className="min-w-0">
+            <h1 className="text-[2rem] font-semibold leading-[1.05] tracking-[-0.03em] text-[color:var(--ink)] sm:text-[2.5rem]">
+              Today at the gate, {firstName}.
+            </h1>
+            <p className="mt-2 max-w-xl text-sm leading-relaxed text-[color:var(--ink-2)]">
+              Six specialist reviewers check content against the {me?.organisation.name} Brand Kit. Every finding
+              explains itself with a rule and a source; you decide what happens next.
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <Link href="/new">
+              <Button variant="primary">
+                <span className="flex items-center gap-2">
+                  <Icon name="pen" size={14} /> Review new content
+                </span>
+              </Button>
+            </Link>
+            <span className="hidden text-[color:var(--ink-2)] sm:block">
+              <DeskSentri size={64} mood="idle" />
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {error && (
+        <div className="mb-4 flex items-start gap-2 rounded-[8px] border border-[color:var(--mark)] bg-[color:var(--mark-tint)] px-3 py-2 text-sm text-[color:var(--mark-text)]">
+          <Icon name="alert" size={15} /> {error}
+        </div>
+      )}
+
+      {readiness && !checklistHidden && (
+        <GettingStarted
+          readiness={readiness}
+          hasDraft={(items || []).length > 0}
+          decisionMade={decisionMade}
+          onDismiss={() => {
+            setChecklistHidden(true);
+            try {
+              window.localStorage.setItem(CHECKLIST_KEY, "hidden");
+            } catch {
+              /* private mode: it simply comes back next visit */
+            }
+          }}
+        />
+      )}
+
+      {/* ----------------------------------------------- the instrument strip
+          Four readings, divided by hairlines like a bank of dials. No cards:
+          the eye should read numbers, not boxes. */}
+      <div className="mb-6 grid grid-cols-2 divide-[color:var(--hairline)] border-y border-[color:var(--hairline)] bg-[color:var(--paper)] sm:grid-cols-4 sm:divide-x">
+        <Figure value={items ? String(pending.length) : "—"} label="Waiting on a human" sub={pending.length ? "in review now" : "the desk is clear"} />
+        <Figure value={summary ? String(summary.submissions) : "—"} label="Submissions reviewed" sub="last 90 days" />
+        <Figure
+          value={summary ? summary.brand_score.toFixed(1) : "—"}
+          label="Brand score"
+          sub="90-day composite"
+        />
+        <Figure
+          value={summary?.average_approval_hours != null ? `${summary.average_approval_hours.toFixed(1)}h` : "—"}
+          label="Average approval"
+          sub={summary?.average_approval_hours != null ? "draft to decision" : "not measured yet"}
+        />
+      </div>
+
+      <div className="grid items-start gap-4 [&>*]:min-w-0 lg:grid-cols-3">
+        {/* ------------------------------------------------------ brand score */}
+        <Card className="relative overflow-hidden p-5">
+          <SectionHeading title="Brand Score" subtitle="Last 90 days across the workspace" />
+          {summary ? (
+            <>
+              <div className="flex items-center gap-4">
+                <BrandScoreRing value={summary.brand_score} size={104} />
+                <div>
+                  <p className="font-mono text-2xl font-semibold tabular-nums text-[color:var(--ink)]">
+                    {summary.submissions}{" "}
+                    <span className="font-sans text-sm font-normal text-[color:var(--ink-3)]">submissions reviewed</span>
+                  </p>
+                  <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[color:var(--ink-2)]">
+                    <span className="inline-flex items-center gap-1">
+                      <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-[color:var(--mark)]" />
+                      {summary.findings_by_severity.critical ?? 0} critical
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                      <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-[color:var(--warn)]" />
+                      {summary.findings_by_severity.high ?? 0} high
+                    </span>
+                  </p>
+                  <p className="mt-1 text-xs text-[color:var(--ink-3)]">
+                    Average approval {summary.average_approval_hours != null
+                      ? `${summary.average_approval_hours.toFixed(1)} h`
+                      : "not measured yet"}
+                  </p>
+                </div>
+              </div>
+              <details className="group mt-4">
+                <summary className="cursor-pointer list-none font-mono text-2xs uppercase tracking-[0.14em] text-[color:var(--ink-2)] transition-colors hover:text-[color:var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]">
+                  <span className="inline-flex items-center gap-1.5">
+                    <Icon name="chevron" size={12} className="transition-transform group-open:rotate-90" />
+                    How this is calculated
+                  </span>
+                </summary>
+                <p className="mt-1.5 text-[11px] leading-relaxed text-[color:var(--ink-3)]">{summary.formula}</p>
+              </details>
+              <Link
+                href="/analytics"
+                className="link-under mt-3 inline-flex items-center gap-1 text-xs font-semibold text-[color:var(--ink)]"
+              >
+                Open analytics <Icon name="arrow" size={13} />
+              </Link>
+            </>
+          ) : can("can_read_analytics") ? (
+            <Skeleton className="h-24 w-full" />
+          ) : (
+            <p className="text-sm text-[color:var(--ink-3)]">Analytics are available to managers and above.</p>
+          )}
+        </Card>
+
+        {/* -------------------------------------------------- try your own text */}
+        <Card ornament className="p-5">
+          <SectionHeading title="Try your own text" subtitle="Paste two sentences — the six reviewers read them in seconds" />
+          <Field label="Draft copy" htmlFor="try-text" hint="Nothing is published. You can delete the result afterwards.">
+            <TextArea
+              id="try-text"
+              rows={4}
+              value={draft}
+              placeholder="Our fee-free account is the cheapest on the market — guaranteed."
+              onChange={(e) => setDraft(e.target.value)}
+              className="font-doc !text-[15px] !leading-[1.7]"
+            />
+          </Field>
+          <div className="mt-3 flex items-center justify-between gap-2">
+            <Button
+              variant="primary"
+              loading={trying}
+              disabled={draft.trim().length < 12}
+              onClick={async () => {
+                setTrying(true);
+                try {
+                  const created = await api.post<ContentItem>("/content", {
+                    title: `Quick check — ${new Date().toLocaleString()}`,
+                    content_type: "social_post",
+                    text: draft,
+                  });
+                  router.push(`/content/${created.id}`);
+                } catch (err: unknown) {
+                  if (isNoBrandKit(err)) {
+                    push("This workspace has no Brand Kit yet — set one up first.", "error");
+                    router.push("/kit");
+                  } else {
+                    push(readableError(err, "That draft could not be read."), "error");
+                  }
+                  setTrying(false);
+                }
+              }}
+            >
+              Read this draft
+            </Button>
+            <span className="text-[color:var(--ink-2)]">
+              <DeskSentri mood={trying ? "reading" : "idle"} size={40} />
+            </span>
+          </div>
+        </Card>
+
+        {/* ------------------------------------------------------ the queue */}
+        <Card className="p-5">
+          <SectionHeading title="Waiting on a human" subtitle="Items in review across your workspace" />
+          {!items ? <Skeleton className="h-24 w-full" /> : pending.length === 0 ? (
+            <EmptyState
+              title="Nothing is waiting for approval"
+              body={items.length === 0
+                ? "Once someone submits a draft it appears here for a manager or approver to decide. Load the demo workspace to see the whole loop working."
+                : "Every submission in this workspace has been decided. New drafts land here the moment someone submits one."}
+              action={items.length === 0 ? <LoadDemoButton label="Load demo data" size="sm" /> : undefined}
+            />
+          ) : (
+            <ul className="divide-y divide-[color:var(--hairline)]">
+              {pending.slice(0, 5).map((item) => (
+                <li key={item.id}>
+                  <Link
+                    href={`/content/${item.id}/approval`}
+                    className="group flex items-center justify-between gap-2 py-2.5 transition-colors hover:bg-[color:var(--highlight-tint)]"
+                  >
+                    <span className="min-w-0 pl-1">
+                      <span className="block truncate text-sm font-medium text-[color:var(--ink)]">{item.title}</span>
+                      <span className="text-xs text-[color:var(--ink-3)]">{item.owner_name} · {item.department}</span>
+                    </span>
+                    <span className="flex shrink-0 items-center gap-1.5 pr-1">
+                      <StatusPill status={item.status} />
+                      <Icon name="arrow" size={13} className="text-[color:var(--ink-3)] transition-transform group-hover:translate-x-0.5 group-hover:text-[color:var(--ink)]" />
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+
+        {/* ------------------------------------------------------ my content */}
+        <Card className="p-5">
+          <SectionHeading title="Your recent submissions" subtitle="Drafts and reviews you own" />
+          {!items ? <Skeleton className="h-24 w-full" /> : mine.length === 0 ? (
+            items.length === 0 ? (
+              /* nothing in the workspace at all: the honest empty state */
+              <EmptyState
+                title="No submissions yet"
+                body="Paste a draft on New submission and the six reviewers will read it against the Brand Kit."
+                action={<><Link href="/new"><Button size="sm">New submission</Button></Link>
+                          <LoadDemoButton label="Load demo data" size="sm" variant="secondary" /></>}
+              />
+            ) : (
+              /* the workspace has content, this person just does not own any of it —
+                 saying "load the demo" here would be wrong, it is already loaded */
+              <EmptyState
+                title="Nothing in your name yet"
+                body={`The workspace has ${items.length} submissions and none of them are yours. Your team's drafts are in the Content queue, or paste a new draft to review it yourself.`}
+                action={<><Link href="/new"><Button size="sm">New submission</Button></Link>
+                          <Link href="/content"><Button size="sm" variant="secondary">Content queue</Button></Link></>}
+              />
+            )
+          ) : (
+            <ul className="divide-y divide-[color:var(--hairline)]">
+              {mine.slice(0, 5).map((item) => (
+                <li key={item.id}>
+                  <Link
+                    href={`/content/${item.id}`}
+                    className="group flex items-center justify-between gap-2 py-2.5 transition-colors hover:bg-[color:var(--highlight-tint)]"
+                  >
+                    <span className="min-w-0 pl-1">
+                      <span className="block truncate text-sm font-medium text-[color:var(--ink)]">{item.title}</span>
+                      <span className="text-xs text-[color:var(--ink-3)]">{item.content_type.replace("_", " ")} · v{item.current_version}</span>
+                    </span>
+                    <span className="flex shrink-0 items-center gap-1.5 pr-1">
+                      <StatusPill status={item.status} />
+                      <Icon name="arrow" size={13} className="text-[color:var(--ink-3)] transition-transform group-hover:translate-x-0.5 group-hover:text-[color:var(--ink)]" />
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+      </div>
+
+      {/* ------------------------------------------------ how a review runs */}
+      <div className="mt-4 grid items-start gap-4 [&>*]:min-w-0 lg:grid-cols-3">
+        <Card className="p-5 lg:col-span-2">
+          <SectionHeading
+            title="How a review runs"
+            subtitle="Deterministic checks first, then six reviewers in parallel, then de-duplication and confidence scoring."
+          />
+          <ol className="grid gap-x-4 gap-y-3 text-sm sm:grid-cols-2">
+            {[
+              ["Extract", "Text blocks and images from pasted text, DOCX, PDF or image uploads."],
+              ["Deterministic checks", "Approved and banned terms, colour values, alt text, WCAG contrast — Confirmed findings with a rule ID."],
+              ["Retrieve", "Rules, terms and facts filtered to the organisation, plus brand-kit chunks from pgvector."],
+              ["Six reviewers", "Brand Voice, Terminology, Fact Checker, Visual, Accessibility, Legal — strict JSON, span-level."],
+              ["Merge & score", "Duplicates merged by span overlap; confidence from repeat-run agreement, evidence strength and deterministic backing."],
+              ["Human decision", "Accept, edit, dismiss with reason, or escalate. A manager override can become a rule — only after they answer the prompt."],
+            ].map(([title, body], i) => (
+              <li key={title} className="group flex gap-3 border-l border-[color:var(--hairline)] pl-3 transition-colors hover:border-[color:var(--mark)]">
+                <span className="mt-0.5 shrink-0 font-mono text-[11px] tabular-nums text-[color:var(--ink-3)] transition-colors group-hover:text-[color:var(--mark-text)]">
+                  {String(i + 1).padStart(2, "0")}
+                </span>
+                <span className="min-w-0">
+                  <p className="font-mono text-2xs uppercase tracking-[0.14em] text-[color:var(--ink)]">{title}</p>
+                  <p className="mt-1 text-xs leading-relaxed text-[color:var(--ink-2)]">{body}</p>
+                </span>
+              </li>
+            ))}
+          </ol>
+        </Card>
+
+        {/* ----------------------------------------------------------- guardrails */}
+        <div className="relative overflow-hidden rounded-[10px] border-[1.5px] border-[#111318] bg-[#111318] p-5 text-[#F4F5F7]">
+          <svg aria-hidden="true" className="pointer-events-none absolute inset-0 h-full w-full opacity-[0.1]">
             <defs>
-              <pattern id="welcome-grid" width="32" height="32" patternUnits="userSpaceOnUse">
-                <path d="M32 0H0v32" fill="none" stroke="var(--hairline)" strokeWidth="0.6" />
+              <pattern id="gr-rules" width="18" height="18" patternUnits="userSpaceOnUse">
+                <path d="M0 18H18" fill="none" stroke="#9AA1AE" strokeWidth="0.7" />
               </pattern>
             </defs>
-            <rect width="100%" height="100%" fill="url(#welcome-grid)" />
+            <rect width="100%" height="100%" fill="url(#gr-rules)" />
           </svg>
-
-          <div className="relative mx-auto max-w-[1240px] px-5 pb-14 pt-10 lg:px-8 lg:pb-20 lg:pt-14">
-            <Marker n="01">Pre-publication brand governance</Marker>
-
-            {/* the headline runs the full width — it is the loudest thing on the page */}
-            <h1 className="mt-5 max-w-[16ch] text-[clamp(2.75rem,8vw,6rem)] font-semibold leading-[0.94] tracking-[-0.04em]">
-              Read before
-              <span className="block">
-                <span className="em-italic">it ships.</span>
-              </span>
-            </h1>
-
-            <div className="mt-9 grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,360px)] lg:items-start lg:gap-14">
-              <div>
-                <p className="prose-measure text-base leading-relaxed text-[color:var(--ink-2)]">
-                  Six specialist reviewers read every draft against your Brand Kit — voice, terminology,
-                  facts, visual, accessibility, legal. Each finding quotes the exact words, names the rule,
-                  and cites the page it came from. Then a person decides.
-                </p>
-
-                <div className="mt-7 flex flex-wrap items-center gap-3">
-                  <Link
-                    href="/login"
-                    className="group relative inline-flex min-h-[48px] items-center overflow-hidden rounded-[6px] border border-[color:var(--ink)] bg-[color:var(--ink)] px-5 font-mono text-2xs uppercase tracking-[0.16em] text-[color:var(--paper)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)] focus-visible:ring-offset-2"
-                  >
-                    <span
-                      aria-hidden="true"
-                      className="absolute inset-0 origin-left scale-x-0 bg-[color:var(--highlight)] transition-transform duration-200 ease-out group-hover:scale-x-100"
-                    />
-                    <span className="relative transition-colors group-hover:text-[#111318]">Open the workspace</span>
-                  </Link>
-                  <a
-                    href="#demo"
-                    className="link-under inline-flex min-h-[48px] items-center px-1 font-mono text-2xs uppercase tracking-[0.16em] text-[color:var(--ink)]"
-                  >
-                    See a finished report
-                  </a>
-                  <a
-                    href="#walkthrough"
-                    className="link-under inline-flex min-h-[48px] items-center px-1 font-mono text-2xs uppercase tracking-[0.16em] text-[color:var(--ink)]"
-                  >
-                    Walk through every room
-                  </a>
-                </div>
-
-                <p className="mt-7 max-w-md border-l-2 border-[color:var(--mark)] pl-3 text-[11px] leading-relaxed text-[color:var(--ink-3)]">
-                  Sentinel reviews and explains. It never publishes, never auto-fixes, and never changes a
-                  rule without a manager’s click. Legal reviewer output is an AI risk perspective, not
-                  legal advice.
-                </p>
-              </div>
-
-              {/* the focal object — an engraved seal; the model, if any, loads later */}
-              <SealStage />
-            </div>
-          </div>
-
-          {/* the four honest figures */}
-          <div className="relative border-t border-[color:var(--hairline)] bg-[color:var(--paper-2)]">
-            <dl className="mx-auto grid max-w-[1240px] grid-cols-2 divide-[color:var(--hairline)] px-5 sm:grid-cols-4 sm:divide-x lg:px-8">
-              {FACTS.map((fact) => (
-                <div key={fact.label} className="border-b border-[color:var(--hairline)] px-1 py-5 sm:border-b-0 sm:px-5 first:sm:pl-0">
-                  <dt className="sr-only">{fact.label}</dt>
-                  <dd>
-                    <span className="block font-mono text-2xl font-semibold leading-none tabular-nums text-[color:var(--ink)]">
-                      {fact.value}
-                    </span>
-                    <span className="mt-1.5 block text-xs text-[color:var(--ink)]">{fact.label}</span>
-                    <span className="mt-0.5 block font-mono text-[10px] uppercase tracking-[0.14em] text-[color:var(--ink-3)]">
-                      {fact.evidence}
-                    </span>
-                  </dd>
-                </div>
+          <div className="relative">
+            <p className="font-mono text-2xs uppercase tracking-[0.2em] text-[#9AA1AE]">House rules</p>
+            <h2 className="mt-1 text-lg font-semibold tracking-tight">Guardrails</h2>
+            <p className="mt-1 text-xs text-[#9AA1AE]">Design constraints, not settings</p>
+            <ul className="mt-4 space-y-2 text-sm">
+              {[
+                "Never publishes content.",
+                "Never auto-fixes: a suggestion may only change the flagged span.",
+                "Never changes a rule without a manager's click.",
+                "Legal and accessibility rules need an Approver.",
+                "Nobody approves their own item.",
+                "Submitted content is data, never instructions.",
+              ].map((line) => (
+                <li key={line} className="flex gap-2 text-[#C3CAD6]">
+                  <span aria-hidden="true" className="mt-0.5 shrink-0 text-[#7BE0A8]">
+                    <Icon name="check" size={14} />
+                  </span>
+                  <span className="text-xs leading-relaxed">{line}</span>
+                </li>
               ))}
-            </dl>
-            <p className="mx-auto max-w-[1240px] px-5 pb-4 text-[11px] leading-relaxed text-[color:var(--ink-3)] lg:px-8">
-              These are counts from the running product and the repository, shown with how each was
-              obtained. There are no customers, logos, testimonials or awards on this page because we
-              have none to show you yet — when there are, they will be named.
-            </p>
-          </div>
-        </section>
-
-        {/* ============================================================= marquee */}
-        <section aria-labelledby="flagged-title" className="border-b border-[color:var(--hairline)]">
-          <div className="mx-auto flex max-w-[1240px] flex-wrap items-baseline justify-between gap-2 px-5 pb-3 pt-8 lg:px-8">
-            <h2 id="flagged-title" className="font-mono text-2xs uppercase tracking-[0.18em] text-[color:var(--ink-3)]">
-              Phrases the reviewers flag, out of the box
-            </h2>
-            <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-[color:var(--ink-3)]">
-              lifted from the labelled sample set the test suite runs against
-            </p>
-          </div>
-          <Marquee />
-        </section>
-
-        {/* =========================================================== committee */}
-        <section id="committee" aria-labelledby="committee-title" className="border-b border-[color:var(--hairline)]">
-          <div className="mx-auto max-w-[1240px] px-5 py-16 lg:px-8 lg:py-24">
-            <Reveal>
-              <Marker n="02">The committee</Marker>
-              <h2 id="committee-title" className="mt-3 max-w-3xl text-[clamp(1.9rem,4vw,3rem)] font-semibold leading-[1.04] tracking-[-0.03em]">
-                Six readers, one <span className="em-italic">charter.</span>
-              </h2>
-              <p className="prose-measure mt-4 text-base leading-relaxed text-[color:var(--ink-2)]">
-                Each reviewer has a single question and one job. They do not average their opinions into
-                a score: every finding is attributed, so a person can agree with one reviewer and
-                overrule another.
+            </ul>
+            {summary && (
+              <p className="mt-4 border-t border-[#3A4149] pt-3 font-mono text-[10px] uppercase leading-relaxed tracking-[0.1em] text-[#6C7683]">
+                AI provider <span className="text-[#FFE066]">{summary.provider.provider}</span> · model{" "}
+                <span className="text-[#C3CAD6]">{summary.provider.model}</span> · prompt{" "}
+                <span className="text-[#C3CAD6]">{summary.provider.prompt_version}</span>
               </p>
-            </Reveal>
-
-            <Reveal delay={60} className="mt-12">
-              <ReviewFloor />
-            </Reveal>
+            )}
           </div>
-        </section>
+        </div>
+      </div>
 
-        {/* ================================================================ demo */}
-        <section id="demo" aria-labelledby="demo-title" className="border-b border-[color:var(--hairline)] bg-[color:var(--paper-2)]">
-          <div className="mx-auto max-w-[1240px] px-5 py-16 lg:px-8 lg:py-24">
-            <Reveal>
-              <Marker n="03">The report</Marker>
-              <h2 id="demo-title" className="mt-3 max-w-3xl text-[clamp(1.9rem,4vw,3rem)] font-semibold leading-[1.04] tracking-[-0.03em]">
-                Hold a finding. See what it <span className="em-italic">suggests.</span>
-              </h2>
-              <p className="prose-measure mt-4 text-base leading-relaxed text-[color:var(--ink-2)]">
-                This report is fixed and runs in your browser, so it works with the server asleep. Press
-                and hold a finding to preview the rewrite — or focus the button and hold Space. Release
-                and it is gone. There is no apply control here, and there is none in the product.
-              </p>
-            </Reveal>
-
-            <Reveal delay={60} className="mt-10">
-              <LiveDemo />
-            </Reveal>
-
-            <p className="mt-4 text-[11px] leading-relaxed text-[color:var(--ink-3)]">
-              The sample sentence is the kind of draft the reviewers are built for. It is not a customer
-              story, and nothing on this page was produced by a real brand team.
-            </p>
-          </div>
-        </section>
-
-        {/* ============================================================= reading */}
-        <section id="reading" aria-labelledby="reading-title" className="border-b border-[color:var(--hairline)]">
-          <div className="mx-auto max-w-[1240px] px-5 py-16 lg:px-8 lg:py-24">
-            <Reveal>
-              <Marker n="04">How it reads</Marker>
-              <h2 id="reading-title" className="mt-3 max-w-3xl text-[clamp(1.9rem,4vw,3rem)] font-semibold leading-[1.04] tracking-[-0.03em]">
-                Three movements, then a <span className="em-italic">signature.</span>
-              </h2>
-            </Reveal>
-
-            <div className="mt-12 grid gap-10 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:gap-16">
-              <div className="lg:sticky lg:top-24 lg:self-start">
-                <div className="desk-sheet relative mx-auto w-full max-w-[300px] rounded-[10px] border-[1.5px] border-[color:var(--hairline-strong)] bg-[color:var(--paper)] p-6 text-center">
-                  <DeskSentri mood="reading" size={132} className="mx-auto" />
-                  <p className="mt-2 text-base font-semibold text-[color:var(--ink)]">Sentri</p>
-                  <p className="mt-1 text-[11px] leading-relaxed text-[color:var(--ink-3)]">
-                    Reads the whole draft, then the rule book, then the draft again.
-                  </p>
-                </div>
-                <p className="mx-auto mt-4 max-w-[300px] font-mono text-[10px] uppercase leading-relaxed tracking-[0.16em] text-[color:var(--ink-3)]">
-                  Sentri is drawn by hand in SVG. No stock illustration, no generated character.
-                </p>
-              </div>
-
-              <ol className="space-y-10">
-                {MOVEMENTS.map((movement, i) => (
-                  <li key={movement.n} className="border-t border-[color:var(--hairline-strong)] pt-5">
-                    <Reveal delay={i * 60}>
-                      <div className="flex items-baseline gap-4">
-                        <span className="font-mono text-[11px] tabular-nums tracking-[0.16em] text-[color:var(--ink-3)]">
-                          {movement.n}
-                        </span>
-                        <h3 className="text-lg font-semibold leading-tight tracking-tight text-[color:var(--ink)]">
-                          {movement.title}
-                        </h3>
-                      </div>
-                      <p className="prose-measure mt-2 pl-8 text-sm leading-relaxed text-[color:var(--ink-2)]">
-                        {movement.body}
-                      </p>
-                    </Reveal>
-                  </li>
-                ))}
-              </ol>
-            </div>
-
-            {/* the gate, printed where a reader can see what publishing means */}
-            <Reveal delay={80}>
-              <div className="mt-14">
-                <p className="mb-2 font-mono text-2xs uppercase tracking-[0.16em] text-[color:var(--ink-3)]">
-                  The gate, end to end
-                </p>
-                <GateStrip current={1} className="rounded-[8px]" />
-              </div>
-            </Reveal>
-          </div>
-        </section>
-
-        {/* ============================================================== limits */}
-        <section id="limits" aria-labelledby="limits-title" className="border-b border-[color:var(--hairline)] bg-[color:var(--paper-2)]">
-          <div className="mx-auto max-w-[1240px] px-5 py-16 lg:px-8 lg:py-24">
-            <Reveal>
-              <Marker n="05">Limits</Marker>
-              <h2 id="limits-title" className="mt-3 max-w-3xl text-[clamp(1.9rem,4vw,3rem)] font-semibold leading-[1.04] tracking-[-0.03em]">
-                What it will not <span className="em-italic">do.</span>
-              </h2>
-            </Reveal>
-
-            <Reveal delay={60}>
-              <div className="mt-10 grid overflow-hidden rounded-[10px] border border-[color:var(--hairline-strong)] md:grid-cols-2">
-                <div className="bg-[color:var(--paper)] p-6">
-                  <h3 className="flex items-center gap-2 text-base font-semibold text-[color:var(--ink)]">
-                    <span aria-hidden="true" className="text-[color:var(--pass)]"><Icon name="check" size={16} /></span>
-                    It will
-                  </h3>
-                  <ul className="mt-3 space-y-2.5 text-sm leading-relaxed text-[color:var(--ink-2)]">
-                    {[
-                      "quote the exact span it objects to, and name the rule",
-                      "cite the section and page — or say “no approved source found”",
-                      "attribute each finding to the reviewer who raised it",
-                      "learn only from a manager’s explicit override, as a versioned exception",
-                      "write every decision to one hash-chained, append-only log",
-                    ].map((line) => (
-                      <li key={line} className="flex gap-2.5">
-                        <span aria-hidden="true" className="mt-1 shrink-0 text-[color:var(--pass)]">
-                          <Icon name="check" size={13} />
-                        </span>
-                        <span>{line}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-                <div className="border-t border-[color:var(--hairline)] bg-[color:var(--paper-2)] p-6 md:border-l md:border-t-0">
-                  <h3 className="flex items-center gap-2 text-base font-semibold text-[color:var(--ink)]">
-                    <span aria-hidden="true" className="text-[color:var(--mark-text)]"><Icon name="close" size={16} /></span>
-                    It will not
-                  </h3>
-                  <ul className="mt-3 space-y-2.5 text-sm leading-relaxed text-[color:var(--ink-2)]">
-                    {[
-                      "publish, schedule or send anything",
-                      "rewrite your text on its own — suggestions are previews, never edits",
-                      "change a rule without a manager’s click",
-                      "run two submissions against different rule sets and call the scores comparable",
-                      "claim a measurement it has not made",
-                    ].map((line) => (
-                      <li key={line} className="flex gap-2.5">
-                        <span aria-hidden="true" className="mt-1 shrink-0 text-[color:var(--mark-text)]">
-                          <Icon name="close" size={13} />
-                        </span>
-                        <span>{line}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            </Reveal>
-
-            {/* A note from the maker. Written in the maker's own voice: no name
-                attached, no borrowed aphorism, no numbers it has not measured.
-                Put your name in the byline and it is yours. */}
-            <Reveal delay={90}>
-              <figure className="mt-12 grid gap-8 border-t border-[color:var(--hairline)] pt-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:gap-16">
-                <div>
-                <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-[color:var(--ink-3)]">
-                  A note from the maker
-                </p>
-
-                <blockquote className="mt-4 max-w-[62ch] font-doc text-[1.15rem] leading-[1.72] text-[color:var(--ink)] sm:text-[1.3rem]">
-                  <p>
-                    Most copy does not fail loudly. It ships with one claim nobody could source, one
-                    phrase the style guide dropped years ago, one number that was true last quarter.
-                    The review that would have caught it usually has no time to happen.
-                  </p>
-                  <p className="mt-4">
-                    Sentinel is that review, kept honest. It reads the way a careful colleague reads —
-                    pointing at the exact line, naming the rule, showing where the rule came from — and
-                    then it stops, because the judgement is not the software’s to make.
-                  </p>
-                  <p className="mt-4">
-                    Nothing here publishes, rewrites, or changes a rule on its own. What it does is make
-                    the decision cheap: everything on the table, in one place, with the evidence
-                    attached — so the person who signs it off can say yes or no with{" "}
-                    <span className="em-italic">reasons</span>, not instinct.
-                  </p>
-                </blockquote>
-
-                <figcaption className="mt-6 flex flex-wrap items-center gap-3 text-xs text-[color:var(--ink-3)]">
-                  <span aria-hidden="true" className="h-px w-8 bg-[color:var(--hairline-strong)]" />
-                  <span>Demo workspace: Northwind Analytics, a fictional brand.</span>
-                </figcaption>
-                </div>
-
-                {/* Marginal colophon: carries the mark, keeps the right of the
-                    measure from reading as unfinished, and stacks under the note
-                    at narrow widths. */}
-                <div className="flex items-start gap-3 self-start lg:justify-self-end lg:pt-1">
-                  <DeskMark size={22} className="mt-0.5 shrink-0 text-[color:var(--ink-3)]" />
-                  <div className="lg:text-right">
-                    <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-[color:var(--ink-3)]">
-                      01 — why this exists
-                    </p>
-                    <p className="mt-1.5 text-xs leading-relaxed text-[color:var(--ink-3)]">
-                      The person who built this desk.
-                    </p>
-                  </div>
-                </div>
-              </figure>
-            </Reveal>
-          </div>
-        </section>
-
-        {/* ======================================================== walkthrough */}
-        <section id="walkthrough" aria-labelledby="walkthrough-title-public"
-                 className="border-b border-[color:var(--hairline)]">
-          <div className="mx-auto max-w-[1240px] px-5 py-14 lg:px-8 lg:py-16">
-            <Marker n="06">The walkthrough</Marker>
-            <h2 id="walkthrough-title-public" className="mt-3 max-w-3xl text-[clamp(1.9rem,4vw,3rem)] font-semibold leading-[1.04] tracking-[-0.03em]">
-              Look around the whole desk, <span className="em-italic">room by room.</span>
-            </h2>
-            <p className="prose-measure mt-4 text-base leading-relaxed text-[color:var(--ink-2)]">
-              Eleven rooms, in the order they are worth seeing: the standards the reviews are
-              judged against, then the work itself, then the record of what people decided. Open
-              any of them — you sign in first with one of the demo roles, and you land in the room
-              you clicked.
-            </p>
-            <div className="mt-8">
-              <Walkthrough variant="public" />
-            </div>
-          </div>
-        </section>
-
-        {/* ================================================================ close */}
-        <section className="border-b border-[color:var(--hairline)]">
-          <div className="mx-auto max-w-[1240px] px-5 py-16 text-center lg:px-8 lg:py-20">
-            <h2 className="mx-auto max-w-2xl text-[clamp(1.9rem,4.4vw,3.25rem)] font-semibold leading-[1.02] tracking-[-0.035em]">
-              Every word, <span className="em-italic">accounted for.</span>
-            </h2>
-            <p className="prose-measure mx-auto mt-4 text-base leading-relaxed text-[color:var(--ink-2)]">
-              The best way to see it is to load the demonstration workspace: 53 submissions, real
-              findings, and the six reviewers doing what they do. It takes about a minute on the local
-              engine.
-            </p>
-            <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-              <Link
-                href="/login"
-                className="group relative inline-flex min-h-[48px] items-center overflow-hidden rounded-[6px] border border-[color:var(--ink)] bg-[color:var(--ink)] px-6 font-mono text-2xs uppercase tracking-[0.16em] text-[color:var(--paper)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)] focus-visible:ring-offset-2"
-              >
-                <span
-                  aria-hidden="true"
-                  className="absolute inset-0 origin-left scale-x-0 bg-[color:var(--highlight)] transition-transform duration-200 ease-out group-hover:scale-x-100"
-                />
-                <span className="relative transition-colors group-hover:text-[#111318]">Load the workspace</span>
-              </Link>
-              <a
-                href="#committee"
-                className="link-under inline-flex min-h-[48px] items-center px-2 font-mono text-2xs uppercase tracking-[0.16em] text-[color:var(--ink)]"
-              >
-                Meet the six reviewers
-              </a>
-            </div>
-            <p className="mt-6 font-mono text-[10px] uppercase tracking-[0.18em] text-[color:var(--ink-3)]">
-              {REVIEWERS.length} reviewers · 8 roles · one audit log
-            </p>
-          </div>
-        </section>
-      </main>
-
-      <SiteFooter />
+      {summary && summary.most_common_mistakes.length > 0 && (
+        <Card className="mt-4 p-5">
+          <SectionHeading title="Most common mistakes" subtitle="Where the team keeps drifting from the Brand Kit" />
+          <ul className="space-y-2.5">
+            {summary.most_common_mistakes.slice(0, 5).map((m) => (
+              <li key={m.rule_key} className="grid grid-cols-[5.5rem_minmax(0,1fr)_2rem] items-baseline gap-x-3 gap-y-1 text-sm">
+                <Tag>{m.rule_key}</Tag>
+                <span className="min-w-0">
+                  <span className="relative block h-[6px] overflow-hidden rounded-[1px] bg-[color:var(--hairline)]">
+                    <span
+                      className="block h-full origin-left rounded-[1px] bg-[color:var(--ink)] transition-[width] duration-500 ease-out motion-reduce:transition-none"
+                      style={{ width: `${Math.min(100, (m.count / Math.max(1, summary.most_common_mistakes[0].count)) * 100)}%` }}
+                    />
+                  </span>
+                  <span className="mt-1 block truncate text-xs leading-relaxed text-[color:var(--ink-3)]">
+                    {m.example_issue}
+                  </span>
+                </span>
+                <span className="text-right font-mono text-xs tabular-nums text-[color:var(--ink-2)]">{m.count}</span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
     </div>
   );
 }
