@@ -1,5 +1,4 @@
 /** Thin typed client for the Sentinel AI API. The token lives in localStorage. */
-import { isPublicRoute } from "./routes";
 
 const TOKEN_KEY = "sentinel.token";
 
@@ -55,14 +54,8 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
   const res = await fetch(`/v1${path}`, { ...init, headers });
   if (res.status === 401 && typeof window !== "undefined" && !path.startsWith("/auth/login")) {
-    // The token is gone either way. Where the reader goes next depends on what they
-    // are reading: a public page (the brief, /about, /trust) is not theirs to be
-    // thrown out of, so an expired token only costs them the "API online" dot. On a
-    // desk page the gate in lib/auth sends them to the brief, which offers the
-    // sign-in. This used to hard-redirect to /login from anywhere — including the
-    // front door, which is how opening the link ended up at a form.
     clearToken();
-    if (!isPublicRoute(window.location.pathname)) window.location.href = "/login";
+    if (!window.location.pathname.startsWith("/login")) window.location.href = "/login";
   }
   if (!res.ok) {
     let detail = `${res.status} ${res.statusText}`;

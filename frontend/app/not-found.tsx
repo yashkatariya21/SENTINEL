@@ -19,7 +19,7 @@ export default function NotFound() {
           exists. Nothing was changed.
         </p>
         <div className="mt-5 flex flex-wrap justify-center gap-2">
-          <Link href="/desk"><Button variant="primary">Back to Overview</Button></Link>
+          <Link href="/"><Button variant="primary">Back to Overview</Button></Link>
           <Link href="/content"><Button>Content queue</Button></Link>
         </div>
       </Card>

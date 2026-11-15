@@ -13,16 +13,12 @@ import { DeskMark, DeskSentri } from "./Desk";
 import { DeskBackground } from "./DeskBackground";
 import { Icon, type IconName } from "./Icon";
 import { NAV, NAV_GROUPS, ROLE_LABEL, visibleNav } from "@/lib/nav";
-import { PUBLIC_ROUTES } from "@/lib/routes";
-import { markVisited } from "@/lib/tour";
 
-/** Routes that render without the desk chrome: the public brief at the front door,
- *  the sign-in, and the two information pages. Derived from the one route list the
- *  auth gate and the API client also use. */
-const BARE_ROUTES = PUBLIC_ROUTES;
+/** Routes that render without the chrome (public marketing / auth). */
+const BARE_ROUTES = ["/login", "/welcome", "/about", "/trust"];
 
 const ICONS: Record<string, IconName> = {
-  "/desk": "overview",
+  "/": "overview",
   "/new": "new",
   "/content": "queue",
   "/kit": "kit",
@@ -45,12 +41,6 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const [shortcuts, setShortcuts] = useState(false);
 
   useEffect(() => setOpen(false), [pathname]);
-
-  /* The walkthrough ticks a room for having been opened. The shell is mounted on
-     every desk page, so it is the one place that sees all of them. */
-  useEffect(() => {
-    if (pathname) markVisited(pathname);
-  }, [pathname]);
 
   /* ⌘K / "/" → palette · "?" → shortcuts · "g" then 1-9 → page */
   useEffect(() => {
@@ -148,8 +138,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
       >
         <div className="rail-brand flex items-center gap-2.5 px-3 py-3">
           <Link
-            href="/"
-            aria-label="Sentinel — the public brief"
+            href="/welcome"
+            aria-label="Sentinel — about the desk"
             className="grid h-9 w-9 flex-none place-items-center rounded-md hover:bg-ivory-deep focus-visible:outline-none"
           >
             <DeskMark size={22} className="text-ink" />
@@ -176,7 +166,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
                 <ul className="flex flex-col gap-0.5">
                   {items.map((item) => {
                     const active =
-                      item.href === "/desk" ? pathname === "/desk" : pathname.startsWith(item.href);
+                      item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
                     return (
                       <li key={item.href}>
                         <Link
@@ -333,12 +323,12 @@ const TITLES: [string, string][] = [
 ];
 
 function titleFor(pathname: string): string {
-  if (pathname === "/desk") return "Overview";
+  if (pathname === "/") return "Overview";
   if (pathname.endsWith("/approval")) return "Approval";
   for (const [prefix, label] of TITLES) {
     if (pathname.startsWith(prefix)) return label;
   }
-  const match = NAV.filter((n) => n.href !== "/desk").find((n) => pathname.startsWith(n.href));
+  const match = NAV.filter((n) => n.href !== "/").find((n) => pathname.startsWith(n.href));
   if (match) return match.label;
   return "Sentinel";
 }
