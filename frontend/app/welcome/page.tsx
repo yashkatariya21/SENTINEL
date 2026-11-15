@@ -11,6 +11,7 @@ import { EntrySequence } from "../components/EntrySequence";
 import { DeskSentri, GateStrip } from "../components/Desk";
 import { Icon } from "../components/Icon";
 import { FACTS, MOVEMENTS, REVIEWERS } from "@/lib/landing";
+import { DeskBackground } from "@/app/components/DeskBackground";
 
 export const metadata: Metadata = {
   title: "Sentinel AI — read before it ships",
@@ -32,7 +33,8 @@ function Marker({ n, children }: { n: string; children: React.ReactNode }) {
 
 export default function WelcomePage() {
   return (
-    <div className="min-h-screen bg-[color:var(--canvas)] text-[color:var(--ink)]">
+    <div className="relative min-h-screen bg-[color:var(--canvas)] text-[color:var(--ink)]">
+      <DeskBackground />
       <EntrySequence />
       <SiteHeader />
 

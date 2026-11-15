@@ -331,17 +331,44 @@
   }
 
   /* ── icons in the rail ──────────────────────────────────────────────── */
+  /* the rail item: a glyph and a word. The word is the point — the glyph is the
+     ornament. Below `lg` the rail is a drawer, so the row keeps the same anatomy. */
   .rail-item {
-    @apply relative grid place-items-center transition-colors duration-micro;
-    width: 44px;
-    height: 44px;
-    border-radius: 8px;
+    @apply relative flex items-center gap-2.5 transition-colors duration-micro;
+    min-height: 36px;
+    padding: 0 8px;
+    border-radius: 6px;
     color: var(--ink-2);
+    font-family: var(--font-plex-mono);
+    font-size: 11px;
+    line-height: 1.2;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .rail-item > svg { flex: none; }
+  .rail-item .rail-label {
+    @apply min-w-0 flex-1 truncate;
+  }
+  .rail-item .rail-key {
+    @apply flex-none font-mono text-[9px] tabular-nums;
+    color: var(--ink-3);
+    letter-spacing: 0.08em;
   }
   .rail-item:hover { background: #e6e9ee; color: var(--ink); }
+  .rail-item:hover .rail-key { color: var(--ink-2); }
   [data-theme="dark"] .rail-item:hover { background: #1d2128; }
   .rail-item[aria-current="page"] { background: var(--ink); color: var(--paper); }
+  .rail-item[aria-current="page"] .rail-key { color: color-mix(in srgb, var(--paper) 62%, transparent); }
   [data-theme="dark"] .rail-item[aria-current="page"] { background: var(--highlight); color: #111318; }
+  [data-theme="dark"] .rail-item[aria-current="page"] .rail-key { color: rgba(17, 19, 24, 0.76); }
+
+  /* the band headings inside the rail */
+  .rail-head {
+    @apply px-2 pb-1 pt-3 font-mono text-[9px] uppercase;
+    color: var(--ink-3);
+    letter-spacing: 0.16em;
+  }
+  .rail-head em { font-style: normal; color: var(--ink-2); }
 
   .skip-link {
     @apply absolute left-2 top-2 -translate-y-20 rounded px-3 py-2 text-xs font-semibold;
@@ -408,6 +435,167 @@
   /* the 3D desk object steps in only after it has painted */
   .seal-stage .seal-flat { transition: opacity 700ms cubic-bezier(0.16, 1, 0.3, 1); }
   .seal-stage:has(canvas) .seal-flat { opacity: 0; }
+
+
+  /* ─────────────────────────────────────────────────────────────────────────
+     THE DESK BEHIND THE SHEETS
+     A drafting-paper field under the app: grid, crop marks, a ghost glyph per
+     section, grain, a pointer-following highlighter lamp and a scroll rule.
+     Every layer is fixed, aria-hidden and pointer-transparent, and everything
+     that carries meaning sits on an opaque `--paper` panel above it. The
+     strongest pattern line is 4.5% ink, so no text ever loses contrast.
+     ───────────────────────────────────────────────────────────────────────── */
+  .desk-bg {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    overflow: hidden;
+    background-color: var(--paper);
+  }
+
+  /* 1 · the drawing grid: 24px minor, 120px major, drifting slower than the page */
+  .desk-grid {
+    background-image:
+      linear-gradient(to right, color-mix(in srgb, var(--ink) 6%, transparent) 1px, transparent 1px),
+      linear-gradient(to bottom, color-mix(in srgb, var(--ink) 6%, transparent) 1px, transparent 1px),
+      linear-gradient(to right, color-mix(in srgb, var(--ink) 3%, transparent) 1px, transparent 1px),
+      linear-gradient(to bottom, color-mix(in srgb, var(--ink) 3%, transparent) 1px, transparent 1px);
+    background-size:
+      120px 120px,
+      120px 120px,
+      24px 24px,
+      24px 24px;
+    background-position: 0 var(--bg-drift, 0px);
+    /* the field is strongest in the margin above the workbench and thins out
+       behind the sheets — present the whole way down, never loud */
+    mask-image: linear-gradient(to bottom, #000 0%, rgba(0, 0, 0, 0.82) 38%, rgba(0, 0, 0, 0.34) 100%);
+    -webkit-mask-image: linear-gradient(to bottom, #000 0%, rgba(0, 0, 0, 0.82) 38%, rgba(0, 0, 0, 0.34) 100%);
+  }
+
+  /* 2 · the shade hatches: 45° hairlines where a draftsman shades a margin */
+  .desk-hatch {
+    background-image: repeating-linear-gradient(
+      45deg,
+      color-mix(in srgb, var(--ink) 4%, transparent) 0 1px,
+      transparent 1px 7px
+    );
+  }
+  .desk-hatch-tl {
+    mask-image: radial-gradient(ellipse 42% 38% at 0% 0%, #000 10%, transparent 72%);
+    -webkit-mask-image: radial-gradient(ellipse 42% 38% at 0% 0%, #000 10%, transparent 72%);
+  }
+  .desk-hatch-br {
+    background-image: repeating-linear-gradient(
+      -45deg,
+      color-mix(in srgb, var(--ink) 4%, transparent) 0 1px,
+      transparent 1px 7px
+    );
+    mask-image: radial-gradient(ellipse 46% 42% at 100% 100%, #000 8%, transparent 70%);
+    -webkit-mask-image: radial-gradient(ellipse 46% 42% at 100% 100%, #000 8%, transparent 70%);
+  }
+
+  /* 3 · the dot screen hanging under the top rule */
+  .desk-dots {
+    background-image: radial-gradient(color-mix(in srgb, var(--ink) 9%, transparent) 1px, transparent 1.4px);
+    background-size: 12px 12px;
+    background-position: 6px var(--bg-drift, 0px);
+    mask-image: linear-gradient(to bottom, #000 0%, transparent 22%);
+    -webkit-mask-image: linear-gradient(to bottom, #000 0%, transparent 22%);
+  }
+
+  /* 3 · the ledger columns — the stat band's vertical rules, carried down the
+     whole page so the sheets look filed in a ledger and not floating */
+  .desk-columns {
+    background-image: linear-gradient(
+      to right,
+      color-mix(in srgb, var(--ink) 5.5%, transparent) 1px,
+      transparent 1px
+    );
+    background-size: 25% 100%;
+    background-position: 0 0;
+    mask-image: linear-gradient(to bottom, #000 0%, rgba(0, 0, 0, 0.7) 55%, rgba(0, 0, 0, 0.25) 100%);
+    -webkit-mask-image: linear-gradient(to bottom, #000 0%, rgba(0, 0, 0, 0.7) 55%, rgba(0, 0, 0, 0.25) 100%);
+  }
+
+  /* 4 · crop marks, printed at the trim edge */
+  .reg-mark {
+    color: var(--ink);
+    opacity: 0.22;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1;
+  }
+
+  /* 5 · one ghost glyph per section, leaning a few px against the pointer */
+  .desk-ghosts {
+    transform: translate3d(
+      calc(var(--bg-lean-x, 0) * -10px),
+      calc(var(--bg-lean-y, 0) * -8px),
+      0
+    );
+    transition: transform 420ms cubic-bezier(0.16, 1, 0.3, 1);
+    will-change: transform;
+  }
+  .ghost-glyph,
+  .ghost-glyph-echo {
+    color: var(--ink);
+    stroke-width: 1.35;
+    stroke-dasharray: 3.2 3;
+  }
+  .ghost-glyph { opacity: 0.09; animation: glyph-settle 900ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+  .ghost-glyph-echo { opacity: 0.075; animation: glyph-settle 1100ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+  [data-theme="dark"] .ghost-glyph { opacity: 0.13; }
+  [data-theme="dark"] .ghost-glyph-echo { opacity: 0.1; }
+  @keyframes glyph-settle {
+    from { opacity: 0; transform: rotate(-3deg) scale(1.06); }
+    to { transform: rotate(0deg) scale(1); }
+  }
+
+  /* 6 · grain: what stops a flat hex reading as a screen */
+  .grain {
+    opacity: 0.032;
+    mix-blend-mode: multiply;
+  }
+  [data-theme="dark"] .grain { mix-blend-mode: screen; opacity: 0.05; }
+
+  /* 7a · the highlighter lamp that follows a fine pointer */
+  .desk-lamp {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 640px;
+    height: 640px;
+    will-change: transform;
+    background:
+      radial-gradient(circle at 50% 50%,
+        color-mix(in srgb, var(--highlight) 16%, transparent) 0%,
+        color-mix(in srgb, var(--highlight) 6%, transparent) 34%,
+        transparent 68%);
+    opacity: 0.9;
+  }
+  [data-theme="dark"] .desk-lamp {
+    background:
+      radial-gradient(circle at 50% 50%,
+        color-mix(in srgb, var(--highlight) 9%, transparent) 0%,
+        color-mix(in srgb, var(--highlight) 3%, transparent) 36%,
+        transparent 70%);
+  }
+
+  /* 7b · the measuring rule down the right edge */
+  .desk-ruler { background: linear-gradient(to right, transparent, color-mix(in srgb, var(--hairline) 55%, transparent)); }
+  .desk-ruler-marker { transition: transform 120ms linear, opacity 200ms ease; will-change: transform; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .desk-lamp { display: none; }
+    .ghost-glyph, .ghost-glyph-echo { animation: none; }
+    .desk-ghosts { transform: none; transition: none; }
+    .desk-ruler-marker { transition: none; }
+    .desk-grid, .desk-dots { background-position: 0 0; }
+  }
+  @media (pointer: coarse) {
+    .desk-lamp { display: none; }
+  }
 
   /* Day/Night: replaced by the circular clip in ThemeSwitch */
   ::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }

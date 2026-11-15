@@ -19,6 +19,56 @@ interaction layer over the same `/v1` API.
 
 Marks and notes are two ends of one link: pressing either brings the other into view.
 
+## 1a. The desk behind the sheets
+
+A flat fill was the one thing the first pass got wrong, so the paper is now a surface.
+`app/components/DeskBackground.tsx` paints eight fixed, `aria-hidden`,
+pointer-transparent layers under every page — the app shell, `/login` and `/welcome` all
+share it:
+
+| layer | what it is | interaction |
+|---|---|---|
+| the drawing grid | 24 px minor / 120 px major rules, like drafting paper | drifts at 6 % of the scroll (`--bg-drift`) |
+| the ledger columns | the stat band's vertical rules carried down the page | static |
+| the shade hatches | 45° hairlines, two corners, the way a draftsman shades a margin | static |
+| the dot screen | one 12 px screen hanging under the top rule | drifts with the grid |
+| crop marks | printer's registration crosshairs at the four trim corners | static |
+| the ghost glyphs | one oversized proofreader's sign per section (circled numeral, caret, pilcrow, deletion loop, swatch stack, clause, bar reading) — large at the right edge, echoed and turned at the left | leans up to 10 px away from the pointer (`--bg-lean-x/y`) |
+| paper grain | `feTurbulence` at 3 % (multiply on paper, screen on ink) | static |
+| the highlighter lamp | a 640 px wash of `--highlight` | lerps toward a fine pointer, one transform per frame |
+| the measuring rule | a tick strip down the right edge | fills with scroll position |
+
+Why it does not cost legibility: every panel that carries meaning sits on opaque
+`--paper` above the desk; the strongest pattern line is 6 % ink and the ghost glyphs are
+9 % ink (13 % on night stock), both far below the level at which the measured contrast
+ratios in §3 change. axe-core was re-run over all 32 combinations after the layer went in
+and still reports **0 violations** — the two regressions it caught on the way in were
+fixed rather than waived (see below).
+
+**Reduced motion.** The lamp and the lean are disabled, the glyph animation is off, the
+grid stops drifting and the ruler stops easing; the patterns remain, statically. Coarse
+pointers never get the lamp.
+
+**Two real defects the new contrast pass surfaced**, both fixed here:
+
+- the rail's band note was `--ink-3` at 72 % opacity (3.9:1) — it is now `--ink-2` with no
+  dimming;
+- a decided margin note was dimmed with `opacity-80`, which dropped its body text to
+  3.7:1 — it now recedes by ground (`--paper-2`) instead of by ink, keeping the green ✓
+  pin and the "decided" line as the state.
+- the fixed white sample sheet on `/login` was inheriting night-shift tokens
+  (`2.19:1`); `Stamp` grew a `tone="stock"` for sheets that never invert.
+
+## 1b. The rail says what it is
+
+The 64 px icon rail became a 236 px labelled rail at `lg` and up (`app/components/Shell.tsx`),
+reading left to right as **glyph · name · shortcut**. Items are banded the way the desk is
+organised — *The desk* (Overview, New submission, Content queue), *The record* (Brand Kit,
+Rules, Learning, Analytics, Evaluation, Audit log), *Your setup* (Settings) — and each item
+carries a one-line `blurb` in `lib/nav.ts` as its `title`. Below `lg` the same rail is a
+drawer with the same labels, a scrim that closes it on tap and `Esc` to dismiss. The footer
+states the promise in words: *Humans decide — nothing publishes on its own.*
+
 ## 2. Rules the interface is held to
 
 1. **The draft is evidence.** A decision is recorded; the text is never rewritten.
@@ -89,4 +139,10 @@ network or the reader's settings say no.
   keyboard; dismissal requires a reason and `Esc` closes it; accepting a note turns its pin
   into a check and decrements the verdict count; `/` and `g`+digit shortcuts still work;
   no console errors
-- mobile (390 px): no horizontal overflow on any page after the table/figure guards
+- mobile (390 px): no horizontal overflow on any of 14 pages; the drawer opens with all
+  ten labels and `g`+digit hints visible
+- the desk: lamp transform and glyph lean both tracked by measurement in a headless run
+  (rest → 300,700 → 1300,200), grid drift `0px 48px` after an 800 px scroll, ruler marker
+  moves with it; under `reduced_motion="reduce"` the lamp is `display:none`, the glyph
+  animation is `none` and the lean transform is `none`
+- no console errors in any capture run

@@ -10,8 +10,9 @@ import { ThemeSwitch } from "./ThemeSwitch";
 import { CommandPalette } from "./CommandPalette";
 import { ShortcutsSheet } from "./ShortcutsSheet";
 import { DeskMark, DeskSentri } from "./Desk";
+import { DeskBackground } from "./DeskBackground";
 import { Icon, type IconName } from "./Icon";
-import { NAV, ROLE_LABEL, visibleNav } from "@/lib/nav";
+import { NAV, NAV_GROUPS, ROLE_LABEL, visibleNav } from "@/lib/nav";
 
 /** Routes that render without the chrome (public marketing / auth). */
 const BARE_ROUTES = ["/login", "/welcome"];
@@ -58,6 +59,10 @@ export function Shell({ children }: { children: React.ReactNode }) {
       }
       if (typing || event.metaKey || event.ctrlKey || event.altKey) return;
 
+      if (event.key === "Escape") {
+        setOpen(false);
+        return;
+      }
       if (event.key === "/") {
         event.preventDefault();
         setPalette(true);
@@ -110,70 +115,96 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const initials = me.user.name.split(" ").map((p) => p[0]).slice(0, 2).join("");
 
   return (
-    <div className="min-h-screen bg-paper">
-      {/* ------------------------------------------------------------- icon rail */}
+    <div className="relative min-h-screen">
+      {/* the desk: fixed, aria-hidden, pointer-transparent — content sits above it */}
+      <DeskBackground />
+
+      {/* below lg the rail is a drawer: one tap anywhere on the page closes it */}
+      {open && (
+        <button
+          type="button"
+          aria-label="Dismiss the navigation overlay"
+          onClick={() => setOpen(false)}
+          className="fixed inset-0 z-40 bg-[rgba(17,19,24,0.42)] lg:hidden"
+        />
+      )}
+
+      {/* ------------------------------------------------------- labelled rail */}
       <nav
         aria-label="Sections"
         className={`${
           open ? "flex" : "hidden"
-        } fixed inset-y-0 left-0 z-50 w-[64px] flex-col items-center border-r-[1.5px] border-ink bg-ivory py-2 lg:flex`}
+        } fixed inset-y-0 left-0 z-50 w-[236px] flex-col border-r-[1.5px] border-ink bg-ivory lg:flex`}
       >
-        <Link
-          href="/welcome"
-          aria-label="Sentinel — about the desk"
-          className="mb-2 grid h-11 w-11 place-items-center rounded-md hover:bg-ivory-deep focus-visible:outline-none"
-        >
-          <DeskMark size={24} className="text-ink" />
-        </Link>
-
-        <ul className="flex flex-1 flex-col items-center gap-0.5 overflow-y-auto">
-          {visible
-            .filter((item) => item.href !== "/settings")
-            .map((item) => {
-              const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
-              return (
-                <li key={item.href} className="group relative">
-                  <Link
-                    href={item.href}
-                    aria-current={active ? "page" : undefined}
-                    aria-label={item.label}
-                    className="rail-item"
-                  >
-                    <Icon name={ICONS[item.href] ?? "queue"} />
-                  </Link>
-                  {/* the tooltip: name only, never the only source of it */}
-                  <span
-                    aria-hidden="true"
-                    className="pointer-events-none absolute left-[52px] top-1/2 z-50 -translate-y-1/2 whitespace-nowrap rounded-[4px] bg-[#111318] px-2 py-1 font-mono text-[10px] uppercase tracking-[0.14em] text-[#F4F5F7] opacity-0 shadow-herald transition-opacity duration-micro group-hover:opacity-100 group-focus-within:opacity-100"
-                  >
-                    {item.label}
-                  </span>
-                </li>
-              );
-            })}
-        </ul>
-
-        {visible.some((i) => i.href === "/settings") && (
+        <div className="flex items-center gap-2.5 border-b border-hairline px-3 py-3">
           <Link
-            href="/settings"
-            aria-current={pathname.startsWith("/settings") ? "page" : undefined}
-            aria-label="Settings"
-            className="rail-item group relative mt-1"
+            href="/welcome"
+            aria-label="Sentinel — about the desk"
+            className="grid h-9 w-9 flex-none place-items-center rounded-md hover:bg-ivory-deep focus-visible:outline-none"
           >
-            <Icon name="settings" />
-            <span
-              aria-hidden="true"
-              className="pointer-events-none absolute left-[52px] top-1/2 -translate-y-1/2 whitespace-nowrap rounded-[4px] bg-[#111318] px-2 py-1 font-mono text-[10px] uppercase tracking-[0.14em] text-[#F4F5F7] opacity-0 transition-opacity duration-micro group-hover:opacity-100"
-            >
-              Settings
-            </span>
+            <DeskMark size={22} className="text-ink" />
           </Link>
-        )}
+          <span className="min-w-0">
+            <span className="block font-mono text-[12px] font-semibold uppercase tracking-[0.2em] text-ink">
+              Sentinel
+            </span>
+            <span className="block truncate font-mono text-[9px] uppercase tracking-[0.14em] text-ink-3">
+              proof desk
+            </span>
+          </span>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-2 py-1">
+          {NAV_GROUPS.map((group) => {
+            const items = visible.filter((item) => item.group === group.key);
+            if (!items.length) return null;
+            return (
+              <div key={group.key}>
+                <p className="rail-head">
+                  {group.label} <em>· {group.note}</em>
+                </p>
+                <ul className="flex flex-col gap-0.5">
+                  {items.map((item) => {
+                    const active =
+                      item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+                    return (
+                      <li key={item.href}>
+                        <Link
+                          href={item.href}
+                          aria-current={active ? "page" : undefined}
+                          title={item.blurb}
+                          className="rail-item"
+                        >
+                          <Icon name={ICONS[item.href] ?? "queue"} size={16} />
+                          <span className="rail-label">{item.label}</span>
+                          {item.key ? (
+                            <kbd aria-hidden="true" className="rail-key">
+                              g{item.key}
+                            </kbd>
+                          ) : null}
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* the footer states the promise of the desk in words, not a glyph */}
+        <div className="border-t border-hairline px-3 py-3">
+          <p className="font-mono text-[9px] uppercase leading-[1.7] tracking-[0.12em] text-ink-3">
+            Humans decide
+            <br />
+            <span className="text-ink-2">Nothing publishes on its own</span>
+          </p>
+        </div>
       </nav>
 
-      <div className="lg:pl-[64px]">
+      <div className="relative z-10 lg:pl-[236px]">
         {/* ------------------------------------------------------------- top bar */}
-        <header className="sticky top-0 z-40 bg-navy text-paper">
+        <header className="sticky top-0 z-40 bg-navy text-paper shadow-[0_1px_0_0_var(--ink)]">
           <div className="flex h-14 items-center gap-3 px-3 sm:px-5">
             <button
               type="button"
