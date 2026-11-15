@@ -8,7 +8,7 @@
  */
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { api, AnalysisRun, ContentItem, Finding, fetchBlob } from "@/lib/api";
+import { api, AnalysisRun, ContentItem, Finding, fetchBlob, isNoBrandKit, readableError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { LearningPrompt, LearningPromptData } from "../../components/LearningPrompt";
 import { Skeleton, StatusPill, useToast } from "../../components/ui";
@@ -38,6 +38,8 @@ export default function ProofDeskPage({ params }: { params: { id: string } }) {
   const [item, setItem] = useState<ContentItem | null>(null);
   const [run, setRun] = useState<AnalysisRun | null>(null);
   const [error, setError] = useState("");
+  /** the run could not start because there is no kit: a state with a fix, not a crash */
+  const [noKit, setNoKit] = useState(false);
   const [tab, setTab] = useState<Tab>("proof");
   const [activeId, setActiveId] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "open" | "decided">("all");
@@ -59,9 +61,19 @@ export default function ProofDeskPage({ params }: { params: { id: string } }) {
   }, []);
 
   const startAnalysis = useCallback(async () => {
-    const created = await api.post<AnalysisRun>(`/content/${id}/analyze`);
-    setRun({ ...created, findings: [] });
-    return created;
+    try {
+      const created = await api.post<AnalysisRun>(`/content/${id}/analyze`);
+      setNoKit(false);
+      setRun({ ...created, findings: [] });
+      return created;
+    } catch (err: unknown) {
+      if (isNoBrandKit(err)) {
+        setNoKit(true);
+        setRun(null);
+        return null;
+      }
+      throw err;
+    }
   }, [id]);
 
   useEffect(() => {
@@ -70,16 +82,42 @@ export default function ProofDeskPage({ params }: { params: { id: string } }) {
         const data = await loadItem();
         if (data.active_run_id) {
           const existing = await loadRun(data.active_run_id);
+          // A refresh mid-run lands here: the item remembers its run, so the screen picks
+          // the same run up and keeps polling instead of starting a second one.
           if (existing.content_version_id !== data.version?.id) await startAnalysis();
         } else if (can("can_write_kit") || me?.user.role !== "external_creator") {
           await startAnalysis();
         }
       } catch (err: unknown) {
-        setError(err instanceof Error ? err.message : "This draft could not be opened.");
+        setError(readableError(err, "This draft could not be opened."));
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  /**
+   * A run that died in the background is worth one automatic retry, once.
+   *
+   * `failed` used to be a dead end: the user saw the word and a stack-trace string. Now a
+   * failed run offers "Run it again", and a run that failed only because the kit was
+   * missing says so with a button to /kit.
+   */
+  const [retried, setRetried] = useState(false);
+  useEffect(() => {
+    if (!run || run.status !== "failed") return;
+    if ((run.metrics as { no_brand_kit?: boolean } | undefined)?.no_brand_kit) setNoKit(true);
+    if (retried) return;
+    setRetried(true);
+    const timer = window.setTimeout(async () => {
+      try {
+        await startAnalysis();
+      } catch {
+        /* the manual button remains */
+      }
+    }, 700);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [run?.id, run?.status]);
 
   // poll while the reviewers are reading
   useEffect(() => {
@@ -111,6 +149,18 @@ export default function ProofDeskPage({ params }: { params: { id: string } }) {
       .then((d) => setAuditRows(d.entries.filter((e) => e.entity_id === id)))
       .catch(() => setAuditRows([]));
   }, [tab, id, auditRows, can]);
+
+  const retryReview = useCallback(async () => {
+    setBusy(true);
+    try {
+      const created = await startAnalysis();
+      if (created) push("The six reviewers are reading this version again.", "ok");
+    } catch (err: unknown) {
+      push(readableError(err, "The review could not be restarted."), "error");
+    } finally {
+      setBusy(false);
+    }
+  }, [startAnalysis, push]);
 
   const findings = useMemo(() => run?.findings ?? [], [run]);
   const order = useMemo(() => numbered(findings), [findings]);
@@ -264,7 +314,7 @@ export default function ProofDeskPage({ params }: { params: { id: string } }) {
                 window.open(url, "_blank", "noopener");
                 setTimeout(() => URL.revokeObjectURL(url), 60_000);
               } catch (err: unknown) {
-                push(err instanceof Error ? err.message : "The PDF could not be built.", "error");
+                push(readableError(err, "The PDF could not be built."), "error");
               }
             }}
             disabled={run?.status !== "complete"}
@@ -276,14 +326,7 @@ export default function ProofDeskPage({ params }: { params: { id: string } }) {
             type="button"
             onClick={async () => {
               setBusy(true);
-              try {
-                await startAnalysis();
-                push("The six reviewers are reading this version again.", "ok");
-              } catch (err: unknown) {
-                push(err instanceof Error ? err.message : "The re-run did not start.", "error");
-              } finally {
-                setBusy(false);
-              }
+              await retryReview();
             }}
             disabled={running || busy}
             className="min-h-[36px] rounded-[7px] border-[1.5px] border-ink/25 px-2.5 font-mono text-[10px] uppercase tracking-[0.1em] text-ink-2 hover:border-ink hover:text-ink disabled:opacity-40"
@@ -298,6 +341,21 @@ export default function ProofDeskPage({ params }: { params: { id: string } }) {
           </Link>
         </div>
       </div>
+
+      {/* A run can be honest about what it could not check. This sentence comes from the
+          run's own metrics, not from the interface guessing. */}
+      {run?.status === "complete" && run.metrics?.no_rules_confirmed && (
+        <p className="mt-3 flex flex-wrap items-baseline gap-2 rounded-[7px] border-[1.5px] border-dashed border-ink/30 bg-paper-2 px-3 py-2 text-[12px] leading-relaxed text-ink-2">
+          <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-warn">Limited review</span>
+          <span>
+            {run.metrics.no_rules_confirmed.note}.{" "}
+            <Link href="/kit" className="link-under text-ink">
+              Confirm some rules
+            </Link>{" "}
+            to have this draft checked against your own standards as well.
+          </span>
+        </p>
+      )}
 
       {/* ----------------------------------------------------------------- tabs */}
       <div className="mt-4 flex items-center gap-4 border-b-[1.5px] border-ink/15" role="tablist" aria-label="Proof desk sections">
@@ -359,10 +417,62 @@ export default function ProofDeskPage({ params }: { params: { id: string } }) {
                   They read the draft against the Brand Kit, then merge duplicates and score confidence.
                 </p>
               </div>
+            ) : noKit ? (
+              <div className="m-3 rounded-[7px] border-[1.5px] border-dashed border-ink/30 bg-paper-2 p-4" role="status">
+                <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink-mute">
+                  One step first
+                </p>
+                <p className="mt-1 text-[13px] leading-relaxed text-ink">
+                  This draft is saved, but the six reviewers check it against a Brand Kit — the rules, the
+                  banned and approved terms, the approved facts, the colours and the fonts. This workspace
+                  does not have one yet, so the review was not started.
+                </p>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <Link
+                    href="/kit"
+                    className="min-h-[36px] rounded-[7px] border-[1.5px] border-ink bg-ink px-3 font-mono text-[10px] uppercase leading-[36px] tracking-[0.1em] text-ivory"
+                  >
+                    Set up the Brand Kit
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={retryReview}
+                    disabled={busy}
+                    className="min-h-[36px] rounded-[7px] border-[1.5px] border-ink/25 px-3 font-mono text-[10px] uppercase tracking-[0.1em] text-ink-2 hover:border-ink hover:text-ink disabled:opacity-40"
+                  >
+                    Check again
+                  </button>
+                </div>
+                <p className="mt-2 text-[11px] leading-relaxed text-ink-mute">
+                  Or load the sample kit on that page — a fictional set of rules, terms and facts — and run
+                  the review again.
+                </p>
+              </div>
             ) : run?.status === "failed" ? (
-              <p className="m-3 rounded-[7px] border-[1.5px] border-mark bg-mark-tint p-3 text-[13px] text-mark-text" role="alert">
-                The review failed: {run.error}
-              </p>
+              <div className="m-3 rounded-[7px] border-[1.5px] border-mark bg-mark-tint p-3" role="alert">
+                <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-mark-text">
+                  The review did not finish
+                </p>
+                <p className="mt-1 text-[13px] leading-relaxed text-mark-text">
+                  {run.error
+                    ? `The engine reported: ${run.error}`
+                    : "The run stopped before it produced any findings."}{" "}
+                  Your draft is unchanged and nothing was published.
+                </p>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={retryReview}
+                    disabled={busy}
+                    className="min-h-[34px] rounded-[6px] border-[1.5px] border-mark px-2.5 font-mono text-[10px] uppercase tracking-[0.1em] text-mark-text hover:bg-mark hover:text-ivory disabled:opacity-40"
+                  >
+                    Run it again
+                  </button>
+                  <Link href="/kit" className="link-under text-[11px] text-ink-2">
+                    Check the Brand Kit
+                  </Link>
+                </div>
+              </div>
             ) : (
               <div className="grid md:grid-cols-[minmax(0,1fr)_minmax(260px,0.85fr)]">
                 <div className="border-b-[1.5px] border-dashed border-mark/60 p-4 md:border-b-0 md:border-r-[1.5px] md:border-r-mark/60">
@@ -386,7 +496,15 @@ export default function ProofDeskPage({ params }: { params: { id: string } }) {
                   {visible.length === 0 ? (
                     <div className="px-2 py-8 text-center">
                       <p className="text-[13px] text-ink-2">
-                        {filter === "decided" ? "Nothing decided yet." : "No notes under this filter."}
+                        {filter === "decided"
+                          ? "Nothing decided yet."
+                          : filter === "open"
+                            ? "No open notes."
+                            : run?.status === "complete" && findings.length === 0
+                              ? run.metrics?.no_rules_confirmed
+                                ? "Nothing flagged. With no confirmed rules the review was limited to the built-in checks."
+                                : "Nothing flagged — the six reviewers found no rule broken in this version."
+                              : "No notes under this filter."}
                       </p>
                       <button
                         type="button"

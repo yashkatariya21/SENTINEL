@@ -31,6 +31,7 @@ objects**, so existence never leaks), `409` (wrong state), `413`/`415` (upload),
 | GET | `/brand-kits/{id}/proposals` | all | rules/terms/facts awaiting Admin confirmation |
 | POST | `/brand-kits/{id}/confirm` | admin, brand_manager | `{ids[], action: "confirm"\|"reject"}` — **the only way extracted items become active** |
 | POST | `/brand-kits/{id}/refresh-proposals` | admin, brand_manager | re-derive candidates from this kit's documents |
+| POST | `/brand-kits/{id}/sample` | admin, brand_manager | fills an **empty** kit with the bundled fictional sample set (14 rules, 10 terms, 8 facts, 8 assets, 1 guideline document), every item labelled `sample`; returns **409** if the kit already holds rules, terms or facts |
 | GET | `/brand-kits/{id}/health` | all | readiness checklist (6 reviewer categories covered, colours, fonts, logo, terms, facts) |
 | GET/POST | `/terms`, DELETE `/terms/{id}` | read all / write admin+BM | term lists (`banned|approved|required`) |
 | GET/POST | `/facts` | read all / write admin+BM | approved facts (the only permitted numbers) |

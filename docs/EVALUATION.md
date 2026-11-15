@@ -5,13 +5,13 @@ interchangeably.
 
 | What | Command | Needs a key? | Question it answers |
 |---|---|---|---|
-| Behaviour tests | `cd backend && pytest -q` (that is 209 tests) | no | Do the deterministic rules, permissions and tenancy boundaries hold? |
+| Behaviour tests | `cd backend && pytest -q` (that is 241 tests) | no | Do the deterministic rules, permissions and tenancy boundaries hold? |
 | **Pipeline regression benchmark (rule-based engine)** | `python -m eval.run_eval` | no | Did a rule or code change break the engine's behaviour on the tuning set? |
 | **Held-out adversarial set** | `python -m eval.run_eval` (same run) | no | Does the engine generalise to copy it was not tuned on? |
 | **LLM evaluation** | `python -m eval.run_llm_eval` | **yes** | How well do three prompt configurations perform, at what latency and cost? |
 
-The in-app `/evaluation` page renders whatever is on disk. If a report is missing, the page says
-"not measured" — it never shows a placeholder score.
+The in-app `/evaluation` page renders a recorded run and names which one it used (§0). If nothing
+has been measured at all, the page says so — it never shows a placeholder score.
 
 ---
 

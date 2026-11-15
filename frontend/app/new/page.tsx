@@ -1,7 +1,8 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
-import { api, ContentItem, CONTENT_TYPES } from "@/lib/api";
+import Link from "next/link";
+import { api, ContentItem, CONTENT_TYPES, isNoBrandKit, readableError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { Button, Field, Select, TextArea, TextInput, useToast } from "../components/ui";
 import { Icon } from "../components/Icon";
@@ -28,20 +29,24 @@ export default function NewSubmissionPage() {
   const [alt, setAlt] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [noKit, setNoKit] = useState(false);
+  /** set when the item uploaded but the review did not start, so the retry is cheap */
+  const [partial, setPartial] = useState<ContentItem | null>(null);
 
   const maxMb = 20;
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
+  async function submit(e?: React.FormEvent) {
+    e?.preventDefault();
     setError("");
+    setNoKit(false);
     setBusy(true);
+    let item: ContentItem | null = partial;
     try {
-      let item: ContentItem;
-      if (mode === "paste") {
+      if (!item && mode === "paste") {
         item = await api.post<ContentItem>("/content", {
           title, content_type: contentType, department: department || null, text,
         });
-      } else {
+      } else if (!item) {
         const file = fileRef.current?.files?.[0];
         if (!file) throw new Error("Choose a DOCX, PDF or image file first.");
         if (file.size > maxMb * 1024 * 1024) throw new Error(`That file is over the ${maxMb}MB limit.`);
@@ -53,11 +58,19 @@ export default function NewSubmissionPage() {
         if (alt) form.append("alt", alt);
         item = await api.upload<ContentItem>("/content/upload", form);
       }
+      // The upload and the review are two steps. If the second fails the first is kept,
+      // and "Retry" resumes from there instead of asking for the file again.
+      setPartial(item);
       await api.post(`/content/${item.id}/analyze`);
       push("Submitted. Six reviewers are reading it now.", "ok");
       router.push(`/content/${item.id}`);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      if (isNoBrandKit(err)) {
+        setNoKit(true);
+        setError("");
+      } else {
+        setError(readableError(err, "The submission did not go through. Nothing was published."));
+      }
       setBusy(false);
     }
   }
@@ -153,10 +166,45 @@ export default function NewSubmissionPage() {
                 </>
               )}
 
+              {noKit && (
+                <div className="mb-3 rounded-[8px] border-[1.5px] border-dashed border-[color:var(--hairline-strong)] bg-[color:var(--paper-2)] p-3">
+                  <p className="font-mono text-2xs uppercase tracking-[0.14em] text-[color:var(--ink-3)]">
+                    One step first
+                  </p>
+                  <p className="mt-1 text-xs leading-relaxed text-[color:var(--ink-2)]">
+                    {partial
+                      ? "Your content is saved. The review needs a Brand Kit to check it against, and this workspace does not have one yet."
+                      : "The review needs a Brand Kit to check it against, and this workspace does not have one yet."}
+                  </p>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <Link href="/kit">
+                      <Button size="sm" variant="primary" type="button">
+                        Go to the Brand Kit
+                      </Button>
+                    </Link>
+                    <Button size="sm" type="button" variant="ghost" onClick={submit} loading={busy}>
+                      {partial ? "Retry the review" : "Try again"}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               {error && (
-                <p role="alert" className="mb-3 flex items-start gap-2 rounded-[6px] border border-[color:var(--mark)] bg-[color:var(--mark-tint)] px-3 py-2 text-xs text-[color:var(--mark-text)]">
-                  <Icon name="alert" size={15} /> {error}
-                </p>
+                <div role="alert" className="mb-3 rounded-[6px] border border-[color:var(--mark)] bg-[color:var(--mark-tint)] px-3 py-2">
+                  <p className="flex items-start gap-2 text-xs text-[color:var(--mark-text)]">
+                    <Icon name="alert" size={15} /> {error}
+                  </p>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <Button size="sm" type="button" variant="ghost" onClick={submit} loading={busy}>
+                      {partial ? "Retry the review" : "Try again"}
+                    </Button>
+                    {partial && (
+                      <Link href={`/content/${partial.id}`} className="link-under text-xs text-[color:var(--ink-2)]">
+                        Open the saved draft instead
+                      </Link>
+                    )}
+                  </div>
+                </div>
               )}
 
               <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[color:var(--hairline)] pt-4">
@@ -165,8 +213,8 @@ export default function NewSubmissionPage() {
                   instructions”) is detected and shown to reviewers — it is never followed.
                 </p>
                 <Button type="submit" variant="primary" loading={busy}
-                        disabled={!title.trim() || (mode === "paste" ? text.trim().length < 10 : false)}>
-                  Run review
+                        disabled={!partial && (!title.trim() || (mode === "paste" ? text.trim().length < 10 : false))}>
+                  {partial ? "Retry the review" : "Run review"}
                 </Button>
               </div>
             </div>

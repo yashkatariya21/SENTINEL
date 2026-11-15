@@ -9,6 +9,7 @@ import { DeskSentri, Stamp, Wordmark } from "../components/Desk";
 import { Icon } from "../components/Icon";
 import { EntrySequence } from "../components/EntrySequence";
 import { DeskBackground } from "@/app/components/DeskBackground";
+import { SiteFooter } from "../components/landing/SiteFooter";
 
 /* a short, marked-up proof — the product in one glance, not a screenshot */
 function SampleSheet() {
@@ -102,7 +103,8 @@ export default function LoginPage() {
   }
 
   return (
-    <main id="main" className="relative grid min-h-screen bg-[color:var(--canvas)] lg:grid-cols-[1.02fr_0.98fr]">
+    <div className="relative flex min-h-screen flex-col bg-[color:var(--canvas)]">
+      <main id="main" className="relative grid flex-1 bg-[color:var(--canvas)] lg:grid-cols-[1.02fr_0.98fr]">
       <EntrySequence />
       {/* the paper half is a desk, not a void: grid, crop marks, grain, lamp */}
       <DeskBackground variant="public" />
@@ -320,5 +322,8 @@ export default function LoginPage() {
         </div>
       </section>
     </main>
+
+      <SiteFooter />
+    </div>
   );
 }

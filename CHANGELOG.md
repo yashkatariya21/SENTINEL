@@ -6,6 +6,80 @@ documents' figures stop agreeing with those runs.
 
 ---
 
+## A new workspace that works, and a public site around it
+
+### Fixed — the reported bug
+
+A brand-new workspace had no `BrandKit` row, and three paths assumed one existed:
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `POST /content/upload` with an image returned **500** | `_measure_against_kit()` called `active_brand_kit()`, which raised `RuntimeError` | `active_brand_kit(..., required=False)`; no kit returns the extraction unchanged, so pixels are measured but not judged against a palette (which `image_analysis` already supports) |
+| `POST /content/{id}/analyze` returned **202**, then the run died with the same error and the user saw only "failed" | the kit was looked up inside the background worker | the kit is checked **before** queueing: **409** with `{"code": "no_brand_kit"}` |
+| the raw error surfaced as a stack-trace string | `RuntimeError` is not catchable by kind | new `services/errors.py::NoBrandKitError`, mapped in `main.py` to 409 + `code`, and to a `metrics.no_brand_kit` flag on any run that dies for the same reason |
+
+- `auth.create_workspace` now creates a default draft Brand Kit (name **"Brand Kit"**), so
+  new workspaces never lack one. Existing organisations are covered by the 409 path.
+- A kit with **no confirmed rules** still completes a review, and the run records
+  `metrics.no_rules_confirmed = {"count": 0, "note": "no rules confirmed; results limited to
+  built-in checks"}`. The proof desk shows that sentence above the draft, from the run's own
+  metrics — not from the interface guessing.
+- `POST /brand-kits/{id}/sample` (new): loads the fictional seed set into an **empty** kit,
+  labels every rule, term, fact and asset `sample`, and returns 409 rather than overwrite a
+  kit that already holds content.
+
+### Added — the site footer and two public pages
+
+- **Footer** on `/welcome`, `/login`, `/about` and `/trust` (the app keeps its own status
+  bar): four columns on a hairline — Product, Trust, Project, Notice — then a colophon line
+  with the credit, the app version read from `/v1/meta`, and an "API online" dot driven by
+  the health call already in `lib/meta`. The "Source code" link reads
+  `NEXT_PUBLIC_REPO_URL` and is **omitted entirely** when unset; "API docs" goes to
+  `/api-docs`, which `next.config.js` proxies to FastAPI's `/docs` so the API origin stays
+  out of the browser.
+- **`/about`**: three sentences on what Sentinel is, the three improvements by their exact
+  names (AI Brand Review Committee, Explainability by Design, Adaptive Learning), the Proof
+  Desk as an original design language with its three standard patterns named as standard
+  (sidebar navigation, command palette, role switcher), the stack from the README, and a
+  factual AI-assistance disclosure.
+- **`/trust`**: the security document in plain language — organisation isolation, roles,
+  the hash-chained audit log, no auto-publish, confidential documents skipping external
+  model calls, and exactly what leaves the system and when. Privacy and Terms are honest:
+  demo data only, do not enter confidential data here, no warranty, and **no invented
+  address, phone number or support inbox**.
+- Both pages are public routes in `lib/auth.tsx` and `Shell.tsx` (no chrome, no redirect),
+  so they are readable signed out.
+
+### Added — errors that a person can act on
+
+- `ApiError` carries the API's `code`; `isNoBrandKit()` and `readableError()` join it in
+  `lib/api.ts`.
+- `/new` distinguishes "the review needs a Brand Kit" from a real failure, keeps the
+  uploaded draft, and offers **Go to the Brand Kit** and **Retry the review** rather than
+  asking for the file again.
+- `/kit` shows a calm empty state with an action when there is no kit (instead of a
+  skeleton for ever), and **Start with a sample Brand Kit** when the kit is empty.
+- The proof desk gained a no-kit panel, a retry on a failed run (one automatic attempt,
+  then a button), and an empty-but-complete state that explains itself.
+- The overview shows a **dismissible getting-started checklist** (Brand Kit, confirm rules,
+  first draft, first decision) driven by `GET /brand-kits/{id}/health` plus the items and
+  findings the page already loads. The dismissal is remembered per machine.
+
+### Verified
+
+- `backend/tests/test_new_workspace.py` (32 cases): every list endpoint answers 200 on a
+  fresh workspace; image upload → 201 and `GET /content/{id}/original` → 200; analyse
+  completes with the `no_rules_confirmed` note; the same behaviour after the kit row is
+  **deleted** underneath (the pre-fix state); analyse without a kit is a 409 with a code and
+  leaves no run to poll; the sample kit loads, is labelled, and refuses to overwrite.
+- Browser pass at 1440/1920/390 in both themes: account created through `/login`, image
+  uploaded, review run, **page reloaded mid-run** (same item, run resumed, no second run),
+  kit deleted underneath, and each error path walked. axe-core: 0 violations introduced —
+  the six it reports are pre-existing on `/welcome` (the entry-sequence overlay and its
+  colour) and are unchanged by this work.
+
+---
+
 ## Evaluation screen, in a deploy that does not ship `eval/`
 
 ### Fixed

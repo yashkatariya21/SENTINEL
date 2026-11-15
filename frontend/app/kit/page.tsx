@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { api } from "@/lib/api";
+import { api, readableError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import {
   Button, Card, EmptyState, Field, SectionHeading, Select, Skeleton, Tag, TextInput, useToast,
@@ -30,6 +30,8 @@ export default function BrandKitPage() {
   const [docKind, setDocKind] = useState("guideline");
   const [newTerm, setNewTerm] = useState({ kind: "banned", value: "", replacement: "" });
   const [newFact, setNewFact] = useState({ statement: "", topic: "" });
+  const [loaded, setLoaded] = useState(false);
+  const [sampleBusy, setSampleBusy] = useState(false);
 
   const writable = can("can_write_kit");
 
@@ -42,6 +44,7 @@ export default function BrandKitPage() {
       api.get<Fact[]>("/facts"), api.get<Asset[]>("/assets"),
     ]);
     setDocs(d); setTerms(t); setFacts(f); setAssets(a);
+    setLoaded(true);
     if (active) {
       const [p, h] = await Promise.all([
         api.get<any>(`/brand-kits/${active.id}/proposals`),
@@ -51,7 +54,49 @@ export default function BrandKitPage() {
     }
   }, []);
 
-  useEffect(() => { load().catch((e) => push(e.message, "error")); }, [load, push]);
+  useEffect(() => {
+    load().catch((e) => {
+      setLoaded(true);
+      push(readableError(e, "The Brand Kit could not be loaded."), "error");
+    });
+  }, [load, push]);
+
+  /**
+   * Load the bundled sample kit into an empty one.
+   *
+   * The rules, terms and facts are the fictional set from `seed/brand_kit.py`, written on
+   * the server, and every one of them arrives labelled "sample". Nothing is invented here
+   * and nothing overwrites a kit that already holds content — the server refuses that.
+   */
+  async function loadSample() {
+    if (!kit) return;
+    setSampleBusy(true);
+    try {
+      const res = await api.post<{ loaded: { rules: number; terms: number; facts: number }; note: string }>(
+        `/brand-kits/${kit.id}/sample`,
+      );
+      push(`Sample kit loaded: ${res.loaded.rules} rules, ${res.loaded.terms} terms, ${res.loaded.facts} approved facts. All fictional.`, "ok");
+      await load();
+    } catch (err: unknown) {
+      push(readableError(err, "The sample kit could not be loaded."), "error");
+    } finally {
+      setSampleBusy(false);
+    }
+  }
+
+  /** Only used when the workspace somehow has no kit at all (older workspaces). */
+  async function createKit() {
+    setSampleBusy(true);
+    try {
+      await api.post<Kit>("/brand-kits", { name: "Brand Kit", version: 1 });
+      push("Brand Kit created. Load the sample or upload your own guideline.", "ok");
+      await load();
+    } catch (err: unknown) {
+      push(readableError(err, "The Brand Kit could not be created."), "error");
+    } finally {
+      setSampleBusy(false);
+    }
+  }
 
   async function upload(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -106,7 +151,28 @@ export default function BrandKitPage() {
         action={kit && <Tag tone={kit.status === "active" ? "navy" : "amber"}>{kit.status === "active" ? "Active kit" : kit.status}</Tag>}
       />
 
-      {!kit ? <Skeleton className="h-40 w-full" /> : (
+      {!loaded ? (
+        <Skeleton className="h-40 w-full" />
+      ) : !kit ? (
+        <Card className="p-5">
+          <SectionHeading
+            title="No Brand Kit yet"
+            subtitle="The reviewers check your content against a Brand Kit: rules, banned and approved terms, approved facts, colours, fonts and a logo. There is none in this workspace, so start with a sample or create an empty one."
+          />
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <Button variant="primary" onClick={createKit} loading={sampleBusy} disabled={!writable}>
+              Create an empty Brand Kit
+            </Button>
+            <span className="text-xs text-ink-mute">
+              Only an Admin or Brand Manager can do this.
+            </span>
+          </div>
+          <p className="mt-3 rounded-lg border border-dashed border-ink/20 bg-[color:var(--paper-2)] p-3 text-xs leading-relaxed text-ink-2">
+            Content can still be uploaded and reviewed without a kit — the run will say that its
+            results were limited to built-in checks.
+          </p>
+        </Card>
+      ) : (
         <>
           <div className="mb-4 grid grid-cols-2 divide-[color:var(--hairline)] border-y border-[color:var(--hairline)] bg-[color:var(--paper)] sm:grid-cols-5 sm:divide-x">
             {[
@@ -121,6 +187,28 @@ export default function BrandKitPage() {
             <p className="mb-4 rounded-lg border border-ink/10 bg-white px-3 py-2 text-xs text-ink-mute">
               Read-only for your role. Only Admins and Brand Managers can change the Brand Kit.
             </p>
+          )}
+
+          {writable && kit.rules === 0 && kit.terms === 0 && kit.facts === 0 && (
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-[10px] border-[1.5px] border-dashed border-[color:var(--hairline-strong)] bg-[color:var(--paper)] p-4">
+              <div className="min-w-0">
+                <p className="font-mono text-2xs uppercase tracking-[0.16em] text-[color:var(--ink-3)]">
+                  Empty kit · fastest way to a first review
+                </p>
+                <p className="mt-1 max-w-[62ch] text-sm leading-relaxed text-[color:var(--ink-2)]">
+                  Load the fictional <strong>sample Brand Kit</strong>: 14 rules, 10 terms, 8 approved facts,
+                  the colours and fonts the visual reviewer checks against, and the guideline document they
+                  cite. It is demo content, every item is labelled <em>sample</em>, and you can replace or
+                  delete any of it.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Tag tone="amber">Sample</Tag>
+                <Button variant="primary" onClick={loadSample} loading={sampleBusy}>
+                  Start with a sample Brand Kit
+                </Button>
+              </div>
+            </div>
           )}
 
           <TabStrip
