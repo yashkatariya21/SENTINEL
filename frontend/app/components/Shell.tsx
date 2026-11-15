@@ -3,19 +3,31 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useAuth, DEMO_USERS } from "@/lib/auth";
-import { Crest, Monogram } from "./brand/Crest";
-import { Lattice } from "./brand/Pattern";
 import { LoadDemoButton } from "./Demo";
 import { TeamModal } from "./brand/TeamModal";
-import { Button, Select } from "./ui";
 import { StatusBar } from "./StatusBar";
 import { ThemeSwitch } from "./ThemeSwitch";
 import { CommandPalette } from "./CommandPalette";
 import { ShortcutsSheet } from "./ShortcutsSheet";
+import { DeskMark, DeskSentri } from "./Desk";
+import { Icon, type IconName } from "./Icon";
 import { NAV, ROLE_LABEL, visibleNav } from "@/lib/nav";
 
 /** Routes that render without the chrome (public marketing / auth). */
 const BARE_ROUTES = ["/login", "/welcome"];
+
+const ICONS: Record<string, IconName> = {
+  "/": "overview",
+  "/new": "new",
+  "/content": "queue",
+  "/kit": "kit",
+  "/rules": "rules",
+  "/learn": "learning",
+  "/analytics": "analytics",
+  "/evaluation": "evaluation",
+  "/audit": "audit",
+  "/settings": "settings",
+};
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const { me, loading, logout, loginAs } = useAuth();
@@ -27,11 +39,9 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const [palette, setPalette] = useState(false);
   const [shortcuts, setShortcuts] = useState(false);
 
-  /* close the mobile drawer on navigation */
   useEffect(() => setOpen(false), [pathname]);
 
-  /* ---------------------------------------------------------------- keys
-     ⌘K / "/" → palette · "?" → shortcuts · "g" then 1-9 → page */
+  /* ⌘K / "/" → palette · "?" → shortcuts · "g" then 1-9 → page */
   useEffect(() => {
     let awaitingGo = false;
     let timer: number | undefined;
@@ -39,8 +49,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
     const onKey = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
       const typing =
-        !!target &&
-        (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
+        !!target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
 
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
@@ -84,141 +93,136 @@ export function Shell({ children }: { children: React.ReactNode }) {
     };
   }, [me, router]);
 
-  // Public routes own their own <main>, so the shell contributes nothing here — two
-  // main landmarks on one page is a real navigation fault, not a technicality.
+  // Public routes own their own <main>, so the shell contributes nothing here.
   if (BARE_ROUTES.includes(pathname)) return <>{children}</>;
 
   if (loading || !me) {
     return (
-      <main id="main" className="flex min-h-screen items-center justify-center gap-3 text-sm text-ink-mute">
-        <Monogram size={28} /> Loading the workspace…
+      <main id="main" className="flex min-h-screen flex-col items-center justify-center gap-4 text-sm text-ink-2">
+        <DeskSentri size={88} mood="reading" />
+        <p className="font-mono text-2xs uppercase tracking-[0.2em]">Opening the desk…</p>
       </main>
     );
   }
 
   const role = me.user.role;
   const visible = visibleNav(me);
-  const initials = me.user.name.split(" ").map((part) => part[0]).slice(0, 2).join("");
+  const initials = me.user.name.split(" ").map((p) => p[0]).slice(0, 2).join("");
 
   return (
-    <div className="min-h-screen bg-paper lg:grid lg:grid-cols-[252px_1fr]">
-      {/* ------------------------------------------------------------ sidebar */}
-      <aside
-        className={`${open ? "block" : "hidden"} relative isolate overflow-hidden bg-navy text-ivory lg:block`}
-        aria-label="Main navigation"
+    <div className="min-h-screen bg-paper">
+      {/* ------------------------------------------------------------- icon rail */}
+      <nav
+        aria-label="Sections"
+        className={`${
+          open ? "flex" : "hidden"
+        } fixed inset-y-0 left-0 z-50 w-[64px] flex-col items-center border-r-[1.5px] border-ink bg-ivory py-2 lg:flex`}
       >
-        <Lattice className="pointer-events-none absolute inset-0 h-full w-full text-gold-soft" opacity={0.06} />
-        <div className="relative flex h-full flex-col">
-          <div className="border-b border-gold/20 px-5 py-5">
-            <Link href="/" className="flex items-center gap-2.5 rounded focus-visible:outline-none">
-              <Crest size={34} tone="gold" />
-              <span>
-                <span className="block font-crest text-base font-semibold leading-none tracking-[0.14em] text-ivory">
-                  SENTINEL AI
-                </span>
-                <span className="mt-1 block text-2xs uppercase tracking-[0.18em] text-gold-soft/70">
-                  Reviews. Never publishes.
-                </span>
-              </span>
-            </Link>
-          </div>
+        <Link
+          href="/welcome"
+          aria-label="Sentinel — about the desk"
+          className="mb-2 grid h-11 w-11 place-items-center rounded-md hover:bg-ivory-deep focus-visible:outline-none"
+        >
+          <DeskMark size={24} className="text-ink" />
+        </Link>
 
-          <nav className="flex-1 space-y-0.5 px-2.5 py-4" aria-label="Sections">
-            {visible.map((item) => {
+        <ul className="flex flex-1 flex-col items-center gap-0.5 overflow-y-auto">
+          {visible
+            .filter((item) => item.href !== "/settings")
+            .map((item) => {
               const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
               return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  aria-current={active ? "page" : undefined}
-                  className={`group relative flex min-h-[44px] items-center justify-between rounded-[2px] px-3 text-xs font-medium transition duration-ui ease-royal ${
-                    active ? "bg-ivory/10 text-ivory" : "text-ivory/70 hover:bg-ivory/[0.06] hover:text-ivory"
-                  }`}
-                >
+                <li key={item.href} className="group relative">
+                  <Link
+                    href={item.href}
+                    aria-current={active ? "page" : undefined}
+                    aria-label={item.label}
+                    className="rail-item"
+                  >
+                    <Icon name={ICONS[item.href] ?? "queue"} />
+                  </Link>
+                  {/* the tooltip: name only, never the only source of it */}
                   <span
                     aria-hidden="true"
-                    className={`absolute left-0 top-1/2 h-6 w-[3px] -translate-y-1/2 rounded-r bg-gradient-gold transition-opacity duration-micro ${
-                      active ? "opacity-100" : "opacity-0 group-hover:opacity-40"
-                    }`}
-                  />
-                  <span className={active ? "font-semibold" : ""}>{item.label}</span>
-                  {item.key && (
-                    <kbd
-                      aria-hidden="true"
-                      className={`font-mono text-[10px] tracking-[0.1em] transition-opacity duration-micro ${
-                        active ? "text-gold-soft/70" : "text-ivory/25 opacity-0 group-hover:opacity-100"
-                      }`}
-                    >
-                      g {item.key}
-                    </kbd>
-                  )}
-                </Link>
+                    className="pointer-events-none absolute left-[52px] top-1/2 z-50 -translate-y-1/2 whitespace-nowrap rounded-[4px] bg-[#111318] px-2 py-1 font-mono text-[10px] uppercase tracking-[0.14em] text-[#F4F5F7] opacity-0 shadow-herald transition-opacity duration-micro group-hover:opacity-100 group-focus-within:opacity-100"
+                  >
+                    {item.label}
+                  </span>
+                </li>
               );
             })}
-          </nav>
+        </ul>
 
-          <div className="border-t border-gold/20 px-4 py-4">
-            <p className="text-xs font-semibold text-ivory">{me.organisation.name}</p>
-            <p className="text-2xs uppercase tracking-[0.14em] text-gold-soft/60">{me.organisation.slug}</p>
-            <p className="mt-2.5 text-2xs leading-relaxed text-ivory/50">
-              It reviews and explains. It never publishes, auto-fixes, or changes a rule without a
-              manager&apos;s click.
-            </p>
-            <Link
-              href="/welcome"
-              className="mt-3 inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-gold-soft/70 underline-offset-4 hover:text-gold-soft hover:underline"
+        {visible.some((i) => i.href === "/settings") && (
+          <Link
+            href="/settings"
+            aria-current={pathname.startsWith("/settings") ? "page" : undefined}
+            aria-label="Settings"
+            className="rail-item group relative mt-1"
+          >
+            <Icon name="settings" />
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute left-[52px] top-1/2 -translate-y-1/2 whitespace-nowrap rounded-[4px] bg-[#111318] px-2 py-1 font-mono text-[10px] uppercase tracking-[0.14em] text-[#F4F5F7] opacity-0 transition-opacity duration-micro group-hover:opacity-100"
             >
-              <span aria-hidden="true">↗</span> About Sentinel
+              Settings
+            </span>
+          </Link>
+        )}
+      </nav>
+
+      <div className="lg:pl-[64px]">
+        {/* ------------------------------------------------------------- top bar */}
+        <header className="sticky top-0 z-40 bg-navy text-paper">
+          <div className="flex h-14 items-center gap-3 px-3 sm:px-5">
+            <button
+              type="button"
+              onClick={() => setOpen((v) => !v)}
+              className="grid h-10 w-10 place-items-center rounded-md text-paper hover:bg-white/10 lg:hidden"
+              aria-expanded={open}
+              aria-label={open ? "Close navigation" : "Open navigation"}
+            >
+              <Icon name={open ? "close" : "menu"} />
+            </button>
+
+            <Link href="/" className="flex items-center gap-2 rounded focus-visible:outline-none">
+              <DeskMark size={20} className="text-paper" />
+              <span className="hidden font-mono text-[12px] font-semibold uppercase tracking-[0.22em] sm:inline">
+                Sentinel
+              </span>
             </Link>
-          </div>
-        </div>
-      </aside>
 
-      <div className="flex min-h-screen flex-col">
-        {/* ----------------------------------------------------------- topbar */}
-        <header className="sticky top-0 z-30 border-b border-gold/25 bg-paper/95 backdrop-blur">
-          <div className="flex min-h-[64px] items-center justify-between gap-3 px-4 lg:px-7">
-            <div className="flex min-w-0 items-center gap-3">
-              <button
-                type="button"
-                className="grid h-11 w-11 place-items-center rounded-[2px] border border-ink/15 text-navy hover:bg-ivory-deep lg:hidden"
-                onClick={() => setOpen((v) => !v)}
-                aria-expanded={open}
-                aria-controls="sidebar"
-                aria-label={open ? "Close navigation" : "Open navigation"}
-              >
-                <span aria-hidden="true">{open ? "✕" : "☰"}</span>
-              </button>
-              <div className="min-w-0">
-                <p className="truncate text-2xs uppercase tracking-[0.16em] text-ink-mute">
-                  {me.organisation.name} · {me.user.department ?? "All departments"}
-                </p>
-                <p className="truncate font-display text-sm font-semibold text-navy">{titleFor(pathname)}</p>
-              </div>
-            </div>
+            <span aria-hidden="true" className="hidden text-[#3A4149] sm:inline">/</span>
+            <p className="hidden truncate font-mono text-[11px] uppercase tracking-[0.14em] text-[#9AA1AE] sm:block">
+              {me.organisation.slug} / {titleFor(pathname)}
+            </p>
 
-            <div className="flex items-center gap-2 sm:gap-3">
-              {/* the palette, one keystroke away */}
+            <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
               <button
                 type="button"
                 onClick={() => setPalette(true)}
-                className="hidden items-center gap-2 whitespace-nowrap rounded-[2px] border border-ink/15 bg-white/60 px-2.5 py-1.5 text-2xs text-ink-mute transition-colors duration-micro hover:border-gold/60 hover:text-ink xl:flex"
+                className="flex items-center gap-2 rounded-md border border-[#3A4149] px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-[#C3CAD6] transition-colors duration-micro hover:border-[#FFE066] hover:text-[#FFE066]"
               >
-                <span aria-hidden="true">⌕</span>
-                <span className="font-mono uppercase tracking-[0.14em]">Search</span>
+                <Icon name="search" size={14} />
+                <span className="hidden sm:inline">Search</span>
                 <span className="sr-only">— open the command palette</span>
-                <kbd aria-hidden="true" className="rounded-[2px] border border-ink/20 px-1 font-mono text-[10px]">
+                <kbd aria-hidden="true" className="hidden rounded border border-[#3A4149] px-1 sm:inline">
                   ⌘K
                 </kbd>
               </button>
 
-              <div className="hidden items-center gap-2 2xl:flex">
-                <label className="whitespace-nowrap text-2xs uppercase tracking-[0.14em] text-ink-mute" htmlFor="viewas">
+              <span className="hidden items-center gap-1.5 rounded-md border border-[#3A4149] px-2 py-1 font-mono text-[10px] uppercase tracking-[0.14em] text-[#7BE0A8] md:flex">
+                <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-[#7BE0A8]" />
+                Demo
+              </span>
+
+              <div className="hidden items-center gap-2 xl:flex">
+                <label className="font-mono text-[10px] uppercase tracking-[0.14em] text-[#9AA1AE]" htmlFor="viewas">
                   View as
                 </label>
-                <Select
+                <select
                   id="viewas"
-                  className="w-[10.5rem] py-1.5 text-xs"
+                  className="w-[10.5rem] rounded-[4px] border border-[#3A4149] bg-[#171A20] px-2 py-1 font-mono text-[11px] text-paper focus:border-[#FFE066] focus:outline-none"
                   value={DEMO_USERS.find((u) => u.name === me.user.name)?.email ?? ""}
                   disabled={switching}
                   onChange={async (e) => {
@@ -237,41 +241,35 @@ export function Shell({ children }: { children: React.ReactNode }) {
                       {u.name} — {u.role}
                     </option>
                   ))}
-                </Select>
+                </select>
               </div>
 
-              <LoadDemoButton label="Load demo data" size="sm" variant="primary" className="hidden 2xl:inline-flex" />
+              <LoadDemoButton label="Load demo" size="sm" variant="primary" className="hidden 2xl:inline-flex" />
+              <ThemeSwitch showLabel className="hidden text-paper sm:flex" />
 
-              <ThemeSwitch showLabel className="whitespace-nowrap" />
-
-              <div className="flex items-center gap-2 border-l border-ink/10 pl-2 sm:pl-3">
-                <button
-                  type="button"
-                  onClick={() => setTeam(true)}
-                  aria-label={`${initials} — meet the team: reviewers and human roles`}
-                  className="grid h-9 w-9 place-items-center rounded-full border border-gold/50 bg-navy text-2xs font-semibold text-gold-soft transition-colors duration-micro hover:border-gold focus-visible:ring-2 focus-visible:ring-gold focus-visible:ring-offset-2"
-                >
-                  <span aria-hidden="true">{initials}</span>
-                </button>
-                <div className="hidden sm:block">
-                  <p className="whitespace-nowrap text-xs font-semibold leading-tight text-ink">{me.user.name}</p>
-                  <p className="whitespace-nowrap text-2xs uppercase tracking-[0.12em] text-gold-deep">
-                    {ROLE_LABEL[role] ?? role}
-                  </p>
-                </div>
-              </div>
-              <Button size="sm" variant="ghost" onClick={logout} className="whitespace-nowrap px-2">
+              <button
+                type="button"
+                onClick={() => setTeam(true)}
+                aria-label={`${initials} — meet the team: reviewers and human roles`}
+                className="grid h-9 w-9 place-items-center rounded-full border-[1.5px] border-[#3A4149] font-mono text-[11px] font-semibold text-paper transition-colors duration-micro hover:border-[#FFE066]"
+              >
+                <span aria-hidden="true">{initials}</span>
+              </button>
+              <button
+                type="button"
+                onClick={logout}
+                className="rounded-md px-2 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-[#9AA1AE] transition-colors duration-micro hover:text-paper"
+              >
                 Sign out
-              </Button>
+              </button>
             </div>
           </div>
         </header>
 
-        {/* the content column is the only thing that animates on a route change */}
         <main
           id="main"
           key={pathname}
-          className="route-fade mx-auto w-full max-w-[1240px] flex-1 px-4 pb-16 pt-6 sm:pb-12 lg:px-8 lg:pb-14 lg:pt-8"
+          className="route-fade mx-auto w-full max-w-[1280px] flex-1 px-3 pb-16 pt-4 sm:pb-12 sm:px-5 sm:pt-6 lg:px-7"
         >
           {children}
         </main>
@@ -285,11 +283,21 @@ export function Shell({ children }: { children: React.ReactNode }) {
   );
 }
 
+const TITLES: [string, string][] = [
+  ["/brand/characters", "The cast"],
+  ["/brand", "Brand system"],
+  ["/content/", "Proof desk"],
+  ["/kit", "Brand Kit"],
+  ["/evaluation", "Evaluation"],
+];
+
 function titleFor(pathname: string): string {
   if (pathname === "/") return "Overview";
+  if (pathname.endsWith("/approval")) return "Approval";
+  for (const [prefix, label] of TITLES) {
+    if (pathname.startsWith(prefix)) return label;
+  }
   const match = NAV.filter((n) => n.href !== "/").find((n) => pathname.startsWith(n.href));
   if (match) return match.label;
-  if (pathname.includes("/approval")) return "Approval";
-  if (pathname.startsWith("/content/")) return "Review report";
-  return "Sentinel AI";
+  return "Sentinel";
 }
