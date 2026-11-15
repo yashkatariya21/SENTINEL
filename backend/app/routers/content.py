@@ -38,7 +38,13 @@ def _can_see(principal: Principal, item: ContentItem) -> bool:
 
 def _measure_against_kit(db: Session, principal: Principal, extracted: dict, data: bytes, *,
                          mime: str | None, content_type: str | None) -> dict:
-    kit = active_brand_kit(db, principal.org_id)
+    """Measure the pixels against the kit's palette, if there is a kit to measure against.
+
+    No kit is not an upload failure. `measure()` is happy without a palette (dimensions,
+    contrast, aspect ratio are all still measured); only the palette judgement is skipped,
+    and the extraction is returned exactly as it arrived.
+    """
+    kit = active_brand_kit(db, principal.org_id, required=False)
     if kit is None:
         return extracted
     bundle = kit_bundle(db, org_id=principal.org_id, brand_kit_id=kit.id)
@@ -326,6 +332,9 @@ def analyze(item_id: str, background: BackgroundTasks,
     )).scalars().first()
     if version is None:
         raise HTTPException(status.HTTP_409_CONFLICT, "Content has no version to analyse.")
+    # Check for a kit *before* queueing. Otherwise the caller gets a 202, the worker dies
+    # in the background, and the only thing they ever see is "failed".
+    active_brand_kit(db, principal.org_id)  # raises NoBrandKitError -> 409 no_brand_kit
     # a previous run on this org that never finished must not block the new one
     from ..services.pipeline import recover_stale_runs
 

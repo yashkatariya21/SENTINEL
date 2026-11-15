@@ -17,7 +17,7 @@ interface AuthState {
 const AuthContext = createContext<AuthState>({} as AuthState);
 
 /** The two public pages: the brief, and the sign-in. */
-const PUBLIC_ROUTES = ["/login", "/welcome"];
+const PUBLIC_ROUTES = ["/login", "/welcome", "/about", "/trust"];
 
 /** Where a visitor was trying to go before we asked them in.
  *
@@ -30,7 +30,8 @@ const NEXT_KEY = "sentinel.next";
 
 function rememberNext(path: string) {
   try {
-    if (path && path !== "/" && !path.startsWith("/welcome") && !path.startsWith("/login")) {
+    if (path && path !== "/" && !path.startsWith("/welcome") && !path.startsWith("/login")
+        && !path.startsWith("/about") && !path.startsWith("/trust")) {
       window.sessionStorage.setItem(NEXT_KEY, path);
     }
   } catch {

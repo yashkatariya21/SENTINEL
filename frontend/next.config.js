@@ -16,7 +16,14 @@ const nextConfig = {
   // The browser only ever talks to this Next server; Next proxies /v1 to FastAPI.
   // Keeps the API origin out of the browser and avoids CORS in every environment.
   async rewrites() {
-    return [{ source: "/v1/:path*", destination: `${API}/v1/:path*` }];
+    return [
+      { source: "/v1/:path*", destination: `${API}/v1/:path*` },
+      // FastAPI's own /docs, behind the same origin so the footer's "API docs" link works
+      // without exposing the API origin to the browser. /v1/* is the data API; this is the
+      // generated reference for it.
+      { source: "/api-docs", destination: `${API}/docs` },
+      { source: "/api-docs/:path*", destination: `${API}/docs/:path*` },
+    ];
   },
   async headers() {
     return [

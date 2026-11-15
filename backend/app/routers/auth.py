@@ -9,7 +9,7 @@ from .. import ratelimit
 from ..config import settings
 from ..audit import record
 from ..db import get_db
-from ..models import Membership, Organisation, User
+from ..models import BrandKit, Membership, Organisation, User
 from ..schemas import LoginIn, TokenOut, UserOut, WorkspaceSetupIn
 from ..security import Principal, create_access_token, current_user, hash_password, verify_password
 
@@ -40,8 +40,18 @@ def create_workspace(body: WorkspaceSetupIn, db: Session = Depends(get_db)):
     db.add(admin)
     db.flush()
     db.add(Membership(org_id=org.id, user_id=admin.id, role="admin"))
+    # Every workspace starts with a Brand Kit. Empty, draft, and named plainly — but
+    # present, because "no kit row" is a state nothing downstream was written for: image
+    # upload, the visual reviewer and the analyze endpoint all assume one exists. A new
+    # Admin sees an empty kit and a clear next step instead of a 500.
+    kit = BrandKit(org_id=org.id, name="Brand Kit", version=1, status="draft",
+                   created_by=admin.id)
+    db.add(kit)
+    db.flush()
     record(db, org_id=org.id, action="org.created", actor_id=admin.id, actor_role="admin",
            entity="organisation", entity_id=org.id, detail={"name": org.name})
+    record(db, org_id=org.id, action="brand_kit.created", actor_id=admin.id, actor_role="admin",
+           entity="brand_kit", entity_id=kit.id, detail={"name": kit.name, "reason": "workspace setup"})
     db.commit()
     return _token_payload(admin, org)
 

@@ -15,6 +15,7 @@ from fastapi.responses import JSONResponse
 from .config import settings
 from .db import init_db
 from .llm.factory import provider_info
+from .services.errors import NoBrandKitError
 from .routers import (analytics, auth, brand_kit, content, demo, evaluation, guidelines,
                       overrides)
 
@@ -71,6 +72,17 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.exception_handler(NoBrandKitError)
+async def no_brand_kit(request: Request, exc: NoBrandKitError):
+    """409 with a machine-readable code, so the UI shows a route to /kit not a red box.
+
+    A brand-new workspace is in this state by definition, so it is a conflict to resolve,
+    not a server error to apologise for.
+    """
+    log.info("no_brand_kit on %s", request.url.path)
+    return JSONResponse(status_code=409, content={"detail": str(exc), "code": "no_brand_kit"})
 
 
 @app.exception_handler(Exception)
