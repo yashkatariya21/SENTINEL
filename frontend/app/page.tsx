@@ -125,23 +125,28 @@ function GettingStarted({
             >
               {step.done ? "✓" : i + 1}
             </span>
-            <div className="min-w-0 flex-1">
-              <p className={`text-sm font-medium ${step.done ? "text-[color:var(--ink-3)] line-through decoration-[color:var(--pass-graphic)]" : "text-[color:var(--ink)]"}`}>
-                {step.label}
-                <span className="sr-only">{step.done ? " — done" : " — not done yet"}</span>
-              </p>
+            {/* Below `sm` the action stacks under the sentence instead of competing with
+                it for width: a 390px screen gives the button ~110px, which left the copy
+                about six characters wide and wrapped it one word to a line. */}
+            <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
+              <div className="min-w-0">
+                <p className={`text-sm font-medium ${step.done ? "text-[color:var(--ink-3)] line-through decoration-[color:var(--pass-graphic)]" : "text-[color:var(--ink)]"}`}>
+                  {step.label}
+                  <span className="sr-only">{step.done ? " — done" : " — not done yet"}</span>
+                </p>
+                {!step.done && (
+                  <p className="mt-0.5 text-xs leading-relaxed text-[color:var(--ink-2)]">{step.body}</p>
+                )}
+              </div>
               {!step.done && (
-                <p className="mt-0.5 text-xs leading-relaxed text-[color:var(--ink-2)]">{step.body}</p>
+                <Link
+                  href={step.href}
+                  className="flex-none self-start whitespace-nowrap rounded-[5px] border border-[color:var(--hairline-strong)] px-2 py-1 font-mono text-[10px] uppercase tracking-[0.1em] text-[color:var(--ink)] transition-colors hover:bg-[color:var(--ink)] hover:text-[color:var(--paper)] sm:mt-0.5"
+                >
+                  {step.cta}
+                </Link>
               )}
             </div>
-            {!step.done && (
-              <Link
-                href={step.href}
-                className="mt-0.5 flex-none whitespace-nowrap rounded-[5px] border border-[color:var(--hairline-strong)] px-2 py-1 font-mono text-[10px] uppercase tracking-[0.1em] text-[color:var(--ink)] transition-colors hover:bg-[color:var(--ink)] hover:text-[color:var(--paper)]"
-              >
-                {step.cta}
-              </Link>
-            )}
           </li>
         ))}
       </ol>

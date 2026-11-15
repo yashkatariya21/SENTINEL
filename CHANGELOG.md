@@ -64,6 +64,11 @@ A brand-new workspace had no `BrandKit` row, and three paths assumed one existed
 - The overview shows a **dismissible getting-started checklist** (Brand Kit, confirm rules,
   first draft, first decision) driven by `GET /brand-kits/{id}/health` plus the items and
   findings the page already loads. The dismissal is remembered per machine.
+- **Fixed at phone width:** each checklist step put its action button in the same flex row as
+  its sentence, so at 390 px the copy was squeezed to about six characters a line ("to have
+  this draft checked against" wrapped one word per line). Below `sm` the action now stacks
+  under the sentence: measured 300 px of copy and four lines at 390 px, one line at 1440 px,
+  no horizontal overflow at either width.
 
 ### Verified
 
