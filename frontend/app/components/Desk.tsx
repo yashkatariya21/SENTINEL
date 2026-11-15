@@ -55,17 +55,21 @@ export function Stamp({
   state,
   large = false,
   drop = false,
+  tone = "auto",
   className = "",
 }: {
   state: StampState;
   large?: boolean;
   drop?: boolean;
+  /** "stock" pins the ink to the light palette: for mock sheets that stay white in both themes. */
+  tone?: "auto" | "stock";
   className?: string;
 }) {
   const s = STAMP[state];
+  const colour = tone === "stock" ? "text-[#C42A1E]" : s.colour;
   return (
     <span
-      className={`stamp ${large ? "stamp-lg" : ""} ${drop ? "stamp-drop" : ""} ${s.colour} ${className}`}
+      className={`stamp ${large ? "stamp-lg" : ""} ${drop ? "stamp-drop" : ""} ${colour} ${className}`}
       role="img"
       aria-label={`Stamp: ${s.word}`}
     >

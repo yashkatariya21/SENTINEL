@@ -8,6 +8,7 @@ import { Button, Card, FloatField, Select, TextInput, useToast } from "../compon
 import { DeskSentri, Stamp, Wordmark } from "../components/Desk";
 import { Icon } from "../components/Icon";
 import { EntrySequence } from "../components/EntrySequence";
+import { DeskBackground } from "@/app/components/DeskBackground";
 
 /* a short, marked-up proof — the product in one glance, not a screenshot */
 function SampleSheet() {
@@ -22,9 +23,10 @@ function SampleSheet() {
         className="absolute inset-0 translate-x-1 translate-y-1 rounded-[10px] border border-[#2A2F38]"
       />
       <div className="relative rounded-[10px] border-[1.5px] border-[#111318] bg-[#FFFFFF] p-4 shadow-[0_18px_40px_-24px_rgba(0,0,0,0.7)]">
-        <p className="mb-2 flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.16em] text-[color:var(--ink-3)]">
+        {/* this sheet never inverts — it is paper stock, so its ink is the light palette */}
+        <p className="mb-2 flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.16em] text-[#5A6270]">
           <span>Launch post · v3</span>
-          <span className="text-[color:var(--mark-text)]">2 open</span>
+          <span className="text-[#C42A1E]">2 open</span>
         </p>
         <p className="font-doc text-[15px] leading-[1.7] text-[#111318]">
           Our platform is the{" "}
@@ -40,10 +42,10 @@ function SampleSheet() {
           . Teams move faster when the words are already right.
         </p>
         <div className="mt-3 flex items-center justify-between border-t border-[#E6E9EE] pt-2.5">
-          <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-[color:var(--ink-3)]">
+          <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#5A6270]">
             Six reviewers · 2 findings
           </span>
-          <Stamp state="hold" className="text-[11px]" />
+          <Stamp state="hold" tone="stock" className="text-[11px]" />
         </div>
       </div>
       {/* Sentri peers over the top edge of the sheet, reading it upside-down */}
@@ -100,8 +102,10 @@ export default function LoginPage() {
   }
 
   return (
-    <main id="main" className="grid min-h-screen bg-[color:var(--canvas)] lg:grid-cols-[1.02fr_0.98fr]">
+    <main id="main" className="relative grid min-h-screen bg-[color:var(--canvas)] lg:grid-cols-[1.02fr_0.98fr]">
       <EntrySequence />
+      {/* the paper half is a desk, not a void: grid, crop marks, grain, lamp */}
+      <DeskBackground />
 
       {/* ------------------------------------------- left: the ink stock panel */}
       <section className="relative flex flex-col justify-between overflow-hidden bg-[#111318] px-7 py-8 text-[#F4F5F7] lg:px-12 lg:py-10">
@@ -185,7 +189,7 @@ export default function LoginPage() {
       </section>
 
       {/* ------------------------------------------------ right: the sign-in */}
-      <section className="flex items-center justify-center px-4 py-10 sm:px-6">
+      <section className="relative z-10 flex items-center justify-center px-4 py-10 sm:px-6">
         <div className="w-full max-w-md">
           {/* one-click demo, before sign-in */}
           <div className="desk-sheet mb-5 rounded-[10px] border-[1.5px] border-[color:var(--hairline-strong)] bg-[color:var(--paper)] p-4">

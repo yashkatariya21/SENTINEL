@@ -66,3 +66,9 @@ frontend/tsconfig.tsbuildinfo
 /interact.py
 /axe_all.py
 /export/
+/shotbg.py
+/mobile_sweep.py
+/pwenv.sh
+/sentinel-chancery.bundle
+/sentinel-chancery.patch
+/uploads/

@@ -182,9 +182,12 @@ export function MarginNote({
       ref={noteRef}
       aria-labelledby={`note-title-${finding.id}`}
       onFocus={() => onFocusNote(finding.id)}
-      className={`rounded-[8px] border-[1.5px] bg-[color:var(--paper)] p-3 transition-colors duration-200 ${
+      /* a decided note recedes by its ground, never by its ink: dimming the whole
+         card with opacity-80 dropped the body text to 3.7:1, and the reading is
+         the point — the green ✓ pin and the "decided" line already say the state. */
+      className={`rounded-[8px] border-[1.5px] p-3 transition-colors duration-200 ${
         active ? "border-[color:var(--mark)]" : "border-[color:var(--hairline)]"
-      } ${decided ? "opacity-80" : ""}`}
+      } ${decided ? "bg-[color:var(--paper-2)]" : "bg-[color:var(--paper)]"}`}
     >
       {/* number, severity, label */}
       <div className="flex items-start justify-between gap-2">

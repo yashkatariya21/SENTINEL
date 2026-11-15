@@ -67,7 +67,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${inter.variable} ${plexMono.variable} ${sourceSerif.variable}`}>
-      <body className="min-h-screen bg-paper font-sans text-ink antialiased">
+      <body className="min-h-screen bg-[color:var(--paper)] font-sans text-ink antialiased">
         <a href="#main" className="skip-link">Skip to main content</a>
         <PrefsProvider>
           <AuthProvider>
