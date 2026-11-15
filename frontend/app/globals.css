@@ -12,7 +12,7 @@
   --imperial: #3d2468;
   --gold: #c9a227;
   --gold-soft: #e8d48b;
-  --gold-deep: #8f7418;
+  --gold-deep: #6f5a0e;      /* text-grade gold: 6.25:1 on ivory, AA at 10px */
   --ivory: #fbf7ee;
   --parchment: #f3ecdc;
   --ink: #1a1a2e;
@@ -21,19 +21,30 @@
   --surface: #fbf7ee;
   --surface-raised: #ffffff;
   --hairline: rgba(11, 20, 55, 0.16);
+  --gold-hairline: rgba(201, 162, 39, 0.2);
+  --live: #0f6b5c;               /* "something is being processed right now" — used sparingly */
   --ring: #c9a227;
   --ring-offset: #0b1437;
+  color-scheme: light;
 }
 
+/* Night shift: three depth layers instead of one flat navy, so panels read as
+   stacked paper rather than a single sheet. Gold hairlines sit at 18-22% alpha. */
 [data-theme="dark"] {
-  --ivory: #f6f1e4;
-  --parchment: #0d1330;
+  --night-0: #050816;   /* the page */
+  --night-1: #0a1028;   /* panels */
+  --night-2: #111834;   /* raised */
+  --ivory: #f2ecdd;
+  --parchment: #0a1028;
   --ink: #f2ecdd;
   --ink-soft: #d8d2c2;
   --ink-mute: #b3ae9f;
-  --surface: #070b1f;
-  --surface-raised: #111834;
-  --hairline: rgba(232, 212, 139, 0.22);
+  --surface: var(--night-0);
+  --surface-raised: var(--night-2);
+  --hairline: rgba(232, 212, 139, 0.18);
+  --gold-hairline: rgba(232, 212, 139, 0.22);
+  --live: #5fd3c2;
+  color-scheme: dark;
 }
 
 @layer base {
@@ -134,7 +145,267 @@
   }
 }
 
+@layer components {
+  /* ── editorial eyebrows: mono, uppercase, numbered ──────────────────── */
+  .eyebrow {
+    @apply font-mono text-2xs uppercase text-gold-deep;
+    letter-spacing: 0.24em;
+    line-height: 1.4;
+  }
+  [data-theme="dark"] .eyebrow { color: var(--gold-soft); }
+
+  .eyebrow-num {
+    @apply font-mono text-2xs tabular-nums text-gold-deep/70;
+    letter-spacing: 0.18em;
+  }
+  [data-theme="dark"] .eyebrow-num { color: rgba(232, 212, 139, 0.6); }
+
+  /* ── display type: the brief's measured scale ───────────────────────── */
+  .display-hero {
+    @apply font-display font-bold;
+    font-size: clamp(3.5rem, 9vw, 9rem);
+    line-height: 0.95;
+    letter-spacing: -0.03em;
+  }
+  .display-section {
+    @apply font-display font-semibold;
+    font-size: clamp(2rem, 4.5vw, 4rem);
+    line-height: 1.02;
+    letter-spacing: -0.025em;
+  }
+  /* one emphasis word per headline, never a whole sentence */
+  .em-italic { @apply font-display italic; color: var(--gold-deep); }
+  [data-theme="dark"] .em-italic { color: var(--gold-soft); }
+
+  /* body measure: 62ch, 1.6 — the readable column, used on every long text */
+  .prose-measure { max-width: 62ch; line-height: 1.6; }
+
+  /* ── button: gold fill wipes in from the left, label rolls up ───────── */
+  .btn-wipe {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+  }
+  .btn-wipe::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: var(--gold, #c9a227);
+    transform: scaleX(0);
+    transform-origin: left center;
+    transition: transform 140ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  }
+  .btn-wipe:hover::before,
+  .btn-wipe:focus-visible::before { transform: scaleX(1); }
+
+  .roll {
+    display: inline-block;
+    overflow: hidden;
+    vertical-align: bottom;
+  }
+  .roll > span {
+    display: inline-block;
+    transition: transform 140ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  }
+  .roll:hover > span,
+  a:hover > .roll > span { transform: translateY(-100%); }
+
+  /* ── animated underline for body links ──────────────────────────────── */
+  .link-under {
+    background-image: linear-gradient(currentColor, currentColor);
+    background-size: 0% 1px;
+    background-position: 0 100%;
+    background-repeat: no-repeat;
+    transition: background-size 240ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .link-under:hover,
+  .link-under:focus-visible { background-size: 100% 1px; }
+
+  /* ── gold hairline structure instead of shadows ─────────────────────── */
+  .hairline-gold { border: 1px solid var(--gold-hairline); }
+
+  /* ── skeleton: a gold shimmer line sweeps once ──────────────────────── */
+  .skeleton-gold {
+    position: relative;
+    overflow: hidden;
+    background: rgba(201, 162, 39, 0.1);
+  }
+  .skeleton-gold::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(201, 162, 39, 0.28), transparent);
+    animation: gold-shimmer 1.6s cubic-bezier(0.22, 0.61, 0.36, 1) infinite;
+  }
+  [data-theme="dark"] .skeleton-gold { background: rgba(232, 212, 139, 0.08); }
+
+  /* ── the report scan pass: one thin gold line down the document ─────── */
+  .scan-line {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--gold), transparent);
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  /* ── night-shift surfaces ───────────────────────────────────────────── */
+  .surface-panel { background: var(--surface-raised); }
+  [data-theme="dark"] .surface-panel { background: var(--night-1); }
+  [data-theme="dark"] .bg-white\/90 { background-color: rgba(17, 24, 52, 0.9) !important; }
+}
+
 @layer utilities {
+  @keyframes crest-draw {
+    to { stroke-dashoffset: 0; }
+  }
+
+  @keyframes toast-in {
+    from { opacity: 0; transform: translateY(10px) translateX(8px); }
+    to { opacity: 1; transform: translateY(0) translateX(0); }
+  }
+  @keyframes toast-timer {
+    from { transform: scaleX(1); }
+    to { transform: scaleX(0); }
+  }
+
+  /* the marquee of phrases the reviewers really flag: two identical halves, one to
+     the left; pauses on hover/focus, and becomes a static wrapped list when the reader
+     has asked for less motion. */
+  @keyframes marquee {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+  .marquee-track {
+    animation: marquee 48s linear infinite;
+    will-change: transform;
+  }
+  .marquee:hover .marquee-track,
+  .marquee:focus-within .marquee-track { animation-play-state: paused; }
+  @media (prefers-reduced-motion: reduce) {
+    .marquee-track { animation: none !important; }
+    .marquee-half[aria-hidden="true"] { display: none; }
+  }
+
+  /* when the 3D seal has painted, the engraved flat seal steps aside without a jump */
+  .seal-stage .seal-flat { transition: opacity 700ms cubic-bezier(0.16, 1, 0.3, 1); }
+  .seal-stage:has(canvas) .seal-flat { opacity: 0; }
+
+  /* page transition: only the content column moves */
+  .route-fade {
+    animation: route-rise 280ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  @keyframes route-rise {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Day/Night shift: the default cross-fade is replaced by our circular clip-path
+     animation in ThemeSwitch (the API is only used when the browser supports it). */
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none;
+    mix-blend-mode: normal;
+  }
+  ::view-transition-old(root) { z-index: 1; }
+  ::view-transition-new(root) { z-index: 2; }
+
+  /* ==========================================================================
+   Night shift: map the light-surface utilities onto the three night layers.
+   Tailwind emits literal hex values for `.bg-ivory` and friends, so without this
+   the whole app would stay ivory when the reader chooses the night shift. Only
+   surfaces, body text and ink hairlines are remapped — navy panels, gold, and the
+   semantic severity colours already read correctly on both shifts.
+   ========================================================================== */
+@layer utilities {
+  [data-theme="dark"] .bg-paper { background-color: var(--night-0); }
+  [data-theme="dark"] .bg-ivory { background-color: var(--night-1); }
+  [data-theme="dark"] .bg-ivory-deep { background-color: var(--night-2); }
+  [data-theme="dark"] .bg-parchment { background-color: var(--night-2); }
+  [data-theme="dark"] .bg-white { background-color: var(--night-2); }
+
+  [data-theme="dark"] .bg-ivory\/90,
+  [data-theme="dark"] .bg-white\/90 { background-color: rgba(17, 24, 52, 0.90); }
+  [data-theme="dark"] .bg-ivory\/80,
+  [data-theme="dark"] .bg-white\/80 { background-color: rgba(17, 24, 52, 0.82); }
+  [data-theme="dark"] .bg-ivory\/70,
+  [data-theme="dark"] .bg-white\/70 { background-color: rgba(17, 24, 52, 0.72); }
+  [data-theme="dark"] .bg-ivory\/60,
+  [data-theme="dark"] .bg-white\/60 { background-color: rgba(17, 24, 52, 0.62); }
+  [data-theme="dark"] .bg-ivory\/50,
+  [data-theme="dark"] .bg-white\/50 { background-color: rgba(17, 24, 52, 0.52); }
+  [data-theme="dark"] .bg-ivory-deep\/70,
+  [data-theme="dark"] .bg-parchment\/70 { background-color: rgba(10, 16, 40, 0.72); }
+  [data-theme="dark"] .bg-ivory-deep\/60,
+  [data-theme="dark"] .bg-parchment\/60 { background-color: rgba(10, 16, 40, 0.62); }
+  [data-theme="dark"] .bg-parchment\/50 { background-color: rgba(10, 16, 40, 0.55); }
+  [data-theme="dark"] .bg-parchment\/40 { background-color: rgba(10, 16, 40, 0.45); }
+
+  [data-theme="dark"] .bg-ivory-deep\/50,
+  [data-theme="dark"] .bg-white\/50 { background-color: rgba(10, 16, 40, 0.52); }
+  [data-theme="dark"] .bg-ivory-deep\/45,
+  [data-theme="dark"] .bg-ivory\/45,
+  [data-theme="dark"] .bg-white\/45 { background-color: rgba(17, 24, 52, 0.46); }
+  [data-theme="dark"] .bg-ivory-deep\/40,
+  [data-theme="dark"] .bg-ivory\/40,
+  [data-theme="dark"] .bg-white\/40 { background-color: rgba(10, 16, 40, 0.42); }
+  [data-theme="dark"] .bg-ivory-deep\/30,
+  [data-theme="dark"] .bg-parchment\/30 { background-color: rgba(10, 16, 40, 0.34); }
+  [data-theme="dark"] .bg-ivory-deep\/25,
+  [data-theme="dark"] .bg-parchment\/25 { background-color: rgba(10, 16, 40, 0.28); }
+  [data-theme="dark"] .bg-paper\/95 { background-color: rgba(5, 8, 22, 0.95); }
+  [data-theme="dark"] .bg-paper\/92 { background-color: rgba(5, 8, 22, 0.92); }
+
+  /* text: every ink shade moves to its night equivalent */
+  [data-theme="dark"] .text-ink { color: var(--ink); }
+  [data-theme="dark"] .text-ink-soft { color: var(--ink-soft); }
+  [data-theme="dark"] .text-ink-mute { color: var(--ink-mute); }
+  [data-theme="dark"] .text-navy { color: var(--ivory); }
+  [data-theme="dark"] .text-navy-700,
+  [data-theme="dark"] .text-navy-500,
+  [data-theme="dark"] .text-royal,
+  [data-theme="dark"] .text-royal-deep,
+  [data-theme="dark"] .text-imperial { color: var(--gold-soft); }
+  [data-theme="dark"] .text-gold-deep { color: var(--gold-soft); }
+  [data-theme="dark"] .text-gold { color: var(--gold-soft); }
+
+  /* semantic colours: at night the deep ink versions vanish, so text moves to the
+     light variants and the tints become low-alpha washes of the same hue. The glyph
+     or word next to each colour is unchanged — colour is never the only signal. */
+  [data-theme="dark"] .text-critical { color: #F0A0AC; }
+  [data-theme="dark"] .text-possible { color: #E7B45B; }
+  [data-theme="dark"] .text-confirmed { color: #8FD3B0; }
+  [data-theme="dark"] .text-info { color: #A8B6E8; }
+  [data-theme="dark"] .text-live { color: #5FD3C2; }
+  [data-theme="dark"] .bg-critical-tint,
+  [data-theme="dark"] .bg-critical-tint\/60 { background-color: rgba(155, 28, 49, 0.22); }
+  [data-theme="dark"] .bg-possible-tint,
+  [data-theme="dark"] .bg-possible-tint\/60 { background-color: rgba(143, 85, 0, 0.24); }
+  [data-theme="dark"] .bg-confirmed-tint,
+  [data-theme="dark"] .bg-confirmed-tint\/60 { background-color: rgba(31, 111, 74, 0.26); }
+  [data-theme="dark"] .bg-info-tint,
+  [data-theme="dark"] .bg-info-tint\/60 { background-color: rgba(27, 42, 107, 0.38); }
+  [data-theme="dark"] .bg-gold-tint,
+  [data-theme="dark"] .bg-gold-tint\/60,
+  [data-theme="dark"] .bg-gold-tint\/80 { background-color: rgba(232, 212, 139, 0.16); }
+
+  /* hairlines: ink borders become gold hairlines, never invisible */
+  [data-theme="dark"] .border-ink\/10 { border-color: rgba(232, 212, 139, 0.14); }
+  [data-theme="dark"] .border-ink\/15 { border-color: rgba(232, 212, 139, 0.18); }
+  [data-theme="dark"] .border-ink\/20 { border-color: rgba(232, 212, 139, 0.22); }
+  [data-theme="dark"] .border-ink\/25 { border-color: rgba(232, 212, 139, 0.26); }
+  [data-theme="dark"] .border-ink\/30 { border-color: rgba(232, 212, 139, 0.30); }
+  [data-theme="dark"] .divide-ink\/10 > :not([hidden]) ~ :not([hidden]) { border-color: rgba(232, 212, 139, 0.14); }
+  [data-theme="dark"] .divide-gold\/25 > :not([hidden]) ~ :not([hidden]) { border-color: rgba(232, 212, 139, 0.22); }
+}
+
+/* Lenis: the smooth-scroll element must not also smooth-scroll natively */
+  html.lenis, html.lenis body { height: auto; }
+  .lenis.lenis-smooth { scroll-behavior: auto !important; }
+  .lenis.lenis-stopped { overflow: hidden; }
+
   .skip-link {
     @apply absolute left-2 top-2 -translate-y-20 rounded bg-navy px-3 py-2 text-xs font-semibold text-ivory;
     z-index: 60;
@@ -162,10 +433,31 @@
   }
   .hl-critical { background: #f7dfe2; box-shadow: inset 0 -3px 0 #9b1c31; }
   .hl-high { background: #f9e3e6; box-shadow: inset 0 -3px 0 #b2273c; }
-  .hl-medium { background: #fbf0d6; box-shadow: inset 0 -2px 0 #b26a00; }
+  .hl-medium { background: #fbf0d6; box-shadow: inset 0 -2px 0 #8f5500; }
   .hl-low { background: #e7eaf7; box-shadow: inset 0 -2px 0 #1b2a6b; }
   .hl-confirmed { border-bottom-style: double; }
-  .hl-active { outline: 2px solid var(--royal-navy); outline-offset: 1px; }
+  .hl-active {
+    outline: 2px solid var(--royal-navy);
+    outline-offset: 1px;
+    animation: hl-pulse 900ms cubic-bezier(0.16, 1, 0.3, 1) 1;
+  }
+  @keyframes hl-pulse {
+    0%   { box-shadow: inset 0 -3px 0 currentColor, 0 0 0 0 rgba(201, 162, 39, 0.55); }
+    60%  { box-shadow: inset 0 -3px 0 currentColor, 0 0 0 6px rgba(201, 162, 39, 0); }
+    100% { box-shadow: inset 0 -3px 0 currentColor, 0 0 0 0 rgba(201, 162, 39, 0); }
+  }
+
+  /* the scan pass: one gold line travels down the document when a review lands */
+  @keyframes scan-sweep {
+    0%   { transform: translateY(0); opacity: 0; }
+    8%   { opacity: 1; }
+    85%  { opacity: 0.9; }
+    100% { transform: translateY(var(--scan-distance, 100%)); opacity: 0; }
+  }
+  .scan-running {
+    animation: scan-sweep 1000ms cubic-bezier(0.4, 0, 0.2, 1) 1 both;
+    opacity: 1;
+  }
 
   /* tracked change: strikethrough original, gold highlight replacement */
   .tracked-old { text-decoration: line-through; text-decoration-color: #9b1c31; color: #6b2530; }

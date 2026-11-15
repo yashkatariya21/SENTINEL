@@ -51,3 +51,9 @@ backend/sentinel.db*
 .config/
 .local/
 .sudo_as_admin_successful
+
+# --- build caches ---------------------------------------------------------
+*.tsbuildinfo
+frontend/tsconfig.tsbuildinfo
+# --- stray package archives ----------------------------------------------
+*.whl

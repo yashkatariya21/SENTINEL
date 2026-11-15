@@ -359,6 +359,10 @@ migration.
 
 **Local production-like stack**: `docker compose up --build` (Postgres+pgvector, API, web).
 
+**Deploying for a demo?** → [`docs/DEPLOY-VERCEL.md`](docs/DEPLOY-VERCEL.md). Fastest reliable path for a
+submitted link: `render.demo.yaml` blueprint (API + Postgres with pgvector) plus the frontend on Vercel with
+`API_URL` set to the Render URL. Both-on-Vercel also works.
+
 **Both halves on Vercel?** → [`docs/DEPLOY-VERCEL.md`](docs/DEPLOY-VERCEL.md). Short version: the
 backend needs `backend/vercel.json` + `api/index.py` (both included), a **PostgreSQL with pgvector**
 (`DATABASE_URL` must start `postgresql+psycopg://` — SQLite cannot persist on a serverless

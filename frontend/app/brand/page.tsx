@@ -6,18 +6,21 @@ import { Seal, Ribbon } from "../components/brand/Seal";
 import { Sentri } from "../components/brand/Sentri";
 import { Damask, Lattice, Fan, Rosette, DoubleRule } from "../components/brand/Pattern";
 
-const SWATCHES: { name: string; token: string; hex: string; onDark?: boolean }[] = [
-  { name: "Royal navy", token: "--royal-navy", hex: "#0B1437", onDark: true },
-  { name: "Imperial purple", token: "--imperial", hex: "#3D2468", onDark: true },
+import { readableOn } from "@/lib/contrast";
+
+/** `onDark` is gone: the ink under each hex is chosen by measured contrast. */
+const SWATCHES: { name: string; token: string; hex: string }[] = [
+  { name: "Royal navy", token: "--royal-navy", hex: "#0B1437" },
+  { name: "Imperial purple", token: "--imperial", hex: "#3D2468" },
   { name: "Gold", token: "--gold", hex: "#C9A227" },
   { name: "Gold soft", token: "--gold-soft", hex: "#E8D48B" },
-  { name: "Gold deep", token: "--gold-deep", hex: "#8F7418", onDark: true },
+  { name: "Gold deep", token: "--gold-deep", hex: "#6F5A0E" },
   { name: "Ivory", token: "--ivory", hex: "#FBF7EE" },
-  { name: "Parchment", token: "--parchment", hex: "#F4EDDE" },
-  { name: "Ink", token: "--ink", hex: "#14192E", onDark: true },
-  { name: "Confirmed", token: "--confirmed", hex: "#1F6F4A", onDark: true },
-  { name: "Possible", token: "--possible", hex: "#B26A00", onDark: true },
-  { name: "Critical", token: "--critical", hex: "#9B1C31", onDark: true },
+  { name: "Parchment", token: "--parchment", hex: "#F3ECDC" },
+  { name: "Ink", token: "--ink", hex: "#1A1A2E" },
+  { name: "Confirmed", token: "--confirmed", hex: "#1F6F4A" },
+  { name: "Possible", token: "--possible", hex: "#8F5500" },
+  { name: "Critical", token: "--critical", hex: "#9B1C31" },
 ];
 
 const TYPE = [
@@ -73,7 +76,7 @@ export default function BrandPage() {
             <li key={s.name} className="overflow-hidden rounded-md border border-ink/12">
               <div
                 className="flex h-16 items-end p-2"
-                style={{ background: s.hex, color: s.onDark ? "#FBF7EE" : "#14192E" }}
+                style={{ background: s.hex, color: readableOn(s.hex) }}
               >
                 <span className="font-mono text-2xs">{s.hex}</span>
               </div>

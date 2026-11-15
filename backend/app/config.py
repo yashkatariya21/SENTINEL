@@ -4,6 +4,7 @@ from __future__ import annotations
 import os
 from functools import lru_cache
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings
 
 
@@ -77,6 +78,23 @@ class Settings(BaseSettings):
     # password for the seeded demo users; only used when seeding a demo workspace
     seed_password: str = os.getenv("SEED_PASSWORD", "")
 
+    @field_validator("database_url")
+    @classmethod
+    def _driver_for_postgres(cls, value: str) -> str:
+        """Require psycopg (v3) whenever the URL is PostgreSQL.
+
+        Every managed host hands out a bare `postgresql://` (or `postgres://`) URL, which
+        makes SQLAlchemy import psycopg2 — a driver this project does not ship. Rewriting
+        the scheme here means a copy-pasted Neon/Render/Supabase string just works, and the
+        failure mode ("ModuleNotFoundError: psycopg2") cannot happen on a deploy.
+        """
+        url = (value or "").strip()
+        if url.startswith("postgres://"):
+            url = "postgresql+psycopg://" + url[len("postgres://"):]
+        elif url.startswith("postgresql://"):
+            url = "postgresql+psycopg://" + url[len("postgresql://"):]
+        return url
+
     class Config:
         env_file = ".env"
         extra = "ignore"
@@ -131,9 +149,7 @@ class Settings(BaseSettings):
 
     @property
     def is_postgres(self) -> bool:
-        return self.database_url.startswith("postgres://") or \
-               self.database_url.startswith("postgresql://") or \
-               self.database_url.startswith("postgresql+psycopg")
+        return self.database_url.startswith("postgres")
 
     @property
     def allowed_mimes(self) -> set[str]:

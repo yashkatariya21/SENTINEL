@@ -17,8 +17,12 @@ import { Shell } from "./components/Shell";
  */
 const playfair = localFont({
   src: [
+    { path: "./fonts/playfair-400-normal.woff2", weight: "400", style: "normal" },
     { path: "./fonts/playfair-600.woff2", weight: "600", style: "normal" },
     { path: "./fonts/playfair-700.woff2", weight: "700", style: "normal" },
+    /* the italic is the emphasis cut: one word per headline, never a whole sentence */
+    { path: "./fonts/playfair-italic-400.woff2", weight: "400", style: "italic" },
+    { path: "./fonts/playfair-italic-600.woff2", weight: "600", style: "italic" },
   ],
   variable: "--font-playfair", display: "swap", preload: true,
 });

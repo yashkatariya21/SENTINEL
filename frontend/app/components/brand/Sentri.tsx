@@ -4,7 +4,8 @@
  * Mouth/brow animate subtly; everything respects prefers-reduced-motion because the
  * animation is CSS-driven and switched off globally in globals.css.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useCoarsePointer, useReducedMotion } from "@/lib/motion";
 
 export type SentriMood =
   | "welcome" | "thinking" | "scanning" | "alert" | "celebrating" | "sleeping" | "confused";
@@ -31,6 +32,34 @@ export function Sentri({
   className?: string;
 }) {
   const [tilt, setTilt] = useState(0);
+
+  /* Sentri watches the pointer. The pupils travel at most three units inside the
+     spectacle lenses; on touch screens, for decorative uses, and under reduced motion
+     they stay put. Updates are quantised to half-units so this costs one render per
+     glance, not one per mouse event. */
+  const svgRef = useRef<SVGSVGElement | null>(null);
+  const reduced = useReducedMotion();
+  const coarse = useCoarsePointer();
+  const [gaze, setGaze] = useState({ x: 0, y: 0 });
+  const watching = !decorative && !coarse && !reduced && mood !== "sleeping";
+
+  useEffect(() => {
+    if (!watching) return;
+    const onMove = (event: PointerEvent) => {
+      const el = svgRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const dx = (event.clientX - (rect.left + rect.width / 2)) / Math.max(window.innerWidth / 2, 1);
+      const dy = (event.clientY - (rect.top + rect.height / 2)) / Math.max(window.innerHeight / 2, 1);
+      const next = {
+        x: Math.round(Math.max(-3, Math.min(3, dx * 3)) * 2) / 2,
+        y: Math.round(Math.max(-2.5, Math.min(2.5, dy * 2.5)) * 2) / 2,
+      };
+      setGaze((prev) => (prev.x === next.x && prev.y === next.y ? prev : next));
+    };
+    window.addEventListener("pointermove", onMove, { passive: true });
+    return () => window.removeEventListener("pointermove", onMove);
+  }, [watching]);
   const brow = mood === "alert" || mood === "confused" ? -4 : mood === "thinking" ? 3 : 0;
   const mouth =
     mood === "celebrating" ? "M52 82 Q60 92 68 82"
@@ -41,6 +70,7 @@ export function Sentri({
 
   return (
     <svg
+      ref={svgRef}
       viewBox="0 0 120 132"
       width={size}
       height={(size * 132) / 120}
@@ -94,14 +124,25 @@ export function Sentri({
         </g>
       ) : (
         <>
-          <circle cx={mood === "thinking" || mood === "scanning" ? 48 : 44}
-                  cy={mood === "thinking" ? 50 : 55} r="6" fill="#0B1437">
-            <animate attributeName="ry" values="6;6;0.6;6" keyTimes="0;.94;.97;1" dur="5s" repeatCount="indefinite" />
-          </circle>
-          <circle cx={mood === "thinking" || mood === "scanning" ? 80 : 76}
-                  cy={mood === "thinking" ? 50 : 55} r="6" fill="#0B1437" />
-          <circle cx="46" cy="52" r="1.7" fill="#FBF7EE" />
-          <circle cx="78" cy="52" r="1.7" fill="#FBF7EE" />
+          {(() => {
+            // thinking and scanning look inward at the page; the rest look at you
+            const lookIn = mood === "thinking" || mood === "scanning";
+            const gx = lookIn ? 0 : gaze.x;
+            const gy = lookIn ? 0 : gaze.y;
+            const lx = lookIn ? 48 : 44;
+            const rx = lookIn ? 80 : 76;
+            const ly = mood === "thinking" ? 50 : 55;
+            return (
+              <>
+                <circle cx={lx + gx} cy={ly + gy} r="6" fill="#0B1437">
+                  <animate attributeName="ry" values="6;6;0.6;6" keyTimes="0;.94;.97;1" dur="5s" repeatCount="indefinite" />
+                </circle>
+                <circle cx={rx + gx} cy={ly + gy} r="6" fill="#0B1437" />
+                <circle cx={lx + 2 + gx} cy={ly - 3 + gy} r="1.7" fill="#FBF7EE" />
+                <circle cx={rx + 2 + gx} cy={ly - 3 + gy} r="1.7" fill="#FBF7EE" />
+              </>
+            );
+          })()}
         </>
       )}
 

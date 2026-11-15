@@ -328,3 +328,23 @@ def test_postgres_casts_are_bindable():
     source = (pathlib.Path(__file__).resolve().parents[1] / "app/services/retrieval.py").read_text()
     assert ":v::vector" not in source, "use CAST(:v AS vector) — SQLAlchemy leaves ':v::vector' unbound"
     assert ":q::vector" not in source, "use CAST(:q AS vector)"
+
+
+def test_a_hosted_postgres_url_gets_the_right_driver():
+    """Any host's connection string must work: they all hand out bare `postgresql://`.
+
+    Without the rewrite, SQLAlchemy tries to import psycopg2 (not in requirements.txt) and
+    every request on a deployed instance fails with ModuleNotFoundError.
+    """
+    from app.config import Settings
+
+    for given, expected in [
+        ("postgresql://u:p@h:5432/db?sslmode=require",
+         "postgresql+psycopg://u:p@h:5432/db?sslmode=require"),
+        ("postgres://u:p@h/db", "postgresql+psycopg://u:p@h/db"),
+        ("postgresql+psycopg://u:p@h/db", "postgresql+psycopg://u:p@h/db"),
+        ("sqlite:///./sentinel.db", "sqlite:///./sentinel.db"),
+    ]:
+        settings = Settings(database_url=given)
+        assert settings.database_url == expected
+        assert settings.is_postgres == given.startswith("postgres")

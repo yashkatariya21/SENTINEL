@@ -89,7 +89,7 @@ export default function SettingsPage() {
         </div>
         <p className="mt-3 text-xs text-ink-mute">
           Roles and permissions are set by the workspace admin and enforced on the server. See{" "}
-          <Link href="/audit" className="text-navy-700 underline-offset-2 hover:underline">the audit log</Link> for
+          <Link href="/audit" className="text-navy-700 underline underline-offset-2">the audit log</Link> for
           every decision made in this workspace.
         </p>
       </Card>

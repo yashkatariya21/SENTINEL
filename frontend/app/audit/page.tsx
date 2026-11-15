@@ -1,8 +1,9 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { Card, EmptyState, SectionHeading, Skeleton, Tag } from "../components/ui";
+import { useReducedMotion } from "@/lib/motion";
+import { Button, Card, EmptyState, SectionHeading, Skeleton, Tag } from "../components/ui";
 
 interface Entry {
   id: string; action: string; actor: string; actor_role: string;
@@ -17,6 +18,48 @@ export default function AuditPage() {
   const [filter, setFilter] = useState("");
   const [error, setError] = useState("");
   const [forbidden, setForbidden] = useState(false);
+
+  /* Verification sweep: the server does the hashing; this only shows the walk down the
+     chain, row by row, at a pace a person can follow. The result shown is always the
+     server's, never a guess — the animation cannot disagree with it. */
+  const reduced = useReducedMotion();
+  const [verifying, setVerifying] = useState(false);
+  const [sweptTo, setSweptTo] = useState(-1);
+  const [verifiedAt, setVerifiedAt] = useState<string | null>(null);
+  const timers = useRef<number[]>([]);
+
+  const clearTimers = useCallback(() => {
+    timers.current.forEach((id) => window.clearTimeout(id));
+    timers.current = [];
+  }, []);
+
+  useEffect(() => clearTimers, [clearTimers]);
+
+  const verifyNow = useCallback(async () => {
+    clearTimers();
+    setVerifying(true);
+    setSweptTo(reduced ? 9999 : -1);
+    try {
+      const d = await api.get<{ entries: Entry[]; chain: any }>("/audit?limit=200");
+      setEntries(d.entries);
+      setChain(d.chain);
+      setVerifiedAt(new Date().toLocaleTimeString("en-GB"));
+      if (!reduced) {
+        const rows = Math.min(d.entries.length, 24);
+        for (let i = 0; i < rows; i++) {
+          timers.current.push(
+            window.setTimeout(() => setSweptTo(i), Math.round((i * 900) / Math.max(rows, 1))),
+          );
+        }
+        timers.current.push(window.setTimeout(() => setVerifying(false), 1050));
+      } else {
+        setVerifying(false);
+      }
+    } catch (e) {
+      setVerifying(false);
+      setError(e instanceof Error ? e.message : "Verification could not run.");
+    }
+  }, [clearTimers, reduced]);
 
   useEffect(() => {
     // Roles that cannot read the audit trail should not even ask: a predictable 403 in
@@ -59,10 +102,16 @@ export default function AuditPage() {
         title="Audit log"
         subtitle="Append-only and hash-chained: each entry commits to the one before it, so tampering is detectable."
         action={chain && (
-          <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs ${
-            chain.ok ? "border-confirmed/30 bg-confirmed-tint text-confirmed" : "border-critical/30 bg-critical-tint text-critical"}`}>
-            <span aria-hidden="true">{chain.ok ? "⛓" : "!"}</span>
-            {chain.ok ? `Chain verified · ${chain.entries} entries` : `Chain broken at ${chain.broken_at}`}
+          <span className="flex flex-wrap items-center gap-2">
+            <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs ${
+              chain.ok ? "border-confirmed/30 bg-confirmed-tint text-confirmed" : "border-critical/30 bg-critical-tint text-critical"}`}>
+              <span aria-hidden="true">{chain.ok ? "⛓" : "!"}</span>
+              {chain.ok ? `Chain verified · ${chain.entries} entries` : `Chain broken at ${chain.broken_at}`}
+              {verifiedAt && <span className="font-mono text-[10px] opacity-70">at {verifiedAt}</span>}
+            </span>
+            <Button size="sm" variant="secondary" onClick={verifyNow} disabled={verifying}>
+              {verifying ? "Walking the chain…" : "Verify now"}
+            </Button>
           </span>
         )}
       />
@@ -93,7 +142,12 @@ export default function AuditPage() {
             </thead>
             <tbody>
               {visible.map((e) => (
-                <tr key={e.id} className="border-t border-ink/5 align-top">
+                <tr
+                  key={e.id}
+                  className={`border-t border-ink/5 align-top transition-colors duration-ui ${
+                    sweptTo >= 0 && visible.indexOf(e) <= sweptTo ? "bg-gold-tint/40" : ""
+                  }`}
+                >
                   <td className="whitespace-nowrap px-3 py-2 text-xs text-ink-mute">
                     {new Date(e.created_at).toLocaleString()}
                   </td>
@@ -106,7 +160,15 @@ export default function AuditPage() {
                   <td className="max-w-72 px-3 py-2 text-xs text-ink-soft">
                     <span className="line-clamp-2">{JSON.stringify(e.detail)}</span>
                   </td>
-                  <td className="px-3 py-2 font-mono text-[10px] text-ink-mute">{e.entry_hash.slice(0, 10)}…</td>
+                  <td className="whitespace-nowrap px-3 py-2 font-mono text-[10px] text-ink-mute">
+                    <span
+                      className={`inline-block h-1.5 w-1.5 rounded-full align-middle ${
+                        sweptTo >= 0 && visible.indexOf(e) <= sweptTo ? "bg-confirmed" : "bg-ink/25"
+                      }`}
+                      aria-hidden="true"
+                    />{" "}
+                    <span title={e.entry_hash}>{e.entry_hash.slice(0, 10)}…</span>
+                  </td>
                 </tr>
               ))}
             </tbody>
