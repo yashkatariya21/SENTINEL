@@ -37,19 +37,31 @@
   color-scheme: light;
 }
 
-/* Night shift: proof black. Same three inks, flipped onto ink stock. */
-[data-theme="dark"] {
-  --ink: #f2f4f7;
-  --ink-2: #b9c0cb;
-  --ink-3: #8a93a1;
-  --ink-faint: #6c7683;
-  --paper: #16191f;
-  --paper-2: #1d2128;
-  --canvas: #0e1014;
+/* --------------------------------------------------------------------------
+   Night shift: a dark room with three lights in it.
 
-  --mark: #ff8a7a;
-  --mark-text: #ff8a7a;
-  --mark-tint: #2a1512;
+   The page is a deep near-black (#07090d) and colour arrives only as a soft
+   glow — ember behind the seal, emerald in the bottom-left corner, an aurora of
+   teal and violet along the top. Nothing is tinted; the only colour is light.
+
+   Every value below was measured with lib/contrast.ts against the *worst-case
+   background pixel* the glow layer can produce, not against a flat fill — see
+   docs/PROOF-DESK.md §1b.1 for the ledger.
+   -------------------------------------------------------------------------- */
+[data-theme="dark"] {
+  --ink: #f2f4f7;          /* 18.1:1 on canvas, 16.8:1 on paper */
+  --ink-2: #b9c0cb;        /* 10.9 / 10.1 */
+  --ink-3: #a8b0bc;        /*  9.1 /  8.4 — lighter so hint text survives a glow */
+  --ink-faint: #6c7683;    /* only on ink, as before */
+  --paper: #10141a;        /* the card */
+  --paper-2: #161b22;      /* the card's raised half */
+  --canvas: #07090d;       /* the room */
+
+  /* the three inks, lifted for dark stock: #ff9b8c measured 4.38:1 on the
+     brightest composite pixel and failed; this clears 4.9:1 */
+  --mark: #ff9b8c;
+  --mark-text: #ff9b8c;
+  --mark-tint: #2a1714;
   --highlight: #ffe066;
   --highlight-tint: #2b2614;
   --pass: #7be0a8;
@@ -57,8 +69,8 @@
   --pass-tint: #12241b;
   --warn: #f0c070;
 
-  --hairline: #2a2f38;
-  --hairline-strong: #3a4149;
+  --hairline: #232a33;
+  --hairline-strong: #2f3944;
   --surface: var(--canvas);
   --surface-raised: var(--paper);
   color-scheme: dark;
@@ -204,7 +216,7 @@
     background: linear-gradient(90deg, transparent, rgba(17, 19, 24, 0.07), transparent);
     animation: ink-shimmer 1.5s cubic-bezier(0.22, 0.61, 0.36, 1) infinite;
   }
-  [data-theme="dark"] .skeleton-gold { background: #1d2128; }
+  [data-theme="dark"] .skeleton-gold { background: #161b22; }
   [data-theme="dark"] .skeleton-gold::after {
     background: linear-gradient(90deg, transparent, rgba(255, 224, 102, 0.08), transparent);
   }
@@ -358,7 +370,7 @@
   }
   .rail-item:hover { background: #e6e9ee; color: var(--ink); }
   .rail-item:hover .rail-key { color: var(--ink-2); }
-  [data-theme="dark"] .rail-item:hover { background: #1d2128; }
+  [data-theme="dark"] .rail-item:hover { background: #161b22; }
   .rail-item[aria-current="page"] { background: var(--ink); color: var(--paper); }
   .rail-item[aria-current="page"] .rail-key { color: color-mix(in srgb, var(--paper) 62%, transparent); }
   [data-theme="dark"] .rail-item[aria-current="page"] { background: var(--highlight); color: #111318; }
@@ -454,6 +466,52 @@
     pointer-events: none;
     overflow: hidden;
     background-color: var(--paper);
+  }
+  /* at night the room is the base, not a sheet: #07090d under the patterns */
+  [data-theme="dark"] .desk-bg { background-color: var(--canvas); }
+
+  /* ── the three lights ──────────────────────────────────────────────────────
+     Colour arrives only as glow, never as a tint. One fixed, non-interactive
+     layer below the paper patterns so the grid still reads on top of it.
+
+     Two strengths: the public pages get the full recipe; the app screens get
+     the same lights at roughly a third, pulled into the corners, because that
+     is where the work is. A panel is always opaque --paper, so body text never
+     sits on a light — and the tokens are measured against the brightest pixel
+     this layer can produce (docs/PROOF-DESK.md §1b.1). */
+  .desk-glow {
+    position: absolute;
+    inset: 0;
+  }
+
+  [data-theme="dark"] .desk-glow-full {
+    background:
+      radial-gradient(45% 45% at 78% 88%, rgba(150, 102, 22, 0.46), transparent 70%),
+      radial-gradient(46% 44% at 8% 95%, rgba(14, 107, 85, 0.44), transparent 72%),
+      radial-gradient(45% 40% at 90% 5%, rgba(70, 48, 140, 0.42), transparent 70%),
+      radial-gradient(40% 35% at 20% 0%, rgba(15, 74, 85, 0.38), transparent 70%);
+  }
+
+  /* the optional bonus: a thin ring around the seal that echoes its orbit line.
+     Contained inside the stage box, so it can never reach the headline. */
+  [data-theme="dark"] .seal-stage::after {
+    content: "";
+    position: absolute;
+    inset: -4%;
+    border-radius: 9999px;
+    border: 1px solid rgba(150, 102, 22, 0.34);
+    box-shadow:
+      0 0 44px 4px rgba(150, 102, 22, 0.16),
+      inset 0 0 28px rgba(255, 224, 102, 0.05);
+    pointer-events: none;
+  }
+
+  [data-theme="dark"] .desk-glow-edge {
+    background:
+      radial-gradient(32% 28% at 96% 96%, rgba(150, 102, 22, 0.2), transparent 68%),
+      radial-gradient(30% 26% at 18% 100%, rgba(14, 107, 85, 0.17), transparent 68%),
+      radial-gradient(30% 24% at 100% 0%, rgba(70, 48, 140, 0.16), transparent 68%),
+      radial-gradient(26% 20% at 44% 0%, rgba(15, 74, 85, 0.13), transparent 68%);
   }
 
   /* 1 · the drawing grid: 24px minor, 120px major, drifting slower than the page */
@@ -621,21 +679,21 @@
   [data-theme="dark"] .bg-parchment { background-color: var(--paper-2); }
   [data-theme="dark"] .bg-white { background-color: var(--paper); }
 
-  [data-theme="dark"] .bg-ivory\/90, [data-theme="dark"] .bg-white\/90 { background-color: rgba(22, 25, 31, 0.92); }
-  [data-theme="dark"] .bg-ivory\/80 { background-color: rgba(22, 25, 31, 0.82); }
-  [data-theme="dark"] .bg-ivory\/70, [data-theme="dark"] .bg-white\/70 { background-color: rgba(22, 25, 31, 0.72); }
-  [data-theme="dark"] .bg-ivory\/60, [data-theme="dark"] .bg-white\/60 { background-color: rgba(22, 25, 31, 0.64); }
-  [data-theme="dark"] .bg-ivory\/50, [data-theme="dark"] .bg-white\/50 { background-color: rgba(22, 25, 31, 0.54); }
-  [data-theme="dark"] .bg-ivory\/45, [data-theme="dark"] .bg-white\/45 { background-color: rgba(29, 33, 40, 0.48); }
-  [data-theme="dark"] .bg-ivory\/40, [data-theme="dark"] .bg-white\/40 { background-color: rgba(29, 33, 40, 0.44); }
-  [data-theme="dark"] .bg-ivory-deep\/70, [data-theme="dark"] .bg-parchment\/70 { background-color: rgba(29, 33, 40, 0.72); }
-  [data-theme="dark"] .bg-ivory-deep\/60, [data-theme="dark"] .bg-parchment\/60 { background-color: rgba(29, 33, 40, 0.64); }
-  [data-theme="dark"] .bg-ivory-deep\/50, [data-theme="dark"] .bg-parchment\/50 { background-color: rgba(29, 33, 40, 0.54); }
-  [data-theme="dark"] .bg-ivory-deep\/45, [data-theme="dark"] .bg-parchment\/45 { background-color: rgba(29, 33, 40, 0.48); }
-  [data-theme="dark"] .bg-ivory-deep\/40, [data-theme="dark"] .bg-parchment\/40 { background-color: rgba(29, 33, 40, 0.44); }
-  [data-theme="dark"] .bg-ivory-deep\/30, [data-theme="dark"] .bg-parchment\/30 { background-color: rgba(29, 33, 40, 0.36); }
-  [data-theme="dark"] .bg-paper\/95 { background-color: rgba(14, 16, 20, 0.95); }
-  [data-theme="dark"] .bg-paper\/92 { background-color: rgba(14, 16, 20, 0.92); }
+  [data-theme="dark"] .bg-ivory\/90, [data-theme="dark"] .bg-white\/90 { background-color: rgba(16, 20, 26, 0.92); }
+  [data-theme="dark"] .bg-ivory\/80 { background-color: rgba(16, 20, 26, 0.82); }
+  [data-theme="dark"] .bg-ivory\/70, [data-theme="dark"] .bg-white\/70 { background-color: rgba(16, 20, 26, 0.72); }
+  [data-theme="dark"] .bg-ivory\/60, [data-theme="dark"] .bg-white\/60 { background-color: rgba(16, 20, 26, 0.64); }
+  [data-theme="dark"] .bg-ivory\/50, [data-theme="dark"] .bg-white\/50 { background-color: rgba(16, 20, 26, 0.54); }
+  [data-theme="dark"] .bg-ivory\/45, [data-theme="dark"] .bg-white\/45 { background-color: rgba(22, 27, 34, 0.48); }
+  [data-theme="dark"] .bg-ivory\/40, [data-theme="dark"] .bg-white\/40 { background-color: rgba(22, 27, 34, 0.44); }
+  [data-theme="dark"] .bg-ivory-deep\/70, [data-theme="dark"] .bg-parchment\/70 { background-color: rgba(22, 27, 34, 0.72); }
+  [data-theme="dark"] .bg-ivory-deep\/60, [data-theme="dark"] .bg-parchment\/60 { background-color: rgba(22, 27, 34, 0.64); }
+  [data-theme="dark"] .bg-ivory-deep\/50, [data-theme="dark"] .bg-parchment\/50 { background-color: rgba(22, 27, 34, 0.54); }
+  [data-theme="dark"] .bg-ivory-deep\/45, [data-theme="dark"] .bg-parchment\/45 { background-color: rgba(22, 27, 34, 0.48); }
+  [data-theme="dark"] .bg-ivory-deep\/40, [data-theme="dark"] .bg-parchment\/40 { background-color: rgba(22, 27, 34, 0.44); }
+  [data-theme="dark"] .bg-ivory-deep\/30, [data-theme="dark"] .bg-parchment\/30 { background-color: rgba(22, 27, 34, 0.36); }
+  [data-theme="dark"] .bg-paper\/95 { background-color: rgba(7, 9, 13, 0.95); }
+  [data-theme="dark"] .bg-paper\/92 { background-color: rgba(7, 9, 13, 0.92); }
 
   [data-theme="dark"] .text-ink { color: var(--ink); }
   [data-theme="dark"] .text-ink-soft { color: var(--ink-2); }
@@ -647,7 +705,7 @@
 
   /* semantic colours: the deep inks vanish on black, so the light set takes over */
   [data-theme="dark"] .text-critical, [data-theme="dark"] .text-mark,
-  [data-theme="dark"] .text-mark-text { color: #ff8a7a; }
+  [data-theme="dark"] .text-mark-text { color: #ff9b8c; }
   [data-theme="dark"] .text-possible { color: var(--warn); }
   [data-theme="dark"] .text-confirmed { color: var(--pass); }
   [data-theme="dark"] .bg-critical-tint, [data-theme="dark"] .bg-critical-tint\/60 { background-color: #2a1512; }
@@ -658,14 +716,14 @@
   [data-theme="dark"] .bg-gold-tint, [data-theme="dark"] .bg-gold-tint\/60 { background-color: rgba(255, 224, 102, 0.14); }
 
   /* hairlines: ink rules become visible rules on black */
-  [data-theme="dark"] .border-ink\/10 { border-color: #24292f; }
-  [data-theme="dark"] .border-ink\/12 { border-color: #24292f; }
-  [data-theme="dark"] .border-ink\/15 { border-color: #272c34; }
-  [data-theme="dark"] .border-ink\/20 { border-color: #2a2f38; }
-  [data-theme="dark"] .border-ink\/25 { border-color: #2e343d; }
-  [data-theme="dark"] .border-ink\/30 { border-color: #333a44; }
-  [data-theme="dark"] .border-gold\/25, [data-theme="dark"] .border-gold\/30 { border-color: #2a2f38; }
-  [data-theme="dark"] .border-gold\/40, [data-theme="dark"] .border-gold\/50 { border-color: #3a4149; }
-  [data-theme="dark"] .divide-ink\/10 > :not([hidden]) ~ :not([hidden]) { border-color: #24292f; }
-  [data-theme="dark"] .divide-gold\/25 > :not([hidden]) ~ :not([hidden]) { border-color: #2a2f38; }
+  [data-theme="dark"] .border-ink\/10 { border-color: #1e252d; }
+  [data-theme="dark"] .border-ink\/12 { border-color: #1e252d; }
+  [data-theme="dark"] .border-ink\/15 { border-color: #202730; }
+  [data-theme="dark"] .border-ink\/20 { border-color: #232a33; }
+  [data-theme="dark"] .border-ink\/25 { border-color: #28303a; }
+  [data-theme="dark"] .border-ink\/30 { border-color: #2c343f; }
+  [data-theme="dark"] .border-gold\/25, [data-theme="dark"] .border-gold\/30 { border-color: #232a33; }
+  [data-theme="dark"] .border-gold\/40, [data-theme="dark"] .border-gold\/50 { border-color: #2f3944; }
+  [data-theme="dark"] .divide-ink\/10 > :not([hidden]) ~ :not([hidden]) { border-color: #1e252d; }
+  [data-theme="dark"] .divide-gold\/25 > :not([hidden]) ~ :not([hidden]) { border-color: #232a33; }
 }

@@ -105,7 +105,7 @@ export default function LoginPage() {
     <main id="main" className="relative grid min-h-screen bg-[color:var(--canvas)] lg:grid-cols-[1.02fr_0.98fr]">
       <EntrySequence />
       {/* the paper half is a desk, not a void: grid, crop marks, grain, lamp */}
-      <DeskBackground />
+      <DeskBackground variant="public" />
 
       {/* ------------------------------------------- left: the ink stock panel */}
       <section className="relative flex flex-col justify-between overflow-hidden bg-[#111318] px-7 py-8 text-[#F4F5F7] lg:px-12 lg:py-10">

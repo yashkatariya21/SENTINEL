@@ -34,7 +34,7 @@ function Marker({ n, children }: { n: string; children: React.ReactNode }) {
 export default function WelcomePage() {
   return (
     <div className="relative min-h-screen bg-[color:var(--canvas)] text-[color:var(--ink)]">
-      <DeskBackground />
+      <DeskBackground variant="public" />
       <EntrySequence />
       <SiteHeader />
 
