@@ -6,6 +6,40 @@ documents' figures stop agreeing with those runs.
 
 ---
 
+## The overview, set like a front page
+
+The desk overview read as a flat stack of identical white cards: four figures with
+no colour, a heading that was the same weight as everything under it, and a long
+scroll with nothing to tell you where you were.
+
+It is now set the way a printed page is set — same palette, same fonts, same
+one-red-pen rule.
+
+- **A masthead.** The date line, a display-weight headline with the highlighter on
+  *gate*, a wider measure for the sentence beneath it, and the owl moved onto a
+  dashed stamp beside the primary action. A 3px ink rule with a hairline under it
+  closes the head, like the top of a broadsheet.
+- **A dial bank.** The four figures carry a coloured scale mark each — red when
+  something is waiting on a person, green for the one measurement that is healthy —
+  and the brand-score cell draws the weekly series as a sparkline underneath, from
+  the same array the chart below uses, so the two cannot disagree. No new numbers:
+  a cell with nothing measured still prints "—".
+- **Section marks.** `01 The reading`, `02 The signal`, `03 How it runs` — numerals
+  and hairlines only, `aria-hidden`, because a screen reader already has the
+  headings.
+- **The lead card has weight**: a 1.5px ink border and a corner crop mark, so the
+  Brand Score reads as the front-page story rather than the first of three boxes.
+- **The six review steps** are now tiles in a hairline grid, each with its numbered
+  disc that inverts on hover, instead of a loose two-column list — which also closes
+  the beige hole the old 5+1 arrangement left in the corner.
+- **Queue titles wrap to two lines** rather than truncating to "Warehouse ad (paid
+  soc…" five times down the column, and the empty state in a full-width card is
+  centred and capped rather than stretched across 1,300px.
+
+Verified light, dark and 390px wide: no console errors, no horizontal overflow.
+
+---
+
 ## The change ledger has something to show, and the desk has a map
 
 ### Fixed — Guideline changes was empty on every new workspace

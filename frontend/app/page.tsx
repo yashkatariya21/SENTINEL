@@ -9,7 +9,7 @@ import {
 } from "./components/ui";
 import { LoadDemoButton } from "./components/Demo";
 import { BrandScoreRing } from "./components/brand/BrandScoreRing";
-import { DeskSentri, Figure } from "./components/Desk";
+import { DeskSentri } from "./components/Desk";
 import { Icon } from "./components/Icon";
 
 /** What `GET /brand-kits/{id}/health` reports, narrowed to what the checklist needs. */
@@ -151,6 +151,118 @@ function GettingStarted({
         ))}
       </ol>
     </section>
+  );
+}
+
+/**
+ * A band label between the blocks of the page.
+ *
+ * The overview is long, and without numbers down the side the eye has no idea
+ * where it is. These are the section marks of a printed report: a numeral, a
+ * rule, and three words. Nothing here carries information — it is all aria-hidden
+ * — because a screen-reader user is navigating by the headings themselves.
+ */
+function Band({ n, label }: { n: string; label: string }) {
+  return (
+    <div aria-hidden="true" className="mb-3 mt-8 flex items-center gap-3">
+      <span className="font-mono text-[10px] tabular-nums tracking-[0.18em] text-[color:var(--ink-3)]">{n}</span>
+      <span className="h-px flex-1 bg-[color:var(--hairline)]" />
+      <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-[color:var(--ink-3)]">{label}</span>
+    </div>
+  );
+}
+
+/** The day's masthead: double rule, one line of fact, and the reading that matters. */
+function Masthead({
+  today, org, firstName, children,
+}: {
+  today: string; org: string; firstName: string; children: React.ReactNode;
+}) {
+  return (
+    <header className="relative mb-2">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <p className="font-mono text-2xs uppercase tracking-[0.24em] text-[color:var(--ink-3)]">
+          {today}
+          <span aria-hidden="true" className="mx-2 text-[color:var(--hairline)]">/</span>
+          {org} · desk overview
+        </p>
+        <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-[color:var(--ink-3)]">
+          The proof desk · round 3
+        </p>
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-end justify-between gap-x-8 gap-y-5">
+        {/* basis- forces the button block onto its own line on a phone, rather than
+            squeezing the sentence into a column three words wide */}
+        <div className="min-w-0 flex-1 basis-[22rem]">
+          <h1 className="font-display text-[2.15rem] font-semibold leading-[0.98] tracking-[-0.038em] text-[color:var(--ink)] sm:text-[3rem]">
+            Today at the <span className="em-italic">gate</span>, {firstName}.
+          </h1>
+          <p className="mt-3 max-w-[46ch] text-[15px] leading-relaxed text-[color:var(--ink-2)]">
+            Six specialist reviewers check content against the {org} Brand Kit. Every finding
+            explains itself with a rule and a source; you decide what happens next.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-4">
+          {children}
+          {/* the owl, on a stamp — the one soft mark on a page of rules */}
+          <span
+            aria-hidden="true"
+            className="relative hidden h-[86px] w-[86px] shrink-0 place-items-center rounded-full border border-dashed border-[color:var(--hairline-strong)] bg-[color:var(--paper)] sm:grid"
+          >
+            <span className="absolute inset-[5px] rounded-full border border-[color:var(--hairline)]" />
+            <DeskSentri size={54} mood="reading" />
+          </span>
+        </div>
+      </div>
+
+      {/* the masthead rule: a thick ink line with a hairline beneath it */}
+      <div className="mt-6 border-t-[3px] border-[color:var(--ink)]" />
+      <div className="mt-[3px] border-t border-[color:var(--hairline)]" />
+    </header>
+  );
+}
+
+/**
+ * One reading on the dial bank.
+ *
+ * `spark` is the only input that is drawn rather than printed, and it is optional:
+ * a cell with no series simply has no line under it, and no cell invents one.
+ */
+function Dial({
+  value, label, sub, spark, tone = "ink",
+}: {
+  value: string; label: string; sub?: string;
+  spark?: number[];
+  tone?: "ink" | "mark" | "pass";
+}) {
+  const tick = tone === "mark" ? "bg-[color:var(--mark)]" : tone === "pass" ? "bg-[color:var(--pass-graphic)]" : "bg-[color:var(--ink)]";
+  let path = "";
+  if (spark && spark.length > 1) {
+    const lo = Math.min(...spark), hi = Math.max(...spark), span = hi - lo || 1;
+    path = spark
+      .map((v, i) => `${i === 0 ? "M" : "L"}${(i / (spark.length - 1)) * 100},${16 - ((v - lo) / span) * 14}`)
+      .join(" ");
+  }
+  return (
+    <div className="group relative px-4 py-4 transition-colors duration-200 hover:bg-[color:var(--paper-2)] sm:px-5 sm:py-5">
+      <span aria-hidden="true" className={`mb-2.5 block h-[2px] w-4 ${tick}`} />
+      <span className="block font-mono text-[2.15rem] font-semibold leading-none tabular-nums tracking-[-0.02em] text-[color:var(--ink)] sm:text-[2.5rem]">
+        {value}
+      </span>
+      <span className="mt-2 block text-xs font-medium text-[color:var(--ink-2)]">{label}</span>
+      {sub && (
+        <span className="mt-1 block font-mono text-[10px] uppercase tracking-[0.12em] text-[color:var(--ink-3)]">{sub}</span>
+      )}
+      {path && (
+        <svg viewBox="0 0 100 18" preserveAspectRatio="none" aria-hidden="true"
+             className="mt-2 h-4 w-full opacity-70 transition-opacity group-hover:opacity-100">
+          <path d={path} fill="none" stroke="var(--ink-3)" strokeWidth="1.2"
+                strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+        </svg>
+      )}
+    </div>
   );
 }
 
@@ -380,35 +492,16 @@ export default function OverviewPage() {
 
   return (
     <div>
-      {/* ------------------------------------------------------ the desk head */}
-      <div className="mb-6 border-b-[1.5px] border-[color:var(--hairline-strong)] pb-5">
-        <p className="font-mono text-2xs uppercase tracking-[0.24em] text-[color:var(--ink-3)]">
-          {today} <span className="mx-2 text-[color:var(--hairline)]">/</span> {me?.organisation.name} · desk overview
-        </p>
-        <div className="mt-2 flex flex-wrap items-end justify-between gap-4">
-          <div className="min-w-0">
-            <h1 className="text-[2rem] font-semibold leading-[1.05] tracking-[-0.03em] text-[color:var(--ink)] sm:text-[2.5rem]">
-              Today at the gate, {firstName}.
-            </h1>
-            <p className="mt-2 max-w-xl text-sm leading-relaxed text-[color:var(--ink-2)]">
-              Six specialist reviewers check content against the {me?.organisation.name} Brand Kit. Every finding
-              explains itself with a rule and a source; you decide what happens next.
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <Link href="/new">
-              <Button variant="primary">
-                <span className="flex items-center gap-2">
-                  <Icon name="pen" size={14} /> Review new content
-                </span>
-              </Button>
-            </Link>
-            <span className="hidden text-[color:var(--ink-2)] sm:block">
-              <DeskSentri size={64} mood="idle" />
+      {/* --------------------------------------------------------- the masthead */}
+      <Masthead today={today} org={me?.organisation.name ?? "this workspace"} firstName={firstName ?? "there"}>
+        <Link href="/new">
+          <Button variant="primary">
+            <span className="flex items-center gap-2">
+              <Icon name="pen" size={14} /> Review new content
             </span>
-          </div>
-        </div>
-      </div>
+          </Button>
+        </Link>
+      </Masthead>
 
       {error && (
         <div className="mb-4 flex items-start gap-2 rounded-[8px] border border-[color:var(--mark)] bg-[color:var(--mark-tint)] px-3 py-2 text-sm text-[color:var(--mark-text)]">
@@ -434,25 +527,38 @@ export default function OverviewPage() {
 
       {/* ----------------------------------------------- the instrument strip
           Four readings, divided by hairlines like a bank of dials. No cards:
-          the eye should read numbers, not boxes. */}
-      <div className="mb-6 grid grid-cols-2 divide-[color:var(--hairline)] border-y border-[color:var(--hairline)] bg-[color:var(--paper)] sm:grid-cols-4 sm:divide-x">
-        <Figure value={items ? String(pending.length) : "—"} label="Waiting on a human" sub={pending.length ? "in review now" : "the desk is clear"} />
-        <Figure value={summary ? String(summary.submissions) : "—"} label="Submissions reviewed" sub="last 90 days" />
-        <Figure
+          the eye should read numbers, not boxes. Each cell carries a coloured
+          tick so the four can be told apart at a glance, and the brand-score cell
+          carries the weekly series itself — the same array the chart below uses,
+          so the two can never disagree. */}
+      <div className="my-6 grid grid-cols-2 divide-[color:var(--hairline)] border-y-[1.5px] border-[color:var(--hairline-strong)] bg-[color:var(--paper)] sm:grid-cols-4 sm:divide-x">
+        <Dial
+          value={items ? String(pending.length) : "—"}
+          label="Waiting on a human"
+          sub={pending.length ? "in review now" : "the desk is clear"}
+          tone={pending.length ? "mark" : "ink"}
+        />
+        <Dial value={summary ? String(summary.submissions) : "—"} label="Submissions reviewed" sub="last 90 days" />
+        <Dial
           value={summary ? summary.brand_score.toFixed(1) : "—"}
           label="Brand score"
           sub="90-day composite"
+          spark={summary?.brand_health_trend.map((w) => w.brand_score ?? 0)}
         />
-        <Figure
+        <Dial
           value={summary?.average_approval_hours != null ? `${summary.average_approval_hours.toFixed(1)}h` : "—"}
           label="Average approval"
           sub={summary?.average_approval_hours != null ? "draft to decision" : "not measured yet"}
+          tone="pass"
         />
       </div>
 
+      <Band n="01" label="The reading" />
       <div className="grid items-start gap-4 [&>*]:min-w-0 lg:grid-cols-3">
         {/* ------------------------------------------------------ brand score */}
-        <Card className="relative overflow-hidden p-5">
+        <Card className="relative overflow-hidden border-[1.5px] border-[color:var(--ink)] p-5">
+          {/* a crop mark in the corner, the way a press sheet is trimmed */}
+          <span aria-hidden="true" className="absolute right-3 top-3 h-3 w-3 border-r border-t border-[color:var(--ink-3)]" />
           <SectionHeading title="Brand Score" subtitle="Last 90 days across the workspace" />
           {summary ? (
             <>
@@ -569,7 +675,7 @@ export default function OverviewPage() {
                     className="group flex items-center justify-between gap-2 py-2.5 transition-colors hover:bg-[color:var(--highlight-tint)]"
                   >
                     <span className="min-w-0 pl-1">
-                      <span className="block truncate text-sm font-medium text-[color:var(--ink)]">{item.title}</span>
+                      <span className="line-clamp-2 block text-sm font-medium leading-snug text-[color:var(--ink)]">{item.title}</span>
                       <span className="text-xs text-[color:var(--ink-3)]">{item.owner_name} · {item.department}</span>
                     </span>
                     <span className="flex shrink-0 items-center gap-1.5 pr-1">
@@ -591,21 +697,25 @@ export default function OverviewPage() {
           {!items ? <Skeleton className="h-24 w-full" /> : mine.length === 0 ? (
             items.length === 0 ? (
               /* nothing in the workspace at all: the honest empty state */
+              <div className="mx-auto max-w-2xl">
               <EmptyState
                 title="No submissions yet"
                 body="Paste a draft on New submission and the six reviewers will read it against the Brand Kit."
                 action={<><Link href="/new"><Button size="sm">New submission</Button></Link>
                           <LoadDemoButton label="Load demo data" size="sm" variant="secondary" /></>}
               />
+              </div>
             ) : (
               /* the workspace has content, this person just does not own any of it —
                  saying "load the demo" here would be wrong, it is already loaded */
+              <div className="mx-auto max-w-2xl">
               <EmptyState
                 title="Nothing in your name yet"
                 body={`The workspace has ${items.length} submissions and none of them are yours. Your team's drafts are in the Content queue, or paste a new draft to review it yourself.`}
                 action={<><Link href="/new"><Button size="sm">New submission</Button></Link>
                           <Link href="/content"><Button size="sm" variant="secondary">Content queue</Button></Link></>}
               />
+              </div>
             )
           ) : (
             <ul className="divide-y divide-[color:var(--hairline)]">
@@ -616,7 +726,7 @@ export default function OverviewPage() {
                     className="group flex items-center justify-between gap-2 py-2.5 transition-colors hover:bg-[color:var(--highlight-tint)]"
                   >
                     <span className="min-w-0 pl-1">
-                      <span className="block truncate text-sm font-medium text-[color:var(--ink)]">{item.title}</span>
+                      <span className="line-clamp-2 block text-sm font-medium leading-snug text-[color:var(--ink)]">{item.title}</span>
                       <span className="text-xs text-[color:var(--ink-3)]">{item.content_type.replace("_", " ")} · v{item.current_version}</span>
                     </span>
                     <span className="flex shrink-0 items-center gap-1.5 pr-1">
@@ -631,6 +741,7 @@ export default function OverviewPage() {
         </Card>
       </div>
 
+      <Band n="02" label="The signal" />
       {/* -------------------------------------------------- the signal strip
           Two readings a manager actually asks for: is it getting better or worse,
           and where is it coming from. Both drawn from the summary already loaded. */}
@@ -661,6 +772,7 @@ export default function OverviewPage() {
         </Card>
       </div>
 
+      <Band n="03" label="How it runs" />
       {/* ------------------------------------------------ how a review runs */}
       <div className="mt-4 grid items-start gap-4 [&>*]:min-w-0 lg:grid-cols-3">
         <Card className="p-5 lg:col-span-2">
@@ -668,7 +780,7 @@ export default function OverviewPage() {
             title="How a review runs"
             subtitle="Deterministic checks first, then six reviewers in parallel, then de-duplication and confidence scoring."
           />
-          <ol className="grid gap-x-4 gap-y-3 text-sm sm:grid-cols-2">
+          <ol className="grid gap-px overflow-hidden rounded-[8px] bg-[color:var(--hairline)] sm:grid-cols-2">
             {[
               ["Extract", "Text blocks and images from pasted text, DOCX, PDF or image uploads."],
               ["Deterministic checks", "Approved and banned terms, colour values, alt text, WCAG contrast — Confirmed findings with a rule ID."],
@@ -677,8 +789,14 @@ export default function OverviewPage() {
               ["Merge & score", "Duplicates merged by span overlap; confidence from repeat-run agreement, evidence strength and deterministic backing."],
               ["Human decision", "Accept, edit, dismiss with reason, or escalate. A manager override can become a rule — only after they answer the prompt."],
             ].map(([title, body], i) => (
-              <li key={title} className="group flex gap-3 border-l border-[color:var(--hairline)] pl-3 transition-colors hover:border-[color:var(--mark)]">
-                <span className="mt-0.5 shrink-0 font-mono text-[11px] tabular-nums text-[color:var(--ink-3)] transition-colors group-hover:text-[color:var(--mark-text)]">
+              <li
+                key={title}
+                className="group relative flex gap-3 bg-[color:var(--paper)] p-3.5 transition-colors duration-200 hover:bg-[color:var(--highlight-tint)]"
+              >
+                <span
+                  aria-hidden="true"
+                  className="grid h-6 w-6 shrink-0 place-items-center rounded-full border border-[color:var(--hairline-strong)] font-mono text-[10px] tabular-nums text-[color:var(--ink)] transition-colors duration-200 group-hover:border-[color:var(--ink)] group-hover:bg-[color:var(--ink)] group-hover:text-[color:var(--paper)]"
+                >
                   {String(i + 1).padStart(2, "0")}
                 </span>
                 <span className="min-w-0">
