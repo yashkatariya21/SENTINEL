@@ -73,6 +73,21 @@ Two consequences the implementation is careful about:
   policies add a second, independent layer keyed on `app.current_org`, and the app connects as a
   non-superuser role in production.
 
+## 2a. The gates, stage by stage
+
+[`USER-JOURNEY.md`](USER-JOURNEY.md) walks the seven stages. Each one has a control, and this is the list
+a security reviewer actually wants:
+
+| Stage | Control | Enforced in |
+|---|---|---|
+| Arrive (`/`) | the brief reads no tenant data; it is static | the page never calls a tenant endpoint |
+| Sign in | a token is the only thing that opens a room; the demo switcher is `DEMO_MODE`-gated and rate-limited | `lib/auth.tsx`, `POST /v1/demo/session` |
+| Set the standard | an extracted rule is **inert** until an Admin confirms it | `POST /brand-kits/{id}/confirm`, the only writer of `status=confirmed` |
+| Submit | MIME + magic-byte + size checks; content wrapped as data and scanned for injected instructions | `app/storage.py`, `services/extraction.py` |
+| Review | deterministic findings cannot be overridden by a model; a citation must resolve to a retrieved chunk | `services/pipeline.py` (`_evidence_supports`, `deterministic_backing`) |
+| Decide | **no self-approval**; a reason is required to dismiss, reject or escalate; legal/a11y need an Approver | service layer + a Postgres trigger + `PATCH /rules/{id}` role checks |
+| Learn & record | a promotion appends a version; the audit log is append-only and hash-chained | `services/workflows.py`, `audit.py`, `migrations/rls.sql` |
+
 ## 3. Human control (the product's core promise)
 
 | Guarantee | How it is enforced | Test |

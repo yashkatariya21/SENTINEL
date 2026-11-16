@@ -21,6 +21,10 @@ Marks and notes are two ends of one link: pressing either brings the other into 
 
 ## 1a. The desk behind the sheets
 
+*(The stages these surfaces belong to are mapped in [`USER-JOURNEY.md`](USER-JOURNEY.md): the brief is
+stage 01, the sign-in 02, the desk 03–07.)*
+
+
 A flat fill was the one thing the first pass got wrong, so the paper is now a surface.
 `app/components/DeskBackground.tsx` paints eight fixed, `aria-hidden`,
 pointer-transparent layers under every page — the app shell, the brief at `/` and `/login` all

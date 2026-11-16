@@ -6,6 +6,37 @@ documents' figures stop agreeing with those runs.
 
 ---
 
+## The user journey, drawn
+
+The architecture page answers *where things run*. It did not answer *who does what, in what order, and
+where the gate sits* — the question a reviewer, a buyer or a new engineer actually asks first.
+
+`docs/USER-JOURNEY.md` and `docs/images/user-journey.svg` (PNG beside it) answer it in one page:
+
+* **seven stages** — arrive → sign in → set the standard → submit → review → decide → learn;
+* **five swimlanes** — Visitor, Creator, Manager, Approver, Brand Manager, and one for the system, which
+  is drawn in its own lane precisely to show what it is *not* allowed to do;
+* **four state machines** — content item, analysis run, rule, guideline change — each with one writer and
+  one thing that is forbidden ("never auto-requeued", "history is appended, never edited", "no rule body
+  is touched until a person answers").
+
+The prose covers each stage with the screen, the endpoint and the gate; a role matrix; the four state
+machines as a table; and a 90-second path for a first-time reader (brief → sign-in as a Creator → the
+desk → paste a draft → trace one citation → the re-issued guideline → the audit log).
+
+Wired in rather than filed away: the README carries the diagram under the architecture one and a
+one-paragraph version of the journey before the pipeline detail; `docs/DEMO.md` now states that its script
+*is* those seven stages with a clock; `docs/SECURITY` gains a stage-by-stage table of the controls;
+`docs/ARCHITECTURE.md` says explicitly that it describes the system and the journey describes the people.
+
+Two more guards, so the map stays true: both diagrams must be committed in both formats and embedded by
+their doc, and `USER-JOURNEY.md` must name all seven stages and all six roles — a journey that quietly
+dropped the Approver would misrepresent how a legal rule change is gated.
+
+254 collected, 249 passed, 5 skipped.
+
+---
+
 ## The documents, brought level with the code
 
 An architecture diagram, and every doc audited against what the application actually does.
