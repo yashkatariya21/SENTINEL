@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth, DEMO_USERS } from "@/lib/auth";
@@ -78,22 +78,15 @@ export default function LoginPage() {
   const set = (key: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm((f) => ({ ...f, [key]: e.target.value }));
 
-  /* Someone already signed in should not be shown a sign-in form — a reader who
-     opens the link, reads the brief and then clicks "Open the workspace" has a
-     session and belongs at the desk. Nothing is shown while the session loads, so
-     the form never flashes over a person who is already in.
-
-     Only when *this page did not sign anyone in*: `submit` below ends in a
-     navigation of its own (to the room the visitor clicked, or the desk), and a
-     redirect fired here afterwards would beat it and throw that room away. */
-  const submitted = useRef(false);
-  useEffect(() => {
-    if (!loading && me && !submitted.current) router.replace(DESK_HOME);
-  }, [loading, me, router]);
+  /* The order of the door is brief -> sign-in -> desk, and this page is the middle
+     step: it is always shown, even to a browser that already holds a session.
+     Skipping it (the redirect that used to live here) meant "Open the workspace"
+     went straight to the dashboard and the sign-in never appeared at all. A
+     returning reader gets the form plus one honest button — *Continue to the
+     desk* — rather than being thrown past it. */
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    submitted.current = true;
     setBusy(true);
     setError("");
     try {
@@ -254,6 +247,27 @@ export default function LoginPage() {
           </div>
 
           <Card className="rounded-tl-none p-6">
+            {/* A session already open in this browser: say so, and offer the desk —
+                one click, never taken for the reader. */}
+            {!loading && me && (
+              <div className="mb-5 rounded-[8px] border border-[color:var(--hairline-strong)] bg-[color:var(--pass-tint)] p-3">
+                <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-[color:var(--pass)]">
+                  Signed in as {me.user.name}
+                </p>
+                <p className="mt-1 text-xs leading-relaxed text-[color:var(--ink-2)]">
+                  This browser already holds a session for {me.user.email}. Sign in below
+                  as someone else, or go straight to the desk.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => router.push(DESK_HOME)}
+                  className="mt-2 inline-flex items-center gap-1.5 rounded-[5px] border border-[color:var(--ink)] bg-[color:var(--ink)] px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-[color:var(--paper)] transition-colors hover:bg-[color:var(--mark)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]"
+                >
+                  Continue to the desk <Icon name="arrow" size={11} />
+                </button>
+              </div>
+            )}
+
             <form onSubmit={submit} aria-describedby={error ? "auth-error" : undefined}>
               {mode === "signin" ? (
                 <>
