@@ -6,6 +6,38 @@ documents' figures stop agreeing with those runs.
 
 ---
 
+## The link opens on the brief, and the desk is behind the sign-in
+
+Opening the site used to land on the dashboard: `/` was the desk overview, and the
+signed-out redirect was client-side. A browser holding a stale token went straight in, and
+everyone else saw a flash of the desk before being bounced — and a 401 from a public page
+could throw a reader at the sign-in form.
+
+The front door is now public:
+
+- **`/` is the brief**, prerendered for everyone. A visitor with the link reads what the
+  committee is, how a review reads and what it refuses to do, then signs in.
+- **The desk moved to `/desk`.** Signing in lands there — or on the room that was clicked,
+  because the attempted path is still remembered in `sessionStorage` and honoured once.
+- **`/welcome` is a permanent redirect to `/`**, so bookmarks, old links and screenshots
+  keep working.
+- **One route list**, `lib/routes.ts`, read by the auth gate, the API client and the shell.
+  It is *exact* for `/` and a prefix for everything else: `"/".startsWith("/")` is true for
+  every path in the app, so a naive prefix test would have made the whole desk public.
+  A 401 on a public page now only costs the reader the "API online" dot.
+- **A signed-in visitor who opens `/login` goes to `/desk`** instead of being shown a form
+  they do not need. Guarded by a ref, because `submit()` ends in its own navigation — an
+  unguarded redirect beat it and threw away the room the visitor had clicked, which the
+  headless run caught.
+
+Verified in chromium at 1440 and 390: open `/` → brief (no desk furniture, four sign-in
+links) · `/welcome` → 308 → `/` · sign in → `/desk` with "Today at the gate" rendered ·
+cold deep link `/rules/changes` → `/` with the path remembered → sign-in → back to
+`/rules/changes` · `/login` while signed in → `/desk` · all twelve desk rooms render with
+no console errors and no horizontal overflow.
+
+---
+
 ## The overview, set like a front page
 
 The desk overview read as a flat stack of identical white cards: four figures with

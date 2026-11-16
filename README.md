@@ -95,8 +95,9 @@ database level by Postgres RLS (`migrations/rls.sql`, `FORCE ROW LEVEL SECURITY`
 
 | Route | Purpose |
 |---|---|
-| `/login` | Sign in or create a workspace (org + first Admin), demo role switcher |
-| `/` | Overview: Brand Score + formula, queue, guardrails, how a review runs |
+| `/` | **The public brief — the front door.** Anyone with the link lands here; it is what the committee is, how a review reads, what it refuses to do, with the sign-in in the header |
+| `/login` | Sign in or create a workspace (org + first Admin), demo role switcher. A signed-in visitor is sent straight on to `/desk` |
+| `/desk` | The desk overview: Brand Score + formula, the week's trend, the queue, guardrails, how a review runs |
 | `/kit` | Brand Kit: document upload & ingestion, **proposals awaiting Admin confirmation**, terms, approved facts, colours/fonts/logo, readiness checks |
 | `/new` | New submission: paste text or upload DOCX/PDF/image, choose content type + department |
 | `/content` | Content queue with status/search filters |
@@ -106,7 +107,7 @@ database level by Postgres RLS (`migrations/rls.sql`, `FORCE ROW LEVEL SECURITY`
 | `/learn` | Adaptive learning: overrides, learning-prompt answers, Approver gate, regression runs |
 | `/analytics` | Brand Score, mistake mix, department compliance, approval time, repeats, 8-week trend, monthly report |
 | `/audit` | Append-only, hash-chained audit log with chain verification |
-| `/welcome` | The public brief: what the committee is, how a review reads, what it refuses to do |
+| `/welcome` | 308 → `/` — the brief's old address, kept so bookmarks and old links still open |
 | `/about` | What the project is, the three improvements by name, the design language, the stack, and the AI-assistance disclosure |
 | `/trust` | Plain-language summary of `docs/SECURITY-AND-RESPONSIBLE-AI.md`, plus honest privacy and terms sections |
 

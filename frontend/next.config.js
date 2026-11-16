@@ -13,6 +13,12 @@ if (!process.env.API_URL && process.env.NODE_ENV === "production") {
 
 const nextConfig = {
   reactStrictMode: true,
+  // The brief used to live at /welcome and the desk at /. They have swapped: the front
+  // door is public, and the desk is behind the sign-in at /desk. Every link, bookmark
+  // and screenshot that still says /welcome keeps working through this redirect.
+  async redirects() {
+    return [{ source: "/welcome", destination: "/", permanent: true }];
+  },
   // The browser only ever talks to this Next server; Next proxies /v1 to FastAPI.
   // Keeps the API origin out of the browser and avoids CORS in every environment.
   async rewrites() {

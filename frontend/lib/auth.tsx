@@ -2,6 +2,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { api, clearToken, getToken, setToken, Me } from "./api";
+import { DESK_HOME, isPublicRoute } from "./routes";
 
 interface AuthState {
   me: Me | null;
@@ -16,9 +17,6 @@ interface AuthState {
 
 const AuthContext = createContext<AuthState>({} as AuthState);
 
-/** The two public pages: the brief, and the sign-in. */
-const PUBLIC_ROUTES = ["/login", "/welcome", "/about", "/trust"];
-
 /** Where a visitor was trying to go before we asked them in.
  *
  *  Kept in sessionStorage rather than the URL so neither public page has to be
@@ -28,12 +26,10 @@ const PUBLIC_ROUTES = ["/login", "/welcome", "/about", "/trust"];
  */
 const NEXT_KEY = "sentinel.next";
 
-function rememberNext(path: string) {
+export function rememberNext(path: string) {
   try {
-    if (path && path !== "/" && !path.startsWith("/welcome") && !path.startsWith("/login")
-        && !path.startsWith("/about") && !path.startsWith("/trust")) {
-      window.sessionStorage.setItem(NEXT_KEY, path);
-    }
+    if (!path || path === "/" || isPublicRoute(path)) return;
+    window.sessionStorage.setItem(NEXT_KEY, path);
   } catch {
     /* private mode: deep links simply land on the overview */
   }
@@ -77,27 +73,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [refresh]);
 
   /* An anonymous visitor meets the brief before the sign-in form: opening the
-     link (or following any deep link) lands on /welcome, whose call to action
-     is /login. The attempted page is remembered and honoured after sign-in. */
+     link lands on the brief at `/`, whose call to action is /login. The front door
+     used to be the dashboard with a client-side bounce, which meant a browser
+     holding an old session opened on the desk and everyone else saw a flash of it
+     first — so `/` is now a plain public page and the desk lives at /desk. The
+     attempted page is remembered and honoured after sign-in. */
   useEffect(() => {
     if (loading || me) return;
-    if (PUBLIC_ROUTES.includes(pathname)) return;
+    if (isPublicRoute(pathname)) return;
     rememberNext(pathname);
-    router.replace("/welcome");
+    router.replace("/");
   }, [loading, me, pathname, router]);
 
   const login = useCallback(async (email: string, password: string) => {
     const data = await api.post<{ access_token: string }>("/auth/login", { email, password });
     setToken(data.access_token);
     await refresh();
-    router.push(takeNext() ?? "/");
+    router.push(takeNext() ?? DESK_HOME);
   }, [refresh, router]);
 
   const setup = useCallback(async (payload: Record<string, unknown>) => {
     const data = await api.post<{ access_token: string }>("/auth/workspace", payload);
     setToken(data.access_token);
     await refresh();
-    router.push(takeNext() ?? "/");
+    router.push(takeNext() ?? DESK_HOME);
   }, [refresh, router]);
 
   /** Demo role switch: the server mints a token for a demo-workspace user.
@@ -112,7 +111,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     );
     setToken(data.access_token);
     await refresh();
-    router.push(takeNext() ?? "/");
+    router.push(takeNext() ?? DESK_HOME);
   }, [refresh, router]);
 
   const logout = useCallback(() => {
