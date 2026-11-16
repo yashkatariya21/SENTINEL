@@ -181,10 +181,29 @@ def test_every_page_in_the_readme_exists():
     assert not undocumented, "these pages are not in the README's Pages table:\n  " + "\n  ".join(undocumented)
 
 
-def test_the_architecture_diagram_is_committed_with_its_source():
-    """The diagram in the docs is a real file, in both formats, and it is referenced."""
-    svg = ROOT / "docs" / "images" / "architecture.svg"
-    png = ROOT / "docs" / "images" / "architecture.png"
-    assert svg.exists() and svg.stat().st_size > 5000, "architecture.svg is missing or empty"
-    assert png.exists() and png.stat().st_size > 5000, "architecture.png (the fallback) is missing"
-    assert "images/architecture.svg" in (ROOT / "docs" / "ARCHITECTURE.md").read_text()
+def test_the_diagrams_are_committed_with_their_sources():
+    """Both diagrams are real files, in both formats, and each is referenced by its doc."""
+    pairs = [("architecture", "ARCHITECTURE.md"), ("user-journey", "USER-JOURNEY.md")]
+    for name, doc in pairs:
+        svg = ROOT / "docs" / "images" / f"{name}.svg"
+        png = ROOT / "docs" / "images" / f"{name}.png"
+        assert svg.exists() and svg.stat().st_size > 5000, f"{name}.svg is missing or empty"
+        assert png.exists() and png.stat().st_size > 5000, f"{name}.png (the fallback) is missing"
+        assert f"images/{name}.svg" in (ROOT / "docs" / doc).read_text(), (
+            f"docs/{doc} does not embed images/{name}.svg")
+
+
+def test_the_user_journey_covers_every_role_and_stage():
+    """The journey doc is the map of the product, so it must name all seven stages and all six roles.
+
+    It is checked because it is the one document a reviewer will read first, and a journey that
+    quietly drops the Approver would misrepresent how a legal rule change is actually gated.
+    """
+    text = (ROOT / "docs" / "USER-JOURNEY.md").read_text()
+    for stage in ("01 · Arrive", "02 · Sign in", "03 · Set the standard", "04 · Submit",
+                  "05 · The review", "06 · Decide", "07 · Learn"):
+        assert stage in text, f"USER-JOURNEY.md is missing stage {stage}"
+    for role in ("Admin", "Brand Manager", "Approver", "Manager", "Creator", "External Creator"):
+        assert role in text, f"USER-JOURNEY.md never mentions the {role} role"
+    assert "no self-approval" in text.lower() or "nobody approves their own" in text.lower(), \
+        "the journey must state the self-approval rule"

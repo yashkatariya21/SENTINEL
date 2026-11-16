@@ -6,6 +6,9 @@
 contexts that cannot render SVG). It is drawn from the code, not from ambition: every arrow
 is a call that exists, and every number in it is one the seed actually produces.*
 
+This page is the **system** — where things run and how a request moves. For the **people** — who does
+what, in what order, and where the gate sits — see [`USER-JOURNEY.md`](USER-JOURNEY.md).
+
 Four layers, top to bottom:
 
 | Layer | What it is | Where it lives |

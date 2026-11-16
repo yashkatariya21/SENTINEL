@@ -5,7 +5,7 @@ interchangeably.
 
 | What | Command | Needs a key? | Question it answers |
 |---|---|---|---|
-| Behaviour tests | `cd backend && pytest -q` (that is 253 tests) | no | Do the deterministic rules, permissions and tenancy boundaries hold? |
+| Behaviour tests | `cd backend && pytest -q` (that is 254 tests) | no | Do the deterministic rules, permissions and tenancy boundaries hold? |
 | **Pipeline regression benchmark (rule-based engine)** | `python -m eval.run_eval` | no | Did a rule or code change break the engine's behaviour on the tuning set? |
 | **Held-out adversarial set** | `python -m eval.run_eval` (same run) | no | Does the engine generalise to copy it was not tuned on? |
 | **LLM evaluation** | `python -m eval.run_llm_eval` | **yes** | How well do three prompt configurations perform, at what latency and cost? |
@@ -199,6 +199,8 @@ python -m eval.run_llm_eval --no-cache      # fresh calls, real latency
   legal or accessibility task refuses a Manager with 403.
 * **The door and the walkthrough.** Routing is not a model behaviour; the headless journey covers
   brief → sign-in → desk, the remembered deep link, the returning reader, and a 401 on a public page.
+  The seven stages a person actually walks are documented in [`USER-JOURNEY.md`](USER-JOURNEY.md) and are
+  not scored, because "did the manager reach a decision" is not a metric this build pretends to have.
 
 A change to the diffing or routing code cannot move the regression number below, and it would be wrong to
 read that number as evidence that either works.

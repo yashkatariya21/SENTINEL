@@ -58,7 +58,7 @@ then sign in. Password for every seeded user: `Sentinel!2026` (or `SEED_PASSWORD
 
 ```bash
 cd backend
-python3 -m pytest -q                 # 253 passed
+python3 -m pytest -q                 # 254 passed
 python3 -m eval.run_eval             # precision / recall / FPR vs a single-prompt baseline
 python3 -m eval.doc_facts            # fails if README/docs disagree with those runs
 ```
@@ -68,6 +68,7 @@ python3 -m eval.doc_facts            # fails if README/docs disagree with those 
 | Document | What it answers |
 |---|---|
 | `README.md` | the product and the engineering: roles, pages, pipeline, formulas, deployment |
+| `docs/USER-JOURNEY.md` | **the work itself**: seven stages, five roles, the four state machines, and a 90-second path for a first-time reader |
 | `docs/ARCHITECTURE.md` | the diagram, the door, the request lifecycle, the change ledger, the learning loop, failure modes |
 | `docs/API.md` | every endpoint with roles, error codes and the guideline-change queue |
 | `docs/PROOF-DESK.md` | the design language: colour, type, contrast measurements, the proof-desk behaviour |

@@ -13,6 +13,11 @@ system learns from manager decisions.
 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) has the layer-by-layer version, the request lifecycle
 and the failure modes.*
 
+[![Sentinel AI user journey — seven stages across five roles](docs/images/user-journey.svg)](docs/USER-JOURNEY.md)
+
+*The work itself: **[`docs/USER-JOURNEY.md`](docs/USER-JOURNEY.md)** — arrive → sign in → set the
+standard → submit → review → decide → learn, who does each part, and where the gate sits.*
+
 | | |
 |---|---|
 | Frontend | Next.js 14 (App Router) + React 18 + Tailwind |
@@ -21,7 +26,7 @@ and the failure modes.*
 | Auth | JWT (local HS256) or Supabase/Clerk JWKS verification |
 | AI | Provider-agnostic adapter: offline deterministic engine (default) or hosted LLM + embeddings, **server-side only** |
 | Parsing | PyMuPDF, python-docx, Pillow, OCR (pytesseract + tesseract) — the container ships it |
-| Tests | 253 pytest cases (`pytest -q`) — reconciled against the docs by `python -m eval.doc_facts` — plus a rule-engine regression benchmark, a held-out adversarial set and an LLM evaluation harness |
+| Tests | 254 pytest cases (`pytest -q`) — reconciled against the docs by `python -m eval.doc_facts` — plus a rule-engine regression benchmark, a held-out adversarial set and an LLM evaluation harness |
 
 ---
 
@@ -156,6 +161,25 @@ Actions: **Accept**, **Edit**, **Dismiss with reason**, **Escalate**. Dismissing
 opens the learning prompt: *“Make this an approved rule?” → Yes / No / Yes for one department or content
 type only.* Nothing is applied until that is answered, and legal/accessibility changes additionally require
 an **Approver**.
+
+---
+
+## 2a. The user journey, in one paragraph
+
+**A visitor opens the link** and reads the brief at `/` — no session, no form. **They sign in**, and the
+sign-in is always shown. **A Brand Manager sets the standard**: a guideline is uploaded, mined for
+candidate rules, and nothing is enforced until an Admin confirms each proposal. **A creator submits a
+draft**; it is measured, scanned for injected instructions (as data), and reviewed by six specialists in
+parallel against the confirmed rules. **A manager reads one finding properly** — the issue, the quoted
+rule, the evidence with its page and section, the impact, the suggestion, and how confident the system is
+and why — then accepts, edits, dismisses with a reason, or escalates it. **Nothing is approved by the
+model, and nobody approves their own item.** If the manager overrode something, the product asks one
+question: *"make this an approved rule?"* — and only an answer changes a rule, as a **new version** with
+author, date, scope and reason. Every step lands in an append-only, hash-chained audit log, and the review
+exports as a record a person can take to a meeting.
+
+Full walk-through, with the seven stages, the role matrix and the four state machines:
+**[`docs/USER-JOURNEY.md`](docs/USER-JOURNEY.md)**.
 
 ---
 
@@ -315,7 +339,7 @@ Provider transparency: `/v1/provider`, `/v1/meta` and every finding expose provi
 
 ```bash
 cd backend
-pytest -q                      # 253 passed
+pytest -q                      # 254 passed
 python -m eval.run_eval        # precision / recall / F1 / FP-rate per reviewer vs. single-prompt baseline
 python -m eval.run_llm_eval    # needs a key; refuses to print numbers without one
 python -m eval.doc_facts       # fails if this README or docs/ disagree with those runs
@@ -516,9 +540,10 @@ frontend/
                        nav.ts, tour.ts (the walkthrough), prefs
   app/components/      Shell, Walkthrough, FindingCard, HighlightedText, LearningPrompt,
                        landing/, brand/, ui primitives
-docs/                  architecture (+ images/architecture.svg), API reference,
-                       security & responsible AI, evaluation, demo script, proof desk,
-                       deployment, screenshots in images/
+docs/                  ARCHITECTURE (+ images/architecture.svg)
+                       USER-JOURNEY (+ images/user-journey.svg)
+                       API reference, security & responsible AI, evaluation, demo
+                       script, proof desk, deployment, screenshots in images/
 ```
 
 ---

@@ -1,5 +1,8 @@
 # Demo script (≈10 minutes)
 
+> The stages below are the stages in [`USER-JOURNEY.md`](USER-JOURNEY.md): arrive → sign in → set the
+> standard → submit → review → decide → learn. This script is that journey, with a clock.
+
 The seeded workspace is **Northwind Analytics**, a fictional B2B SaaS company, with a hand-written Brand Kit
 (two guideline versions — the current 5.0 and the 4.2 it replaced — 14 rules, 10 terms, 8 approved facts,
 colours/fonts/logo) and submissions already analysed, mistakes included.
