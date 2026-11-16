@@ -91,6 +91,57 @@ This document is a brand standard, not legal advice. Regulated claims must be ch
 Named customer stories require written consent on file.
 """
 
+# --------------------------------------------------------------------------- #
+# Version 5.0 of the same guideline.
+#
+# The demo used to ship exactly one version, so the Guideline changes page had
+# nothing to compare and looked broken on every fresh workspace. This is the
+# re-issue that a brand team actually produces: one section tightened, one
+# withdrawn, one added. It is fed through the *real* pipeline at seed time
+# (`diff_documents` + `record_change`), so every number on that page is produced
+# by the same code a real upload uses — nothing is hand-written into the ledger.
+#
+# What a reviewer should see in the demo:
+#   * section 7 (Accessibility) changed  -> its three rules are flagged
+#   * section 8 (Claims and Legal) changed -> its three rules are flagged
+#   * section 10 (Legal Notes) removed   -> nothing cites it, so nothing is flagged
+#   * section 11 (Sustainability) added  -> an added section can never flag a rule
+# --------------------------------------------------------------------------- #
+GUIDELINE_TEXT_V5 = GUIDELINE_TEXT.replace(
+    # 7. Accessibility — the standard moves to WCAG 2.2, and the contrast floor for
+    # large text changes with it. Small edit, large consequence: the rules that
+    # quote 4.5:1 are now standing on text that says something else.
+    "All text must meet WCAG 2.1 AA contrast: 4.5:1 for body text and 3:1 for large text of 24px and above.",
+    "All text must meet WCAG 2.2 AA contrast: 4.5:1 for body text and 3:1 for large text of 24px and above, "
+    "and every interactive control must show a visible focus ring of at least 2px.",
+).replace(
+    # 8. Claims and Legal — superiority claims now need two sources, not one.
+    'Superiority claims such as "best company", "number one" and "industry-leading" require a dated, verifiable third-party source held on file. Without one, do not publish.',
+    'Superiority claims such as "best company", "number one" and "industry-leading" require two dated, '
+    "verifiable third-party sources held on file, both less than 12 months old. Without both, do not publish.",
+).replace(
+    # 10. Legal Notes is withdrawn in 5.0.
+    """
+10. Legal Notes
+This document is a brand standard, not legal advice. Regulated claims must be checked by Legal before publication.
+Named customer stories require written consent on file.
+""",
+    "",
+).replace(
+    # A new section — the honest case where nothing can be invalidated.
+    """9. Approved Facts""",
+    """9. Approved Facts""",
+)
+
+GUIDELINE_TEXT_V5 = GUIDELINE_TEXT_V5.rstrip("\n") + """
+
+11. Sustainability Claims
+
+"sustainable", "carbon neutral" and "net zero" may only be used with a current certification reference in the same sentence.
+Never combine a sustainability claim with a price claim in the same sentence.
+"""
+
+
 RULES = [
     {
         "key": "VOI-001", "category": "brand_voice", "check_type": "both", "requires_approver": False,

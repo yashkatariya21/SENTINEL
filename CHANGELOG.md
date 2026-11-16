@@ -6,6 +6,55 @@ documents' figures stop agreeing with those runs.
 
 ---
 
+## The change ledger has something to show, and the desk has a map
+
+### Fixed — Guideline changes was empty on every new workspace
+
+The demo shipped **one** guideline version, so nothing had ever been compared: the page
+opened on "No guideline changes yet" and looked broken. It now ships a re-issue.
+
+- `seed/brand_kit.py` gains **`GUIDELINE_TEXT_V5`**: version 5.0 of the same hand-written
+  guideline, with a section tightened (Accessibility moves to WCAG 2.2 and adds a focus-ring
+  rule), a section changed (superiority claims now need two sources), a section withdrawn
+  (Legal Notes) and a section added (Sustainability Claims).
+- `seed/seed.py` generates it through the **real pipeline** — `diff_documents` +
+  `record_change`, the same functions an upload uses — so the page shows a genuine
+  section-by-section diff and genuine review tasks. Six rules are flagged (three
+  accessibility, three legal) and **none is altered**: they stay active until a person
+  decides, which is the promise the page makes.
+- The seed is idempotent and self-repairing: `ensure_demo_guideline_change()` tops up a
+  workspace seeded before this existed, and runs from both `seed_if_empty()` (the startup
+  path) and `ensure_workspace()` (the demo-load path).
+- Three tests: the demo has a recorded comparison whose tasks are all `needs_review` on
+  active rules; v4.2 is superseded by v5.0 with the lineage pointing both ways; seeding
+  twice does not duplicate anything.
+
+`GET /guideline-changes` on a fresh demo: **1 change — 1 added, 1 removed, 2 changed,
+7 unchanged — 6 rules awaiting a decision.**
+
+### Changed — the walkthrough lives on Settings
+
+The walkthrough is back, in the place it belongs: a **Settings → Walkthrough** card listing
+all eleven rooms in the order worth walking, one line each, with a tick for the rooms this
+browser has actually opened (`localStorage`, written by the shell on every desk page) and a
+*Next: &lt;room&gt;* button for the first one you have not seen. Nothing was added to the public
+brief: the front page stays as it was.
+
+`lib/tour.ts` keeps the list, built from `NAV`, so the walkthrough cannot drift away from the
+sidebar, the palette or the shortcuts sheet.
+
+### Improved — the overview
+
+- **"Seven weeks at the gate"** — brand score by week, drawn from `brand_health_trend`, with
+  the first and last figures written out in words and the whole series in a visually hidden
+  list. No invented numbers: every label is computed from the array the API returned.
+- **"Where the findings come from"** — the severity mix as one bar, then the six reviewers
+  ranked by how many findings they raised.
+- **"Your recent submissions"** now spans the full row instead of sitting alone at a third of
+  it, where four of five titles were truncated to "Warehouse ad (paid soc…".
+
+---
+
 ## Guideline changes: three ways the comparison broke its own promise
 
 The page makes three claims. Each of them was false on a real re-issued guideline,

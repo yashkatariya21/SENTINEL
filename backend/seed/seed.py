@@ -31,7 +31,8 @@ from app.services.workflows import (
     add_comment, answer_learning_prompt, decide, decide_on_finding, promote, submit_for_approval,
 )
 from app.storage import save_bytes
-from seed.brand_kit import ASSETS, FACTS, GUIDELINE_TEXT, ORG, RULES, TERMS, USERS
+from seed.brand_kit import (ASSETS, FACTS, GUIDELINE_TEXT, GUIDELINE_TEXT_V5, ORG, RULES,
+                            TERMS, USERS)
 from seed.samples import by_id
 
 log = logging.getLogger("sentinel.seed")
@@ -121,6 +122,9 @@ def seed_if_empty() -> bool:
     with session_scope() as db:
         existing = db.execute(select(Organisation).where(Organisation.slug == ORG["slug"])).scalars().first()
     if existing:
+        # The organisation is already there, but a workspace seeded before the 5.0
+        # re-issue existed would keep an empty Guideline changes page. Idempotent.
+        ensure_demo_guideline_change()
         return False
     build_workspace()
     return True
@@ -135,6 +139,87 @@ def _owner_map(db, org_id: str) -> dict[str, str]:
     return {u.email: u.id for u in db.execute(select(User).where(User.org_id == org_id)).scalars()}
 
 
+
+V5_FILENAME = "northwind-brand-guidelines-5.0.md"
+V1_FILENAME = "northwind-brand-guidelines-4.2.md"
+
+
+def _seed_guideline_v5(db, *, org_id: str, kit, previous, owner_id: str, owner_email: str,
+                       owner_name: str) -> str | None:
+    """Re-issue the demo guideline as 5.0 and record the comparison.
+
+    Runs the real pipeline: the same `diff_documents` and `record_change` an upload
+    uses, so the Guideline changes page shows a genuine section-by-section diff and
+    genuine review tasks — not rows written straight into the ledger. It never edits
+    a rule: every affected rule is flagged and left exactly as it was.
+
+    Returns the new document id, or None when 5.0 already exists (idempotent).
+    """
+    from app.models import Document, RuleReviewTask  # local: avoids a cycle at import time
+    from app.services.guideline_changes import record_change
+    from app.services.guideline_diff import diff_documents
+
+    existing = db.execute(select(Document).where(Document.org_id == org_id,
+                                                 Document.filename == V5_FILENAME)).scalars().first()
+    if existing is not None:
+        return None
+
+    text = GUIDELINE_TEXT_V5
+    key = save_bytes(text.encode(), org_id=org_id, prefix="documents", filename=V5_FILENAME)
+    doc = Document(org_id=org_id, brand_kit_id=kit.id, filename=V5_FILENAME, mime="text/markdown",
+                   size_bytes=len(text.encode()), kind="guideline", version=previous.version + 1,
+                   pages=6, status="extracted", storage_key=key,
+                   meta={"tokens": len(text.split()), "source": "hand-written demo kit",
+                         "text": text[:200_000],
+                         "lineage": list((previous.meta or {}).get("lineage") or []) + [
+                             {"document_id": previous.id, "version": previous.version,
+                              "filename": previous.filename}],
+                         "replaces_document_id": previous.id,
+                         "replaces_version": previous.version})
+    db.add(doc)
+    db.flush()
+
+    previous.meta = {**(previous.meta or {}), "superseded_by": doc.id,
+                     "superseded_by_version": doc.version,
+                     "text": (previous.meta or {}).get("text") or GUIDELINE_TEXT[:200_000]}
+    db.flush()
+
+    ingest_document(db, org_id=org_id, document=doc, text=text, page_map=[])
+    principal = Principal(user_id=owner_id, org_id=org_id, role="admin", email=owner_email,
+                          name=owner_name)
+    sections = diff_documents(GUIDELINE_TEXT, text)
+    summary = record_change(db, org_id=org_id, principal=principal, previous=previous,
+                            current=doc, sections=sections)
+    log.info("seeded guideline re-issue %s -> %s: %s, %s review task(s)", V1_FILENAME,
+             V5_FILENAME, summary.get("summary"), summary.get("tasks"))
+    return doc.id
+
+
+def ensure_demo_guideline_change() -> bool:
+    """Top up an already-seeded demo workspace with the 5.0 comparison.
+
+    `ensure_workspace()` returns early once the organisation exists, so workspaces
+    seeded before this existed would keep an empty Guideline changes page forever.
+    This is idempotent and cheap: it looks for 5.0 and does nothing when it is there.
+
+    Returns True when it created the re-issue.
+    """
+    with session_scope() as db:
+        org = db.execute(select(Organisation).where(Organisation.slug == ORG["slug"])).scalars().first()
+        if org is None:
+            return False
+        kit = db.execute(select(BrandKit).where(BrandKit.org_id == org.id)).scalars().first()
+        previous = db.execute(select(Document).where(Document.org_id == org.id,
+                                                     Document.filename == V1_FILENAME)).scalars().first()
+        owner = db.execute(select(User).where(User.org_id == org.id,
+                                              User.email == "ananya@northwind.example")).scalars().first()
+        if kit is None or previous is None or owner is None:
+            return False
+        created = _seed_guideline_v5(db, org_id=org.id, kit=kit, previous=previous,
+                                     owner_id=owner.id, owner_email=owner.email, owner_name=owner.name)
+        return created is not None
+
+
 def ensure_workspace() -> str:
     """Create org, users, Brand Kit, guideline document and reference data.
 
@@ -143,8 +228,10 @@ def ensure_workspace() -> str:
     """
     with session_scope() as db:
         existing = db.execute(select(Organisation).where(Organisation.slug == ORG["slug"])).scalars().first()
-        if existing is not None:
-            return existing.id
+    if existing is not None:
+        ensure_demo_guideline_change()
+        return existing.id
+
 
     log.info("seeding workspace %s", ORG["slug"])
     adapter = get_adapter()
@@ -232,6 +319,12 @@ def ensure_workspace() -> str:
                          status=asset["status"], meta=asset.get("meta") or {}))
 
         db.flush()
+
+        # The re-issue, so the Guideline changes page is not empty on a fresh demo.
+        _seed_guideline_v5(db, org_id=org.id, kit=kit, previous=doc,
+                           owner_id=users["ananya@northwind.example"].id,
+                           owner_email="ananya@northwind.example",
+                           owner_name="Ananya Iyer")
         return org.id
 
 
