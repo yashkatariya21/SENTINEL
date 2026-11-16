@@ -29,7 +29,7 @@ interface Summary {
   findings_by_reviewer: Record<string, number>;
   most_common_mistakes: { rule_key: string; count: number; example_issue: string }[];
   average_approval_hours: number | null;
-  brand_health_trend: { week_start: string; brand_score: number | null; submissions: number }[];
+  brand_health_trend: { week_start: string; brand_score: number | null; submissions: number; findings: number }[];
   provider: { provider: string; model: string; prompt_version: string };
 }
 
@@ -151,6 +151,166 @@ function GettingStarted({
         ))}
       </ol>
     </section>
+  );
+}
+
+/** The week label under the chart: "21 Sep". */
+function weekLabel(iso: string): string {
+  const d = new Date(`${iso}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+}
+
+const SEVERITIES = [
+  { key: "critical", label: "Critical", colour: "var(--mark)" },
+  { key: "high", label: "High", colour: "var(--warn)" },
+  { key: "medium", label: "Medium", colour: "var(--ink-2)" },
+  { key: "low", label: "Low", colour: "var(--ink-3)" },
+] as const;
+
+const REVIEWER_LABEL: Record<string, string> = {
+  brand_voice: "Brand Voice",
+  terminology: "Terminology",
+  fact_checker: "Fact Checker",
+  visual: "Visual",
+  accessibility: "Accessibility",
+  legal: "Legal",
+};
+
+/**
+ * Seven weeks of brand health, as the numbers actually recorded.
+ *
+ * The chart is drawn from `brand_health_trend`; every label on it is computed from
+ * that array, so it cannot drift from the data. The same figures are written out in
+ * a visually hidden list, so the shape of the line is never the only way to read it.
+ */
+function TrendCard({ trend }: { trend: Summary["brand_health_trend"] }) {
+  const points = trend.filter((w) => typeof w.brand_score === "number");
+  if (points.length < 2) {
+    return (
+      <p className="text-sm text-[color:var(--ink-3)]">
+        Not enough weeks recorded yet to draw a trend.
+      </p>
+    );
+  }
+
+  const values = points.map((w) => w.brand_score as number);
+  const first = values[0];
+  const last = values[values.length - 1];
+  const lo = Math.min(...values);
+  const hi = Math.max(...values);
+  const span = hi - lo || 1;
+  // a small vertical margin so the highest and lowest points are not on the edge
+  const y = (v: number) => 6 + (1 - (v - lo) / span) * 48;   // 0..60
+  const x = (i: number) => (i / (values.length - 1)) * 100;   // 0..100 %
+  const line = values.map((v, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(2)},${y(v).toFixed(2)}`).join(" ");
+  const area = `${line} L100,60 L0,60 Z`;
+  const delta = last - first;
+  const newFindings = points[points.length - 1].findings;
+
+  return (
+    <>
+      <div className="relative mt-1 h-[104px]">
+        <svg viewBox="0 0 100 60" preserveAspectRatio="none" aria-hidden="true"
+             className="h-full w-full overflow-visible">
+          {[0, 30, 60].map((gy) => (
+            <line key={gy} x1="0" y1={gy} x2="100" y2={gy}
+                  stroke="var(--hairline)" strokeWidth="0.4" vectorEffect="non-scaling-stroke" />
+          ))}
+          <path d={area} fill="var(--mark-tint)" />
+          <path d={line} fill="none" stroke="var(--ink)" strokeWidth="1.5"
+                strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+        </svg>
+        {/* the current week, marked in HTML so the dot stays round whatever the width */}
+        <span aria-hidden="true"
+              className="absolute h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-[color:var(--paper)] bg-[color:var(--mark)]"
+              style={{ left: "100%", top: `${(y(last) / 60) * 100}%` }} />
+      </div>
+      <div className="mt-1 flex items-baseline justify-between font-mono text-[10px] uppercase tracking-[0.1em] text-[color:var(--ink-3)]">
+        <span>{weekLabel(points[0].week_start)}</span>
+        <span>{weekLabel(points[points.length - 1].week_start)}</span>
+      </div>
+
+      <p className="mt-3 text-sm leading-relaxed text-[color:var(--ink-2)]">
+        Brand score went from{" "}
+        <strong className="font-semibold text-[color:var(--ink)]">{first.toFixed(1)}</strong> to{" "}
+        <strong className="font-semibold text-[color:var(--ink)]">{last.toFixed(1)}</strong>
+        {" "}({delta >= 0 ? "+" : ""}{delta.toFixed(1)}), with{" "}
+        <strong className="font-semibold text-[color:var(--ink)]">{newFindings}</strong>{" "}
+        finding{newFindings === 1 ? "" : "s"} in the current week.
+      </p>
+
+      <ul className="sr-only">
+        {points.map((w) => (
+          <li key={w.week_start}>
+            Week of {weekLabel(w.week_start)}: brand score {w.brand_score}, {w.submissions} submission
+            {w.submissions === 1 ? "" : "s"}, {w.findings} finding{w.findings === 1 ? "" : "s"}.
+          </li>
+        ))}
+      </ul>
+
+      <Link href="/analytics"
+            className="link-under mt-3 inline-flex items-center gap-1 text-xs font-semibold text-[color:var(--ink)]">
+        The whole record <Icon name="arrow" size={13} />
+      </Link>
+    </>
+  );
+}
+
+/**
+ * Where the findings come from: severity mix, then the reviewer that raised them.
+ * Counts only — no percentages are invented, they are divided by the total shown.
+ */
+function MixCard({ summary }: { summary: Summary }) {
+  const severity = SEVERITIES.map((s) => ({ ...s, count: summary.findings_by_severity[s.key] ?? 0 }));
+  const total = severity.reduce((n, s) => n + s.count, 0);
+  const reviewers = Object.entries(summary.findings_by_reviewer).sort((a, b) => b[1] - a[1]);
+  const busiest = reviewers.length ? reviewers[0][1] : 0;
+
+  if (total === 0) {
+    return <p className="text-sm text-[color:var(--ink-3)]">No findings recorded in this window yet.</p>;
+  }
+
+  return (
+    <>
+      <div
+        className="flex h-2.5 w-full overflow-hidden rounded-[2px] border border-[color:var(--hairline)]"
+        role="img"
+        aria-label={severity.map((s) => `${s.count} ${s.label.toLowerCase()}`).join(", ")}
+      >
+        {severity.map((s) => (
+          <span key={s.key} style={{ width: `${(s.count / total) * 100}%`, background: s.colour }}
+                title={`${s.label}: ${s.count}`} />
+        ))}
+      </div>
+      <ul className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5">
+        {severity.map((s) => (
+          <li key={s.key} className="flex items-center justify-between gap-2 text-xs">
+            <span className="inline-flex items-center gap-1.5 text-[color:var(--ink-2)]">
+              <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full" style={{ background: s.colour }} />
+              {s.label}
+            </span>
+            <span className="font-mono tabular-nums text-[color:var(--ink)]">{s.count}</span>
+          </li>
+        ))}
+      </ul>
+
+      <p className="mt-4 border-t border-[color:var(--hairline)] pt-3 font-mono text-[10px] uppercase tracking-[0.14em] text-[color:var(--ink-3)]">
+        Raised by
+      </p>
+      <ul className="mt-2 space-y-1.5">
+        {reviewers.map(([key, count]) => (
+          <li key={key} className="grid grid-cols-[6.5rem_minmax(0,1fr)_1.75rem] items-center gap-2 text-xs">
+            <span className="truncate text-[color:var(--ink-2)]">{REVIEWER_LABEL[key] ?? key}</span>
+            <span className="relative block h-[5px] overflow-hidden rounded-[1px] bg-[color:var(--hairline)]">
+              <span className="block h-full origin-left rounded-[1px] bg-[color:var(--ink)]"
+                    style={{ width: `${busiest ? (count / busiest) * 100 : 0}%` }} />
+            </span>
+            <span className="text-right font-mono tabular-nums text-[color:var(--ink)]">{count}</span>
+          </li>
+        ))}
+      </ul>
+    </>
   );
 }
 
@@ -423,8 +583,10 @@ export default function OverviewPage() {
           )}
         </Card>
 
-        {/* ------------------------------------------------------ my content */}
-        <Card className="p-5">
+        {/* ------------------------------------------------------ my content
+            Full width: it is a list, and at a third of the row four of the five
+            items were truncated to "Warehouse ad (paid soc…". */}
+        <Card className="p-5 lg:col-span-3">
           <SectionHeading title="Your recent submissions" subtitle="Drafts and reviews you own" />
           {!items ? <Skeleton className="h-24 w-full" /> : mine.length === 0 ? (
             items.length === 0 ? (
@@ -465,6 +627,36 @@ export default function OverviewPage() {
                 </li>
               ))}
             </ul>
+          )}
+        </Card>
+      </div>
+
+      {/* -------------------------------------------------- the signal strip
+          Two readings a manager actually asks for: is it getting better or worse,
+          and where is it coming from. Both drawn from the summary already loaded. */}
+      <div className="mt-4 grid items-start gap-4 [&>*]:min-w-0 lg:grid-cols-3">
+        <Card className="p-5 lg:col-span-2">
+          <SectionHeading
+            title="Seven weeks at the gate"
+            subtitle="Brand score by week, from the same recorded runs as the figures above"
+          />
+          {summary ? (
+            <TrendCard trend={summary.brand_health_trend} />
+          ) : can("can_read_analytics") ? (
+            <Skeleton className="h-28 w-full" />
+          ) : (
+            <p className="text-sm text-[color:var(--ink-3)]">Analytics are available to managers and above.</p>
+          )}
+        </Card>
+
+        <Card className="p-5">
+          <SectionHeading title="Where the findings come from" subtitle="Severity, then the reviewer that raised it" />
+          {summary ? (
+            <MixCard summary={summary} />
+          ) : can("can_read_analytics") ? (
+            <Skeleton className="h-28 w-full" />
+          ) : (
+            <p className="text-sm text-[color:var(--ink-3)]">Analytics are available to managers and above.</p>
           )}
         </Card>
       </div>

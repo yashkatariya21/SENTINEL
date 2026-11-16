@@ -13,6 +13,7 @@ import { DeskMark, DeskSentri } from "./Desk";
 import { DeskBackground } from "./DeskBackground";
 import { Icon, type IconName } from "./Icon";
 import { NAV, NAV_GROUPS, ROLE_LABEL, visibleNav } from "@/lib/nav";
+import { markVisited } from "@/lib/tour";
 
 /** Routes that render without the chrome (public marketing / auth). */
 const BARE_ROUTES = ["/login", "/welcome", "/about", "/trust"];
@@ -41,6 +42,12 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const [shortcuts, setShortcuts] = useState(false);
 
   useEffect(() => setOpen(false), [pathname]);
+
+  /* The walkthrough on Settings ticks a room for having been opened. The shell is
+     mounted on every desk page, so it is the one place that sees them all. */
+  useEffect(() => {
+    if (pathname) markVisited(pathname);
+  }, [pathname]);
 
   /* ⌘K / "/" → palette · "?" → shortcuts · "g" then 1-9 → page */
   useEffect(() => {

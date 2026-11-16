@@ -7,6 +7,7 @@ import { DeskSentri } from "../components/Desk";
 import { ReviewerAvatar } from "../components/brand/ReviewerAvatar";
 import { CHARACTER_LIST, personaFor } from "../components/brand/characters";
 import { Ribbon } from "../components/brand/Seal";
+import { Walkthrough } from "../components/Walkthrough";
 
 export default function SettingsPage() {
   const { showCharacters, setShowCharacters, theme, toggleTheme } = usePrefs();
@@ -92,6 +93,10 @@ export default function SettingsPage() {
           <Link href="/audit" className="text-navy-700 underline underline-offset-2">the audit log</Link> for
           every decision made in this workspace.
         </p>
+      </Card>
+
+      <Card className="mt-4 p-5">
+        <Walkthrough />
       </Card>
 
       <Card className="mt-4 p-5">

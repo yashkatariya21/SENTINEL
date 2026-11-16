@@ -611,3 +611,58 @@ def test_run_regression_reports_what_it_compared_against(client, auth):
         assert payload["threshold"] == 0.05
         assert "compared_with" in payload
         assert payload["samples"] == len(SAMPLES)
+
+
+# --------------------------------------------------------------------------- #
+# C2c — the demo workspace ships a real comparison, not an empty page
+# --------------------------------------------------------------------------- #
+def test_the_demo_workspace_has_a_guideline_change_to_show(client, auth):
+    """A fresh demo must not open on "No guideline changes yet".
+
+    The demo used to ship exactly one guideline version, so the Guideline changes
+    page was empty on every new workspace and looked broken. The seed now re-issues
+    the guideline through the real pipeline.
+    """
+    headers = auth("ananya@northwind.example")
+    changes = client.get("/v1/guideline-changes", headers=headers).json()
+    demo = [c for c in changes if c["filename"].startswith("northwind-brand-guidelines")]
+    assert demo, "the seeded workspace must contain at least one recorded comparison"
+
+    change = demo[0]
+    assert change["summary"]["changed"] >= 1 and change["summary"]["removed"] >= 1
+    assert change["summary"]["added"] >= 1
+    assert change["sections"], "the section diff is stored for the review page"
+    assert change["tasks"], "the re-issue must flag the rules that stand on the changed sections"
+
+    for task in change["tasks"]:
+        assert task["status"] == "needs_review"
+        assert task["change_status"] in ("changed", "removed")
+        assert task["rule_active"] is True, "a seeded diff must never alter a rule"
+
+
+def test_the_seeded_comparison_points_at_two_documents(client, auth):
+    """v4.2 is superseded by v5.0, and the lineage says so."""
+    headers = auth("ananya@northwind.example")
+    docs = client.get("/v1/documents", headers=headers).json()
+    older = [d for d in docs if d["filename"] == "northwind-brand-guidelines-4.2.md"]
+    newer = [d for d in docs if d["filename"] == "northwind-brand-guidelines-5.0.md"]
+    assert older and newer, [d["filename"] for d in docs]
+    assert newer[0]["version"] == 2
+    assert newer[0]["replaces_document_id"] == older[0]["id"]
+    assert older[0]["superseded_by"] == newer[0]["id"]
+
+
+def test_seeding_the_demo_twice_does_not_duplicate_the_comparison(client, auth):
+    """The seed runs on every startup; it must be idempotent."""
+    from app.db import session_scope
+    from app.models import GuidelineChange
+    from sqlalchemy import select
+    from seed.seed import ensure_demo_guideline_change
+
+    before = client.get("/v1/guideline-changes", headers=auth("ananya@northwind.example")).json()
+    assert ensure_demo_guideline_change() is False, "the re-issue already exists"
+    with session_scope() as db:
+        rows = db.execute(select(GuidelineChange)).scalars().all()
+    after = client.get("/v1/guideline-changes", headers=auth("ananya@northwind.example")).json()
+    assert len(after) == len(before)
+    assert len([r for r in rows if r.filename == "northwind-brand-guidelines-5.0.md"]) == 1
