@@ -1,8 +1,18 @@
-# Demo script (8 minutes)
+# Demo script (≈10 minutes)
 
 The seeded workspace is **Northwind Analytics**, a fictional B2B SaaS company, with a hand-written Brand Kit
-(guidelines, 14 rules, 10 terms, 8 approved facts, colours/fonts/logo) and 53 analysed submissions including
-seeded mistakes.
+(two guideline versions — the current 5.0 and the 4.2 it replaced — 14 rules, 10 terms, 8 approved facts,
+colours/fonts/logo) and submissions already analysed, mistakes included.
+
+Two paths fill it, and they differ in size:
+
+| Path | What you get |
+|---|---|
+| `python -m seed.seed` (CLI or `SEED_ON_STARTUP=1`) | **16** items — enough to open every screen with real data |
+| **Load demo data** on `/login` (`POST /v1/demo/load`) | **57** items — all 53 labelled samples plus four showcase pieces, and the one this script assumes |
+
+Both include the guideline re-issue, the six rule review tasks it opened, and the seeded decisions that make
+the learning loop and analytics truthful.
 
 **Nobody needs a password to walk the demo.** Choosing a role on `/login` calls `POST /v1/demo/session`,
 which mints a token for a user *inside the demo workspace* — and only while `DEMO_MODE=1`. That endpoint
@@ -28,13 +38,25 @@ optional and a random one is printed once if you leave it empty). `docker-compos
 
 If the loader fails you get a plain-language error and a **Retry** button; nothing is left half-built.
 
-## 0 · Sign in as a Creator (30s)
+## 0 · The door: brief → sign-in → desk (45s)
 
-`/login` → “Sign in as any role” → **Rhea D'Souza — Creator** (no password; the switcher asks
-`/v1/demo/session` for that role's token).
+Open the link. You land on **the brief at `/`** — “Read before it ships”, what the committee is, how a
+review reads, what it refuses to do. This is public: no form, no session needed, and an expired token does
+not bounce you off it.
+
+Press **Open the workspace** → **`/login`**. The sign-in is a step, always shown. If this browser already
+holds a session it also offers *Continue to the desk* — take it, or sign in as someone else to show the
+role switcher.
+
+Choose **Rhea D'Souza — Creator** (no password; the switcher asks `/v1/demo/session` for that role's
+token). You land on **`/desk`**.
 
 Point out the left rail: it is the product shortlist — Overview, New submission, Content queue, Brand Kit,
-Rules, Learning. **No Analytics, no Audit log** for a creator.
+Rules, Guideline changes, Learning. **No Analytics, no Audit log** for a creator.
+
+Two things to point at before moving on: the **dial bank** (waiting on a human · reviewed · Brand Score
+with its seven-week sparkline · average approval), and **“Seven weeks at the gate”** below it. No number on
+that page is invented, and a figure that has not been measured prints “—”, never a zero.
 
 ## 1 · Submit content and watch six reviewers work (90s)
 
@@ -96,6 +118,25 @@ The response: a new rule version (scope `content_type = ad`), old version kept a
 `/learn` shows a **legal** override sitting in *“Waiting for an Approver”*: switch to **Arjun Nair —
 Approver** to promote it, and note that a Manager gets a 403 if they try.
 
+## 5a · A guideline re-issued, and the rules it disturbs (90s)
+
+`/rules/changes` as **Meera Krishnan — Brand Manager**.
+
+The sample guideline was re-issued from **4.2 to 5.0** through the same `diff_documents()` +
+`record_change()` path a real upload takes, not fixture text. On screen:
+
+* the section table — **1 added** (Sustainability Claims), **1 removed** (Legal Notes), **2 changed**
+  (Accessibility: now WCAG 2.2 with a focus-ring rule, 82 % similar; Claims and Legal: two dated sources
+  for superiority claims, 95 % similar), **7 unchanged** at 100 %;
+* **six rules flagged** — `A11Y-001..003`, `LEG-001..003` — each showing *the rule as it stands* beside
+  *what the guideline now says*.
+
+Then the point of the page: **nothing has changed.** Press **Keep as is** on one task and the rule is
+untouched. Try **Edit rule** or **Retire** on a legal one as a Manager: it needs an Approver. Every branch
+writes to `/audit`.
+
+> “A new guideline does not silently rewrite your rules. It flags the ones it touches and asks a person.”
+
 ## 6 · Analytics and audit (60s)
 
 `/analytics` (Manager+): Brand Score with its formula printed on screen, severity mix, most common mistakes
@@ -126,4 +167,6 @@ monthly report, and the provider line.
 | “Who can change a rule?” | Only via an explicit manager action that starts with the “Make this an approved rule?” prompt; legal and accessibility changes need an Approver; every change is a new version with author, date, scope and reason. |
 | “Can it approve content?” | No. There is no approve-on-behalf path in the API, and self-approval is blocked in both the service layer and a Postgres trigger. |
 | “How do you know a promotion didn't break something?” | Every promotion re-runs the 53-sample labelled set and flags any reviewer whose F1 drops by more than 0.05. |
+| “What happens when the brand guidelines change?” | A new version is diffed section by section against the one it replaces; rules drawn from a changed or vanished section are flagged for review, old wording beside new. Nothing is edited until a person answers keep / edit / retire — and legal or accessibility rules need an Approver. |
+| “Does the link open the dashboard?” | No. The link opens the public brief; the desk is behind the sign-in, and the sign-in is always shown rather than skipped. A deep link into any room survives the round trip through it. |
 | “Multi-tenant?” | `org_id` on all 20 tables, org-scoped queries everywhere, cross-tenant reads return 404, plus Postgres RLS forced on. There is a test that creates a second workspace and asserts isolation. |

@@ -6,6 +6,46 @@ documents' figures stop agreeing with those runs.
 
 ---
 
+## The documents, brought level with the code
+
+An architecture diagram, and every doc audited against what the application actually does.
+
+### The diagram
+
+`docs/images/architecture.svg` (and a PNG copy beside it for contexts that cannot render
+SVG) draws the whole system in one page, in the product's own palette and type: **the door**
+(brief → sign-in → desk), **the browser** (twelve rooms, five browser-side contracts),
+**the API** (routers, `security.py`, twelve services) and **the record** (Postgres +
+pgvector, object storage, an optional hosted model), with the change ledger spelled out as
+the one flow that explains the product. Every arrow is a call that exists.
+
+### What the audit found
+
+| Document | What was wrong |
+|---|---|
+| `QUICKSTART.md` | the demo-user table listed **people who do not exist** (`ada@`, `maya@`, `raj@`, `tom@`, `ines@`, `leo@`, `sam@`). Replaced with the eight real seeded users and their actual roles |
+| `docs/API.md` | the **guideline-change queue was undocumented** — four endpoints, including the one that decides a rule's fate. Also missing: the served original, the logo upload and the pinned-regression pair. All 58 routes are now in the reference |
+| `docs/DEMO.md` | claimed 53 analysed submissions; the one-click loader makes **57** (53 labelled samples + 4 showcase pieces) and the CLI seed makes **16**. Both paths are now stated, with the new beats (the door, the guideline re-issue) and two more answers for the hard questions |
+| `docs/ARCHITECTURE.md` | the ASCII map named `/login / /content …` and no `/desk`; no mention of the route list or the change ledger. Now carries the diagram, a **door** section, and a **change ledger** section |
+| `docs/PROOF-DESK.md` | four places still described the door as `/ → /welcome` and the desk as `/`. Corrected, including the verification list |
+| `docs/EVALUATION.md` | five features had no number and no statement of that. Guideline diffing, rule review decisions and the door are now listed under *what is not measured*, with what is tested instead |
+| `docs/SECURITY-AND-RESPONSIBLE-AI.md` | a new §1b names exactly what is public and why, and states plainly that the browser gate is a convenience, never the authorisation boundary |
+| `README.md` | the Pages table was missing five real pages and still described `/login` as skipping the form. The repository map did not know about `desk/`, `routes.ts`, `tour.ts` or the walkthrough |
+
+### Three new guards
+
+`backend/tests/test_docs_and_discipline.py` now checks the documents against the application,
+not just against the numbers:
+
+* **every endpoint in `docs/API.md`** — a new route fails the suite until it is documented
+  (this is the gap that let the guideline-change queue go unwritten);
+* **every page in the README's Pages table exists**, and every page that exists is in it;
+* **the diagram is committed in both formats** and referenced by the architecture doc.
+
+253 collected, 248 passed, 5 skipped.
+
+---
+
 ## The link opens on the brief, and the desk is behind the sign-in
 
 Opening the site used to land on the dashboard: `/` was the desk overview, and the

@@ -23,7 +23,7 @@ Marks and notes are two ends of one link: pressing either brings the other into 
 
 A flat fill was the one thing the first pass got wrong, so the paper is now a surface.
 `app/components/DeskBackground.tsx` paints eight fixed, `aria-hidden`,
-pointer-transparent layers under every page — the app shell, `/login` and `/welcome` all
+pointer-transparent layers under every page — the app shell, the brief at `/` and `/login` all
 share it:
 
 | layer | what it is | interaction |
@@ -153,7 +153,10 @@ plus the route list in `lib/routes.ts`, and nowhere else:
    reader nothing — a 401 on a public page no longer throws them out of it
    (`lib/api.ts` asks `isPublicRoute` first).
 2. The brief's header and closing call to action point at `/login`. The desk lives behind
-   it at `/desk`.
+   it at `/desk`. **The sign-in page is always shown** — it is the middle step, not a
+   form to be skipped. A browser that already holds a session gets the form plus one
+   honest line ("Signed in as …") and a *Continue to the desk* button; nothing is decided
+   for the reader, and the demo role switcher still works because the form is right there.
 3. After `login`, `setup` or `loginAs` the destination is `takeNext() ?? "/desk"`.
 
 Before this, `/` was the desk and the signed-out redirect was client-side: a browser
@@ -210,7 +213,7 @@ read on top of the light.
 | aurora teal | top-left | `rgba(15,74,85,.38)` at 20 % 0 % | `rgba(15,74,85,.13)` at 44 % 0 % |
 | base | the room | `#07090d` | `#07090d` |
 
-`/welcome` and `/login` pass `variant="public"` to `DeskBackground`; everything else gets
+The brief at `/` and `/login` pass `variant="public"` to `DeskBackground`; everything else gets
 the edge recipe. Cards stay opaque `--paper` / `--paper-2`, and the only decoration on
 top of a glow is the seal's orbit ring (night shift only, contained inside the stage box
 so it cannot reach the headline).
@@ -355,9 +358,10 @@ network or the reader's settings say no.
   (rest → 300,700 → 1300,200), grid drift `0px 48px` after an 800 px scroll, ruler marker
   moves with it; under `reduced_motion="reduce"` the lamp is `display:none`, the glyph
   animation is `none` and the lean transform is `none`
-- the order of the door: `/` → `/welcome`, CTA → `/login`, sign in → `/`, and a cold
-  deep link → `/welcome` → sign in → the deep link it asked for; `sessionStorage` key
-  consumed once; no console errors (`journey.py`)
+- the order of the door: `/` (the brief) → CTA → `/login` → sign in → `/desk`, and a cold
+  deep link → `/` → sign in → the deep link it asked for; `sessionStorage` key consumed
+  once; a returning reader still sees the sign-in, with *Continue to the desk*; no console
+  errors (§1a.5 has the full table)
 - axe-core re-run after the flow and the maker's note: **0 violations across the same 32
   page × theme combinations**; mobile sweep at 390 px still reports `OVERFLOW: []` on all
   14 pages

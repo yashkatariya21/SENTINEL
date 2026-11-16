@@ -7,6 +7,12 @@ system learns from manager decisions.
 > It reviews and explains. It **never publishes**, **never auto-fixes**, and **never changes a rule
 > without a manager's click**.
 
+[![Sentinel AI architecture — the door, the desk, the review pipeline, the record](docs/images/architecture.svg)](docs/ARCHITECTURE.md)
+
+*One link opens the **brief**; the desk is behind the sign-in. The diagram is drawn from the code —
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) has the layer-by-layer version, the request lifecycle
+and the failure modes.*
+
 | | |
 |---|---|
 | Frontend | Next.js 14 (App Router) + React 18 + Tailwind |
@@ -15,7 +21,7 @@ system learns from manager decisions.
 | Auth | JWT (local HS256) or Supabase/Clerk JWKS verification |
 | AI | Provider-agnostic adapter: offline deterministic engine (default) or hosted LLM + embeddings, **server-side only** |
 | Parsing | PyMuPDF, python-docx, Pillow, OCR (pytesseract + tesseract) — the container ships it |
-| Tests | 250 pytest cases (`pytest -q`) — reconciled against the docs by `python -m eval.doc_facts` — plus a rule-engine regression benchmark, a held-out adversarial set and an LLM evaluation harness |
+| Tests | 253 pytest cases (`pytest -q`) — reconciled against the docs by `python -m eval.doc_facts` — plus a rule-engine regression benchmark, a held-out adversarial set and an LLM evaluation harness |
 
 ---
 
@@ -96,18 +102,23 @@ database level by Postgres RLS (`migrations/rls.sql`, `FORCE ROW LEVEL SECURITY`
 | Route | Purpose |
 |---|---|
 | `/` | **The public brief — the front door.** Anyone with the link lands here; it is what the committee is, how a review reads, what it refuses to do, with the sign-in in the header |
-| `/login` | Sign in or create a workspace (org + first Admin), demo role switcher. A signed-in visitor is sent straight on to `/desk` |
-| `/desk` | The desk overview: Brand Score + formula, the week's trend, the queue, guardrails, how a review runs |
+| `/login` | Sign in or create a workspace (org + first Admin), demo role switcher. **Always shown** — a browser that already holds a session gets the form plus *Signed in as …* and a *Continue to the desk* button |
+| `/desk` | The desk overview: the masthead, a dial bank (waiting / reviewed / Brand Score with its weekly sparkline / average approval), the Brand Score card with its formula, the queue, **seven weeks at the gate**, **where the findings come from**, how a review runs, the guardrails card, most common mistakes |
 | `/kit` | Brand Kit: document upload & ingestion, **proposals awaiting Admin confirmation**, terms, approved facts, colours/fonts/logo, readiness checks |
 | `/new` | New submission: paste text or upload DOCX/PDF/image, choose content type + department |
 | `/content` | Content queue with status/search filters |
 | `/content/[id]` | **Review Report**: highlighted spans, findings grouped by reviewer, severity/type filters, finding cards |
 | `/content/[id]/approval` | **Approval view**: version history, comments (internal/external), timeline, approve/reject/request-changes |
 | `/rules` | Rules with versions: author, date, scope, reason, **revert** |
+| `/rules/changes` | **Guideline changes**: a re-issued guideline diffed section by section, with the rules it flagged and a keep / edit / retire decision each — nothing alters until a person answers |
 | `/learn` | Adaptive learning: overrides, learning-prompt answers, Approver gate, regression runs |
 | `/analytics` | Brand Score, mistake mix, department compliance, approval time, repeats, 8-week trend, monthly report |
+| `/evaluation` | The regression benchmark and the held-out set, including the misses and the confidence-band caveat |
 | `/audit` | Append-only, hash-chained audit log with chain verification |
+| `/brand` | The committee itself: the six reviewer characters, and the design language they are drawn in |
+| `/brand/characters` | Every character drawn large, with the palette and type specimen they are built from |
 | `/welcome` | 308 → `/` — the brief's old address, kept so bookmarks and old links still open |
+| `/settings` | Appearance (day / night shift), your role and permissions, and the **walkthrough** — every room in the desk, ticked only once this browser has actually opened it |
 | `/about` | What the project is, the three improvements by name, the design language, the stack, and the AI-assistance disclosure |
 | `/trust` | Plain-language summary of `docs/SECURITY-AND-RESPONSIBLE-AI.md`, plus honest privacy and terms sections |
 
@@ -304,7 +315,7 @@ Provider transparency: `/v1/provider`, `/v1/meta` and every finding expose provi
 
 ```bash
 cd backend
-pytest -q                      # 250 passed
+pytest -q                      # 253 passed
 python -m eval.run_eval        # precision / recall / F1 / FP-rate per reviewer vs. single-prompt baseline
 python -m eval.run_llm_eval    # needs a key; refuses to print numbers without one
 python -m eval.doc_facts       # fails if this README or docs/ disagree with those runs
@@ -498,10 +509,16 @@ backend/
                        guideline changes, image evidence, docs-vs-runs
   migrations/rls.sql    RLS, append-only audit, no-self-approval trigger, pgvector index
 frontend/
-  app/                 login, overview, content, report, approval, kit, rules, learn, analytics, audit
-  lib/                 api client, auth context
-  app/components/      Shell, FindingCard, HighlightedText, LearningPrompt, ui primitives
-docs/                  architecture, API reference, security & responsible AI, evaluation, demo script
+  app/                 page.tsx = the public brief · desk/ = the overview
+                       login, content, report, approval, kit, rules, rules/changes,
+                       learn, analytics, evaluation, audit, settings, brand, about, trust
+  lib/                 api client, auth context, routes.ts (the one route list),
+                       nav.ts, tour.ts (the walkthrough), prefs
+  app/components/      Shell, Walkthrough, FindingCard, HighlightedText, LearningPrompt,
+                       landing/, brand/, ui primitives
+docs/                  architecture (+ images/architecture.svg), API reference,
+                       security & responsible AI, evaluation, demo script, proof desk,
+                       deployment, screenshots in images/
 ```
 
 ---
@@ -529,6 +546,9 @@ docs/                  architecture, API reference, security & responsible AI, e
 * A new guideline version is diffed against the one it replaces (sections by title, then `difflib`
   ratio), but a *rename* is reported as added + removed with a similarity hint — never asserted as a
   rename. Rules drawn from an unrelated earlier document are deliberately not flagged.
+* The front door is three steps — brief, sign-in, desk — and the sign-in is not skippable. A returning
+  reader is offered *Continue to the desk* rather than being redirected; that costs one click and
+  keeps the demo's role switcher reachable, which a silent redirect did not.
 * Image measurement runs at upload. An image that arrived before this feature, or one whose bytes could
   not be decoded, carries no measurement — and therefore produces no pixel finding.
 

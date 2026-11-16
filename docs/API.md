@@ -36,11 +36,30 @@ objects**, so existence never leaks), `409` (wrong state), `413`/`415` (upload),
 | GET/POST | `/terms`, DELETE `/terms/{id}` | read all / write admin+BM | term lists (`banned|approved|required`) |
 | GET/POST | `/facts` | read all / write admin+BM | approved facts (the only permitted numbers) |
 | GET/POST | `/assets` | read all / write admin+BM | colours, fonts, logo version (+ `meta.aspect_ratios`, `meta.contrast_pairs`, `meta.naming_variants`) |
+| POST | `/assets/{id}/logo` | admin, brand_manager | multipart `file`, **PNG only** — a perceptual hash of a JPEG moves with the encoder, and a measurement that depends on the compressor is not a measurement. Enables logo-shape comparison, which is always labelled **Possible**, never Confirmed |
 | GET | `/rules` | all | current version of every rule with author, scope, source section |
 | GET | `/rules/{id}/versions` | all | full history, newest first, `is_current` flag |
 | PATCH | `/rules/{id}` | admin, brand_manager (+approver for legal/a11y) | **appends** a version; never overwrites |
 | POST | `/rules/{id}/revert/{version}` | admin, brand_manager, approver | appends a copy of that version; `{reason}` |
 | GET | `/provider` | any | which AI provider/model is in use (transparency) |
+
+## Guideline changes and the rule review queue
+
+When a new version of a guideline arrives, `services/guideline_diff.diff_documents()` compares it with the
+version it replaces — sections matched by title, then `difflib` ratio — and `record_change()` writes one
+`GuidelineChange` plus one `RuleReviewTask` per rule drawn from a section that changed or vanished.
+**No rule body is touched here.** Keeping, editing or retiring is a separate, human decision.
+
+| Method | Path | Role | Notes |
+|---|---|---|---|
+| GET | `/guideline-changes?status=` | `rules:read` | newest first. Each change carries `filename`, `previous_version` / `current_version`, `summary` (`added`/`removed`/`changed`/`unchanged` counts), `sections[]` (title, verdict, similarity, note), `has_original` (whether the uploaded bytes can be served back), `tasks[]` and `open_tasks` |
+| GET | `/rule-review-tasks?status=needs_review` | `rules:read` | the queue. `status=all` returns everything. Each task carries the rule as it stands (`rule_body`), what the guideline now says (`current_body`), the section, the change verdict, the similarity, `requires_approver`, and `rule_active`. A task never implies the rule was edited — `rule_active` stays true until somebody decides |
+| GET | `/rule-review-tasks/count` | `rules:read` | `{needs_review, rules[]}` — cheap enough for the sidebar badge to poll |
+| POST | `/rule-review-tasks/{task_id}/decide` | admin, brand_manager, approver | `{action: "keep"\|"edit"\|"retire", body?, title?, reason?}`. `keep` changes nothing; `edit` appends a new rule version; `retire` deactivates the rule. `400` for an unknown action, `403` for a role that may not decide, and **`403` when the rule `requires_approver`** (legal or accessibility) unless the caller is an admin or an approver. Every branch writes an audit entry |
+
+The seeded demo exercises this end to end: the fictional guideline is re-issued from **4.2 to 5.0** through
+the same two functions an upload uses, producing `1 added · 1 removed · 2 changed · 7 unchanged` and six
+tasks (`A11Y-001..003`, `LEG-001..003`), all `needs_review`, all rules still active.
 
 ## Content
 
@@ -60,6 +79,7 @@ objects**, so existence never leaks), `409` (wrong state), `413`/`415` (upload),
 | POST | `/content/{id}/approve` | manager+ | `{action: approve\|reject\|request_changes, reason?, version?}`. **`403` if the actor owns the item**; reason required to reject/request changes |
 | GET | `/content/{id}/approvals` | scoped | recorded decisions |
 | GET | `/content/{id}/timeline` | scoped | versions + decisions + comments in order |
+| GET | `/content/{id}/original?version_id=` | scoped, same ownership rule as the report | the stored bytes a visual finding is pointing at. Returned inline with `X-Content-Type-Options: nosniff` and only for `image/png|jpeg|webp`, so the browser treats it as an image and nothing else. `404` when there is no stored original |
 
 ## Analysis & findings
 
@@ -99,6 +119,8 @@ objects**, so existence never leaks), `409` (wrong state), `413`/`415` (upload),
 | POST | `/overrides/{id}/answer` | deciding manager | `{make_rule, scope: global\|department\|content_type, department?, content_type?, reason?}` → `promoted` (new rule version + regression) or `pending_approval` (legal/a11y) or `declined` |
 | POST | `/overrides/{id}/promote` | approver (legal/a11y), admin, brand_manager | creates the rule version after sign-off; **manager gets 403 for legal/a11y** |
 | GET | `/regressions` | manager+ | labelled-set regression runs after promotions |
+| GET | `/regression/baseline` | manager+ | which run future comparisons are measured against, whether it is **pinned**, and a plain sentence saying so. `baseline: null` with a note when nothing has run yet |
+| POST | `/regression/pin` | manager, admin, brand_manager | pins a run (default: the newest) as the baseline so comparisons stop chasing a moving target. `404` when there is no run to pin. Recorded in the audit log |
 
 ## Analytics, audit, organisation
 

@@ -5,7 +5,7 @@ interchangeably.
 
 | What | Command | Needs a key? | Question it answers |
 |---|---|---|---|
-| Behaviour tests | `cd backend && pytest -q` (that is 250 tests) | no | Do the deterministic rules, permissions and tenancy boundaries hold? |
+| Behaviour tests | `cd backend && pytest -q` (that is 253 tests) | no | Do the deterministic rules, permissions and tenancy boundaries hold? |
 | **Pipeline regression benchmark (rule-based engine)** | `python -m eval.run_eval` | no | Did a rule or code change break the engine's behaviour on the tuning set? |
 | **Held-out adversarial set** | `python -m eval.run_eval` (same run) | no | Does the engine generalise to copy it was not tuned on? |
 | **LLM evaluation** | `python -m eval.run_llm_eval` | **yes** | How well do three prompt configurations perform, at what latency and cost? |
@@ -190,6 +190,18 @@ python -m eval.run_llm_eval --no-cache      # fresh calls, real latency
 * Prompt-injection resistance under adversarial grading (the pipeline detects instruction-like text and
   the behaviour test covers it; there is no scored adversarial suite).
 * Cost of the deterministic engine — it is zero by construction, so there is nothing to measure.
+* **Guideline change detection.** There is no labelled corpus of guideline re-issues, and scoring section
+  diffing against the 53 brand-voice samples would measure nothing. It is covered by unit tests on section
+  matching and the added / removed / changed verdicts, and the re-issue the demo ships is asserted end to
+  end (1 added · 1 removed · 2 changed · 7 unchanged, six review tasks, no rule altered).
+* **Rule review decisions** (keep / edit / retire). A human decision has no ground truth to score; what is
+  tested is the effect — `keep` changes no rule body, `edit` appends a version, `retire` deactivates, and a
+  legal or accessibility task refuses a Manager with 403.
+* **The door and the walkthrough.** Routing is not a model behaviour; the headless journey covers
+  brief → sign-in → desk, the remembered deep link, the returning reader, and a 401 on a public page.
+
+A change to the diffing or routing code cannot move the regression number below, and it would be wrong to
+read that number as evidence that either works.
 
 Two failures are visible rather than hidden: the held-out gap above, and the reviews in `report.md`.
 A demo that shows only wins is a demo, not an evaluation.
