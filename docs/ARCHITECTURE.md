@@ -1,35 +1,19 @@
 # Architecture
 
-```
-┌──────────────────────────── Browser ────────────────────────────┐
-│ Next.js 14 App Router (Vercel)                                  │
-│  /login  /  /content  /content/[id]  /content/[id]/approval      │
-│  /new  /kit  /rules  /learn  /analytics  /audit                 │
-│  lib/api.ts — one fetch wrapper, JWT in localStorage            │
-│  app/components/{Shell,FindingCard,HighlightedText,LearningPrompt}│
-└───────────────┬─────────────────────────────────────────────────┘
-                │  same-origin  /v1/*   (next.config rewrites → API_URL)
-                ▼
-┌──────────────────────────── FastAPI (Render / Railway) ─────────┐
-│ routers/  auth · brand_kit · content · overrides · analytics     │
-│ security.py  JWT → Principal(org_id, role) → permission checks   │
-│              + set_request_org() for Postgres RLS                │
-│ services/ extraction · deterministic · retrieval · pipeline      │
-│           workflows · analytics · regression                     │
-│ llm/      base (contract) · local_engine · hosted · factory       │
-│ audit.py  append-only hash chain                                 │
-│ storage.py  MIME/size validation · local disk or S3              │
-└───────────────┬───────────────────────────┬─────────────────────┘
-                │ SQLAlchemy 2                │ HTTPS (server-side only)
-                ▼                             ▼
-┌──────────────────────────────┐   ┌──────────────────────────────┐
-│ PostgreSQL 16 + pgvector     │   │ Hosted LLM / embeddings      │
-│ 20 tables, org_id everywhere │   │ (optional; local engine is   │
-│ RLS policies, append-only    │   │  the default)                │
-│ audit, no-self-approval      │   └──────────────────────────────┘
-│ trigger, IVFFlat vector index│
-└──────────────────────────────┘
-```
+![Sentinel AI architecture: the door, the desk, the review pipeline, the record](images/architecture.svg)
+
+*The source of this diagram is `docs/images/architecture.svg` (a PNG copy sits beside it for
+contexts that cannot render SVG). It is drawn from the code, not from ambition: every arrow
+is a call that exists, and every number in it is one the seed actually produces.*
+
+Four layers, top to bottom:
+
+| Layer | What it is | Where it lives |
+|---|---|---|
+| **A · The door** | the public brief at `/`, the sign-in at `/login`, the desk at `/desk` | `lib/routes.ts`, `lib/auth.tsx`, `next.config.js` |
+| **B · The browser** | twelve rooms, one fetch wrapper, two browser-only preferences, the walkthrough | `frontend/app/`, `frontend/lib/` |
+| **C · The API** | FastAPI routers, `security.py`, and the services the review is built from | `backend/app/` |
+| **D · The record** | Postgres + pgvector, object storage, an optional hosted model | `backend/app/models.py`, `migrations/` |
 
 ## Why these boundaries
 
@@ -74,10 +58,36 @@ chunk keeps page number and the last numbered section heading. Embeddings live i
 IVFFlat cosine index. SQLite falls back to in-process cosine similarity over the same vectors, so
 behaviour is identical in tests and demos.
 
+## The door — brief, sign-in, desk
+
+Three routes, one order, enforced in `lib/auth.tsx` against the single route list in
+`lib/routes.ts`:
+
+```
+/            public, prerendered     the brief: what the committee is, how a review reads
+/login       public                 the sign-in form — always shown, never skipped
+/desk        gated                  the desk overview; every other room hangs off it
+```
+
+* `/` is **exact** in `isPublicRoute()` and everything else is a prefix. A prefix test for
+  `/` would be true for every path in the application and would switch the gate off.
+* An anonymous visitor who asks for a desk room is sent to the brief, and the room they
+  asked for is remembered in `sessionStorage['sentinel.next']` — consumed once, on the
+  next successful sign-in. It is not kept in a query string precisely so that neither
+  page has to become dynamic.
+* **The sign-in is a step, not an obstacle.** It renders for everyone; a browser already
+  holding a session sees the form plus *"Signed in as …"* and a *Continue to the desk*
+  button. (An earlier convenience redirect skipped the page entirely for returning
+  visitors, which meant "Open the workspace" jumped straight to the dashboard and the
+  second step of the door never appeared.)
+* `/welcome` is a permanent redirect to `/`, so older links keep working.
+* A `401` on a public page never ejects the reader — `lib/api.ts` asks `isPublicRoute()`
+  before redirecting, so an expired token only costs them the "API online" dot.
+
 ## Frontend data flow
 
-* `AuthProvider` holds `/auth/me` (role + permission flags) and redirects to `/login` when there is no
-  token.
+* `AuthProvider` holds `/auth/me` (role + permission flags), enforces the door above, and
+  renders the desk chrome only on desk routes (`Shell.tsx` reads the same route list).
 * Each page loads its own data; the Review Report polls the run every 900 ms while `queued|running`.
 * Highlighting works on the server-provided `span_start`/`span_end` character offsets: `DocumentView` cuts the
   text at every span boundary, and where spans overlap the most severe wins visually. Applying a suggestion
@@ -108,6 +118,39 @@ behaviour is identical in tests and demos.
 | Background task dies | `recover_stale_runs()` marks anything stuck in `queued`/`running` for >15 min as `failed` with an "Abandoned… re-run" message, at startup and before each new run. Never auto-requeued: re-running a hosted model spends money |
 | Production started with dev defaults | `settings.assert_production_safe()` raises at startup and lists every problem; the port never opens |
 | Login / upload hammered | `429` with `Retry-After` from the per-IP limiter |
+
+## The change ledger — a re-issued guideline
+
+The ledger is the one flow that explains the whole product, so it is spelled out here and
+in the diagram.
+
+```
+new guideline uploaded  ──▶  services/guideline_diff.diff_documents()
+                              sections matched by title, then difflib ratio
+                              ↓
+                        GuidelineChange (summary + per-section verdict)
+                              ↓
+                        one RuleReviewTask per rule drawn from a section that
+                        changed or vanished  →  all `needs_review`, all rules still active
+                              ↓
+                        a person answers keep / edit / retire
+                        (POST /rule-review-tasks/{id}/decide — legal and accessibility
+                         tasks additionally need an Approver)
+                              ↓
+                        keep = nothing moves · edit = a new rule version ·
+                        retire = the rule is deactivated — with author, date and reason
+```
+
+`record_change()` is the only writer, and it never touches a rule body: a rule whose source
+section changed is *flagged*, not edited. A section **rename** is reported as added +
+removed with a similarity hint, never asserted as a rename.
+
+The demo seed exercises this pipeline for real rather than writing fixture text: it
+re-issues the fictional guideline from 4.2 to 5.0 through `diff_documents()` +
+`record_change()` — 1 added, 1 removed, 2 changed, 7 unchanged — which is what
+`/rules/changes` displays. `ensure_demo_guideline_change()` tops up a workspace that was
+seeded before this existed, so an old database repairs itself instead of showing an empty
+ledger.
 
 ## The learning loop, concretely
 

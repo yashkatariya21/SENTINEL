@@ -121,3 +121,70 @@ def test_the_readme_does_not_invent_a_live_url():
         "the deployment instructions must name where the health check lives"
     for invented in ("https://sentinel-demo.onrender.com/health", "sentinel.demo.example"):
         assert invented not in readme
+
+
+# --------------------------------------------------------------------------- #
+# D4 — the docs describe the application that actually exists
+# --------------------------------------------------------------------------- #
+def _live_endpoints() -> set[str]:
+    """Every route the routers declare, with prefixes resolved and ids normalised."""
+    import re
+    from app.routers import analytics, auth, brand_kit, content, demo, evaluation, guidelines, overrides
+
+    live: set[str] = set()
+    for module in (auth, brand_kit, guidelines, content, overrides, analytics, demo, evaluation):
+        for route in module.router.routes:
+            # FastAPI already folds the router's own prefix into route.path; adding it
+            # again produced /auth/auth/login and would have "documented" nothing.
+            live.add(re.sub(r"\{[^}]+\}", "{}", route.path))
+    return live
+
+
+def _documented_endpoints() -> set[str]:
+    import re
+
+    text = (ROOT / "docs" / "API.md").read_text()
+    found: set[str] = set()
+    for span in re.findall(r"`(/[^`]+?)`", text):
+        found.add(re.sub(r"\{[^}]+\}", "{}", span.split("?")[0]))
+    return found
+
+
+def test_every_endpoint_is_in_the_api_reference():
+    """A route nobody documented is a route nobody can use on purpose.
+
+    This exists because the guideline-change queue shipped with four endpoints and no
+    API reference entry; the docs were only caught up when somebody read them. Now a new
+    route fails the suite until it is written down.
+    """
+    missing = sorted(_live_endpoints() - _documented_endpoints())
+    assert not missing, "these routes exist but are not in docs/API.md:\n  " + "\n  ".join(missing)
+
+
+def test_every_page_in_the_readme_exists():
+    """The README's Pages table is a claim about the app, so it is checked against it."""
+    import re
+
+    pages = set()
+    for path in (ROOT / "frontend" / "app").rglob("page.tsx"):
+        route = str(path.parent.relative_to(ROOT / "frontend" / "app"))
+        pages.add("/" if route == "." else f"/{route}")
+
+    readme = (ROOT / "README.md").read_text()
+    documented = {m.split("?")[0] for m in re.findall(r"^\| `(/[a-z0-9/\-\[\]]*)`", readme, re.M)}
+
+    # /welcome is a redirect, not a page; every other documented route must exist
+    missing = sorted(documented - pages - {"/welcome"})
+    assert not missing, "README documents pages that do not exist:\n  " + "\n  ".join(missing)
+
+    undocumented = sorted(pages - documented)
+    assert not undocumented, "these pages are not in the README's Pages table:\n  " + "\n  ".join(undocumented)
+
+
+def test_the_architecture_diagram_is_committed_with_its_source():
+    """The diagram in the docs is a real file, in both formats, and it is referenced."""
+    svg = ROOT / "docs" / "images" / "architecture.svg"
+    png = ROOT / "docs" / "images" / "architecture.png"
+    assert svg.exists() and svg.stat().st_size > 5000, "architecture.svg is missing or empty"
+    assert png.exists() and png.stat().st_size > 5000, "architecture.png (the fallback) is missing"
+    assert "images/architecture.svg" in (ROOT / "docs" / "ARCHITECTURE.md").read_text()

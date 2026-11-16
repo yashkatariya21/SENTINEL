@@ -39,6 +39,28 @@ one pass:
 Covered by `tests/test_hardening.py::test_production_refuses_unsafe_defaults` (one case per row, plus a case
 proving a correct configuration passes).
 
+## 1b. The door — what is public, and what that costs
+
+Three routes exist before a session does, and only three:
+
+| Route | Public? | Why |
+|---|---|---|
+| `/` | **yes** | the brief. It reads no tenant data: it is static marketing copy, so an anonymous visitor cannot learn anything from it that a press release would not tell them |
+| `/login` | **yes** | the sign-in form, and the demo role switcher (which is itself gated on `DEMO_MODE`) |
+| `/about`, `/trust` | **yes** | the same public-site material in more words |
+| everything else | **no** | `isPublicRoute()` in `lib/routes.ts` is **exact** for `/` and a prefix only for the rest; a prefix test for `/` would match every path and silently turn the gate off |
+
+Two consequences the implementation is careful about:
+
+* **A 401 on a public page does not eject the reader.** `lib/api.ts` consults `isPublicRoute()`
+  before redirecting, so an expired token on the brief costs the "API online" dot and nothing else.
+  Previously a hard redirect to `/login` from anywhere meant a public page could throw a reader at a
+  form — and the front door was itself behind the dashboard.
+* **The gate is a routing convenience, never the authorisation boundary.** Every desk request is
+  authenticated and scoped server-side by `Principal.require(...)` plus org filters; the browser gate only
+  decides which page to draw. Deleting `lib/auth.tsx` would change what you *see* and nothing about what
+  you *may read* — foreign objects still answer 404.
+
 ## 2. Authentication & authorisation
 
 * JWT (HS256 locally; RS256/ES256 + JWKS for Supabase/Clerk, with audience verification when configured).
