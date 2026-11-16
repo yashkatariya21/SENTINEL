@@ -1,8 +1,9 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth, DEMO_USERS } from "@/lib/auth";
+import { DESK_HOME } from "@/lib/routes";
 import { LoadDemoButton, ResetDemoButton } from "../components/Demo";
 import { Button, Card, FloatField, Select, TextInput, useToast } from "../components/ui";
 import { DeskSentri, Stamp, Wordmark } from "../components/Desk";
@@ -58,7 +59,7 @@ function SampleSheet() {
 }
 
 export default function LoginPage() {
-  const { login, setup, loginAs } = useAuth();
+  const { login, setup, loginAs, me, loading } = useAuth();
   const { push } = useToast();
   const router = useRouter();
   const [mode, setMode] = useState<"signin" | "setup">("signin");
@@ -77,8 +78,22 @@ export default function LoginPage() {
   const set = (key: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm((f) => ({ ...f, [key]: e.target.value }));
 
+  /* Someone already signed in should not be shown a sign-in form — a reader who
+     opens the link, reads the brief and then clicks "Open the workspace" has a
+     session and belongs at the desk. Nothing is shown while the session loads, so
+     the form never flashes over a person who is already in.
+
+     Only when *this page did not sign anyone in*: `submit` below ends in a
+     navigation of its own (to the room the visitor clicked, or the desk), and a
+     redirect fired here afterwards would beat it and throw that room away. */
+  const submitted = useRef(false);
+  useEffect(() => {
+    if (!loading && me && !submitted.current) router.replace(DESK_HOME);
+  }, [loading, me, router]);
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    submitted.current = true;
     setBusy(true);
     setError("");
     try {
@@ -176,7 +191,7 @@ export default function LoginPage() {
               Reviews · Explains · Never publishes
             </span>
             <Link
-              href="/welcome"
+              href="/"
               className="link-under w-fit font-mono text-[10px] uppercase tracking-[0.22em] text-[#FFE066] hover:text-[#FFF0A8]"
             >
               What Sentinel is — read the brief

@@ -17,7 +17,7 @@ export interface Room {
 
 /** The order a person actually needs: the standards first, then the work, then the record. */
 const ORDER = [
-  "/",
+  "/desk",
   "/kit",
   "/rules",
   "/rules/changes",
@@ -31,7 +31,7 @@ const ORDER = [
 ];
 
 const TODO: Record<string, string> = {
-  "/": "Start here: what is waiting on a person, and how the week is scoring.",
+  "/desk": "Start here: what is waiting on a person, and how the week is scoring.",
   "/kit": "Load the sample kit or upload a guideline — this is what everything is judged against.",
   "/rules": "Open one rule and read its versions; nothing here is ever overwritten.",
   "/rules/changes": "The sample guideline re-issued to 5.0, compared section by section, with the rules it flagged.",
@@ -48,7 +48,7 @@ export const TOUR: Room[] = ORDER.map((href) => {
   const item = NAV.find((nav) => nav.href === href);
   return {
     href,
-    label: item?.label ?? (href === "/" ? "Overview" : href),
+    label: item?.label ?? (href === "/desk" ? "Overview" : href),
     // One line per room: the instruction, which is what a tour adds over the sidebar.
     // Where there is no instruction the sidebar's own description is used, so a room
     // is never listed with a blank line beside it.

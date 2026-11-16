@@ -145,36 +145,53 @@ cannot be the first thing to fail when a glow moves.
 
 ## 1a.5 The order of the door — brief, then sign-in, then desk
 
-The public link now opens on the brief. The order is enforced in one place,
-`lib/auth.tsx`, and nowhere else:
+The public link opens on the brief. The order is enforced in one place, `lib/auth.tsx`
+plus the route list in `lib/routes.ts`, and nowhere else:
 
-1. The guard runs on every authenticated route. An anonymous visitor is asked for
-   nothing first: the path they wanted is written to
-   `sessionStorage['sentinel.next']` and they are sent to `/welcome`.
-2. `/welcome` is the pitch; its closing call to action points at `/login`, and the
-   header's *Open the workspace* points there too.
-3. After `login`, `setup` or `loginAs`, the destination is `takeNext() ?? "/"`.
+1. `/` **is** the brief, and it is public: an anonymous visitor is not bounced to a form
+   to read it. It is prerendered, so it opens at once, and an expired session costs the
+   reader nothing — a 401 on a public page no longer throws them out of it
+   (`lib/api.ts` asks `isPublicRoute` first).
+2. The brief's header and closing call to action point at `/login`. The desk lives behind
+   it at `/desk`.
+3. After `login`, `setup` or `loginAs` the destination is `takeNext() ?? "/desk"`.
 
-`takeNext()` accepts only a string that starts with `/` and not `//`, and removes
-the key as it reads it, so the remembered path is used once and cannot become a
-redirect to somewhere else. `PUBLIC_ROUTES = ["/login", "/welcome"]` keeps the
-sign-in reachable directly and both pages statically prerendered — the intended
-path lives in `sessionStorage` rather than in search params precisely so a query
-string never forces either page to become dynamic. `/` is still the
-authenticated overview; it is the guard, not a redirect, that gives an anonymous
-visitor the brief first.
+Before this, `/` was the desk and the signed-out redirect was client-side: a browser
+holding a stale token opened straight on the dashboard, everyone else saw a flash of it
+first, and a 401 from a public page could send a reader to the sign-in form. Swapping the
+two is the whole change — no API, data, rule or permission moved.
 
-Headless journey (`journey.py`, chromium, console captured):
+`takeNext()` accepts only a string that starts with `/` and not `//`, and removes the key
+as it reads it, so the remembered path is used once and cannot become a redirect to
+somewhere else. It is kept in `sessionStorage` rather than the URL so neither `/` nor
+`/login` has to become dynamic: a query string would force exactly that.
+
+`isPublicRoute()` in `lib/routes.ts` is the one list, with three readers — the auth gate,
+the API client's 401 handling, and the shell's decision whether to draw the desk chrome.
+It is **exact** for `/` and a prefix for the rest: `"/".startsWith("/")` is true for every
+path, so a naive prefix test would make the whole desk public and switch the gate off.
+`/welcome` is a permanent redirect to `/` so old links keep working (`next.config.js`).
+
+A person already signed in who opens `/login` is sent to `/desk` rather than shown a form
+they do not need. That redirect is guarded by a `submitted` ref: `submit()` ends in its own
+navigation (to the room the visitor clicked), and an unguarded redirect fired afterwards
+would beat it and throw the room away — which it did, until the guard was added.
+
+Headless journey (chromium, console captured, 1440 × 950):
 
 | step | expected | got | console |
 |---|---|---|---|
-| open `/` signed out | `/welcome` | `/welcome` | — |
+| open `/` signed out | the brief at `/` | `/`, no desk furniture, 4 sign-in links | `[]` |
+| `/welcome` (an old link) | `/` | `308 → /` | — |
 | press the brief's CTA | `/login` | `/login` | — |
-| sign in as Ananya | `/` | `/` | — |
-| cold deep link `/content/515d8f21…` | `/welcome`, path remembered | `/welcome`, remembered `True` | — |
-| sign in from there | back to the deep link | `/content/515d8f21…` | `[]` |
+| sign in as Ananya | `/desk` | `/desk`, "Today at the gate" rendered | `[]` |
+| cold deep link `/rules/changes` | `/`, path remembered | `/`, `sessionStorage['sentinel.next'] = "/rules/changes"` | — |
+| sign in from there | back to the deep link | `/rules/changes` | `[]` |
+| open `/login` while signed in | `/desk` | `/desk` | — |
+| open `/` while signed in | the brief | `/` | — |
 
-No API, data, route or permission changed: this is client-side routing only.
+All twelve desk rooms were then opened signed in: every one rendered, `overflowX` 0,
+no console errors.
 
 ## 1b. The night shift — a dark room with three lights in it
 

@@ -81,7 +81,7 @@ const GLYPHS: Record<string, React.ReactNode> = {
 };
 
 function glyphFor(pathname: string): React.ReactNode {
-  if (pathname === "/") return GLYPHS.overview;
+  if (pathname === "/desk") return GLYPHS.overview;
   if (pathname.startsWith("/content/")) return GLYPHS.proof;
   if (pathname.startsWith("/content")) return GLYPHS.content;
   if (pathname.startsWith("/new")) return GLYPHS.new;
